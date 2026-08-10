@@ -1,0 +1,462 @@
+/* =========================================
+   SECTION & BACKGROUND
+   ========================================= */
+.contact-section {
+  position: relative;
+  margin-bottom: 0 !important;
+  background: linear-gradient(180deg, #071410 0%, #050e08 100%);
+  padding: 100px 0 110px;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+}
+
+.section__bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.2;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.contact-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(5,14,8,0.8) 0%, rgba(7,20,16,0.9) 100%);
+  z-index: 0;
+}
+
+/* =========================================
+   CONTAINER & GRID (EQUAL HEIGHT FIX)
+   ========================================= */
+.contact-container {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 60px;
+  align-items: stretch; /* <-- CHANGED: Makes both columns the same height */
+}
+
+/* Left Column */
+.contact-left {
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* <-- ADDED: Fills the grid cell height */
+}
+
+/* =========================================
+   TYPOGRAPHY (CENTERED)
+   ========================================= */
+.contact-eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: #3fbf72;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+.contact-title {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800;
+  font-size: clamp(2rem, 4vw, 3rem);
+  color: #ffffff;
+  line-height: 1.1;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.contact-title .text-primary {
+  color: #3fbf72;
+}
+
+.contact-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.88rem;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.58);
+  margin-bottom: 36px;
+  max-width: 340px;
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* =========================================
+   CONTACT INFO CARDS
+   ========================================= */
+.contact-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+  flex-grow: 1; /* <-- ADDED: Allows cards to expand and fill vertical space */
+  justify-content: center; /* <-- ADDED: Centers cards vertically if there's extra space */
+}
+
+.contact-info-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: rgba(10, 28, 16, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 14px 18px;
+  transition: border-color 0.3s ease, background 0.3s ease;
+}
+
+.contact-info-card:hover {
+  border-color: rgba(63, 191, 114, 0.3);
+  background: rgba(10, 28, 16, 0.8);
+}
+
+.contact-info-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: rgba(63, 191, 114, 0.14);
+  border: 1px solid rgba(63, 191, 114, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.contact-info-icon svg {
+  width: 15px;
+  height: 15px;
+  color: #3fbf72;
+}
+
+.contact-info-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-info-label {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.62rem;
+  letter-spacing: 0.10em;
+  color: rgba(63, 191, 114, 0.75);
+  text-transform: uppercase;
+  margin: 0 0 4px 0;
+}
+
+.contact-info-line {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.80);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* =========================================
+   BOOK NOW BUTTON
+   ========================================= */
+.contact-book-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #1A7A48, #2DAA68);
+  color: #ffffff;
+  font-family: 'Poppins', sans-serif;
+  font-weight: 600;
+  font-size: 0.80rem;
+  letter-spacing: 0.08em;
+  padding: 13px 26px;
+  border-radius: 50px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 22px rgba(30, 180, 100, 0.36);
+  transition: box-shadow 0.3s ease;
+  margin: 0 auto;
+  width: fit-content;
+}
+
+.contact-book-btn:hover {
+  box-shadow: 0 6px 28px rgba(30, 180, 100, 0.5);
+}
+
+.btn-icon-wrapper {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-icon-wrapper svg {
+  width: 13px;
+  height: 13px;
+  color: #ffffff;
+}
+
+/* =========================================
+   CUSTOM INTERACTIVE MAP STYLES
+   ========================================= */
+.custom-map-container {
+  position: relative;
+  border: 1px solid rgba(197, 160, 89, 0.3);
+  min-height: 100px;
+  height: 100%; /* <-- ADDED: Fills the grid cell height to match left column */
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  background-color: #a0c3b8;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  user-select: none;
+}
+
+.map-canvas {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.5s ease;
+  background-color: #cae3da;
+}
+
+.map-canvas.satellite {
+  background-color: #121c17;
+}
+
+.map-svg {
+  width: 100%;
+  height: 100%;
+  opacity: 0.6;
+}
+
+/* Map Pins */
+.map-pin {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  cursor: pointer;
+  z-index: 20;
+}
+
+.map-pin-resort { left: 58%; top: 52%; z-index: 30; }
+.map-pin-dest-1 { left: 45%; top: 38%; }
+.map-pin-dest-2 { left: 70%; top: 25%; }
+.map-pin-dest-3 { left: 35%; top: 62%; }
+
+.pin-icon-wrapper { display: flex; flex-direction: column; align-items: center; }
+
+.pin-icon-main {
+  background-color: #C5A059;
+  color: #0e1612;
+  padding: 10px;
+  border-radius: 50%;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  border: 2px solid #0e1612;
+  transition: transform 0.3s ease;
+  animation: bounce 2s infinite;
+}
+
+.map-pin:hover .pin-icon-main { transform: scale(1.25); }
+.pin-icon-main svg { width: 24px; height: 24px; fill: #0e1612; color: #C5A059; }
+
+.pin-label-main {
+  background-color: #0e1612;
+  color: #C5A059;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  text-transform: uppercase;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin-top: 4px;
+  white-space: nowrap;
+}
+
+.pin-label-dest {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: rgba(14, 22, 18, 0.9);
+  color: #F9F8F6;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  text-transform: uppercase;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.pin-dot { width: 8px; height: 8px; background-color: #C5A059; border-radius: 50%; }
+
+/* Map Overlays */
+.map-overlay-box { position: relative; z-index: 30; padding: 16px; }
+
+.map-info-card {
+  background-color: rgba(14, 22, 18, 0.95);
+  color: #F9F8F6;
+  padding: 12px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  max-width: 280px;
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  border-radius: 8px;
+}
+
+.map-info-card h3 { font-family: 'Poppins', sans-serif; font-weight: 600; font-size: 14px; line-height: 1.25; color: #F9F8F6; margin: 0; }
+.map-info-card p { font-size: 10px; color: #C5A059; text-transform: uppercase; letter-spacing: 0.15em; margin-top: 4px; margin-bottom: 0; }
+
+.map-link {
+  font-size: 10px;
+  color: #C5A059;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+.map-link:hover { text-decoration: underline; opacity: 0.8; }
+.map-link svg { width: 12px; height: 12px; }
+
+/* Active Pin Popover */
+.map-popover {
+  position: relative;
+  z-index: 30;
+  margin: 0 auto 16px auto;
+  background-color: rgba(14, 22, 18, 0.95);
+  color: #F9F8F6;
+  font-size: 12px;
+  padding: 8px 16px;
+  border: 1px solid #C5A059;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 8px;
+  max-width: 90%;
+  font-style: italic;
+}
+
+.popover-dot {
+  width: 8px;
+  height: 8px;
+  background-color: #C5A059;
+  border-radius: 50%;
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Map Bottom Controls */
+.map-controls {
+  position: relative;
+  z-index: 30;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.map-type-btn {
+  width: 48px;
+  height: 48px;
+  border: 2px solid #C5A059;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  border-radius: 8px;
+  background: transparent;
+  padding: 0;
+}
+.map-type-btn img { width: 100%; height: 100%; object-fit: cover; }
+
+.map-type-btn-overlay {
+  position: absolute;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.map-type-btn-overlay svg { width: 16px; height: 16px; color: #C5A059; }
+
+.zoom-controls { display: flex; flex-direction: column; gap: 4px; }
+
+.zoom-label {
+  background-color: #0e1612;
+  color: #C5A059;
+  padding: 4px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  text-align: center;
+  margin-bottom: 4px;
+  border-radius: 4px;
+}
+
+.zoom-btn {
+  width: 32px;
+  height: 32px;
+  background-color: #0e1612;
+  color: #C5A059;
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+.zoom-btn:hover { background-color: rgba(197, 160, 89, 0.1); }
+.zoom-btn svg { width: 16px; height: 16px; }
+
+/* Animations */
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-25%); }
+}
+
+@keyframes ping {
+  75%, 100% { transform: scale(2); opacity: 0; }
+}
+
+/* =========================================
+   RESPONSIVE
+   ========================================= */
+@media (max-width: 900px) {
+  .contact-container { 
+    grid-template-columns: 1fr; 
+    align-items: start; /* Reset to start on mobile so they don't force weird heights */
+  }
+  .contact-left, .custom-map-container {
+    height: auto; /* Reset height on mobile */
+  }
+  .contact-info-list {
+    flex-grow: 0;
+    justify-content: flex-start;
+  }
+  .custom-map-container { min-height: 150px; }
+}
+
+@media (max-width: 600px) {
+  .contact-container { padding: 0 20px; }
+  .contact-title { font-size: 2rem; }
+  .contact-book-btn { width: 100%; justify-content: center; }
+}

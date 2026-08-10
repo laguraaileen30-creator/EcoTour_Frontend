@@ -1,0 +1,204 @@
+/* =========================================
+   NAVBAR CONTAINER - LIGHT & VISIBLE
+   ========================================= */
+.nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 1000;
+  padding: 16px 0;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* DARK TRANSPARENT GLASS EFFECT - No white background */
+  background: rgba(3, 19, 11, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+}
+
+/* Scrolled State */
+.nav--scrolled {
+  padding: 12px 0;
+  background: rgba(3, 19, 11, 0.92);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
+.nav__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* =========================================
+   BRAND / LOGO - BRIGHT & CLEAR
+   ========================================= */
+.nav__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  transition: opacity 0.3s ease;
+}
+
+.nav__brand:hover {
+  opacity: 0.85;
+}
+
+.nav__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #3fbf72;
+  filter: drop-shadow(0 0 10px rgba(63, 191, 114, 0.5));
+}
+
+.nav__title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.nav__name {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800;
+  font-size: 1.15rem;
+  letter-spacing: 0.05em;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.nav__sub {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  color: #3fbf72;
+  margin-top: 2px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* =========================================
+   NAVIGATION LINKS - ALWAYS VISIBLE
+   ========================================= */
+.nav__links {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.nav__link {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #ffffff !important;
+  text-decoration: none;
+  position: relative;
+  transition: all 0.3s ease;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  opacity: 1;
+}
+
+/* Animated underline effect */
+.nav__link::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background: #3fbf72;
+  box-shadow: 0 0 8px rgba(63, 191, 114, 0.8);
+  transition: width 0.3s ease;
+}
+
+.nav__link:hover {
+  color: #3fbf72 !important;
+  text-shadow: 0 0 12px rgba(63, 191, 114, 0.6);
+}
+
+.nav__link:hover::after {
+  width: 100%;
+}
+
+/* Primary CTA Button - Bright Green */
+.nav__link--cta {
+  background: linear-gradient(135deg, #1A7A48, #2DAA68);
+  color: #ffffff !important;
+  padding: 10px 24px;
+  border-radius: 50px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 20px rgba(45, 170, 104, 0.5);
+  transition: all 0.3s ease;
+  text-shadow: none;
+}
+
+.nav__link--cta::after {
+  display: none;
+}
+
+.nav__link--cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(45, 170, 104, 0.7), 0 0 20px rgba(63, 191, 114, 0.4);
+}
+
+/* Single Right-Side Login Button */
+.nav__link--login {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #ffffff !important;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  padding: 6px 16px;
+  border-radius: 50px;
+  transition: all 0.3s ease;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  margin-left: 8px;
+}
+
+.nav__link--login::after {
+  display: none;
+}
+
+.nav__link--login:hover {
+  background: rgba(63, 191, 114, 0.25);
+  border-color: rgba(63, 191, 114, 0.5);
+  color: #3fbf72 !important;
+  box-shadow: 0 0 16px rgba(63, 191, 114, 0.3);
+  transform: translateY(-1px);
+}
+
+.nav__link--login svg {
+  transition: color 0.3s ease;
+}
+
+@media (max-width: 900px) {
+  .nav__inner {
+    padding: 0 20px;
+  }
+
+  .nav__links {
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .nav__link {
+    font-size: 0.82rem;
+  }
+}

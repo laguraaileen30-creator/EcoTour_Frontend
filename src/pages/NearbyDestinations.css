@@ -1,0 +1,317 @@
+/* NearbyDestinations.css */
+/* Background Image Setup */
+.nearby-section {
+  position: relative;
+  background: linear-gradient(180deg, #050e08 0%, #071410 100%);
+  padding: 100px 0 110px;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  /* Prevents bg from spilling out */
+}
+
+.section__bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.05;
+  z-index: 0;
+}
+
+
+/* Ensure content sits above the background */
+.nearby-container {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+/* ... keep all the rest of the CSS from the previous response below this line ... */
+.nearby-section {
+  background: linear-gradient(180deg, #050e08 0%, #071410 100%);
+  padding: 100px 0 110px;
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+}
+
+.nearby-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 40px;
+}
+
+/* Header Styles */
+.nearby-header {
+  text-align: center;
+  margin-bottom: 56px;
+}
+
+.nearby-eyebrow {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: #3fbf72;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.nearby-title {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 800;
+  font-size: clamp(2rem, 4vw, 3rem);
+  color: #ffffff;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.nearby-title .text-primary {
+  color: #3fbf72;
+}
+
+/* Carousel Wrapper */
+.carousel-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Arrow Buttons */
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(10, 30, 16, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: white;
+  transition: opacity 0.2s, background 0.2s, transform 0.2s;
+}
+
+.carousel-arrow--left {
+  left: -20px;
+}
+
+.carousel-arrow--right {
+  right: -20px;
+}
+
+.carousel-arrow.disabled {
+  background: rgba(255, 255, 255, 0.06);
+  cursor: default;
+  opacity: 0.3;
+}
+
+.carousel-arrow:not(.disabled):hover {
+  background: rgba(63, 191, 114, 0.2);
+  border-color: rgba(63, 191, 114, 0.4);
+}
+
+/* Cards Track */
+.carousel-track {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-height: 380px;
+  padding: 12px 0 24px;
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE 10+ */
+  scroll-behavior: smooth;
+}
+
+.carousel-track::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari, Opera */
+}
+
+/* Destination Card */
+.dest-card {
+  flex-shrink: 0;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+  background: #0a1e10;
+  transition: box-shadow 0.45s ease, border-color 0.45s ease;
+}
+
+.dest-card--featured {
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(63, 191, 114, 0.3);
+}
+
+.dest-card:not(.dest-card--featured) {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.dest-card-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.dest-card:hover .dest-card-image {
+  transform: scale(1.05);
+}
+
+.dest-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(0deg, rgba(4, 14, 8, 0.88) 0%, rgba(4, 14, 8, 0.15) 60%);
+  pointer-events: none;
+}
+
+/* Badge */
+.dest-card-badge {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  background: rgba(63, 191, 114, 0.9);
+  border-radius: 20px;
+  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  z-index: 2;
+}
+
+.dest-card-badge span {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 0.65rem;
+  color: #ffffff;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Card Content */
+.dest-card-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 18px;
+  z-index: 2;
+}
+
+.dest-card-distance {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.68rem;
+  color: rgba(63, 191, 114, 0.9);
+  margin: 0 0 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 500;
+}
+
+.dest-card-name {
+  font-family: 'Poppins', sans-serif;
+  font-weight: 700;
+  color: #ffffff;
+  line-height: 1.25;
+  margin: 0 0 6px 0;
+  /* Default size, overridden by JS for featured */
+  font-size: 0.85rem;
+}
+
+.dest-card--featured .dest-card-name {
+  font-size: 1.05rem;
+}
+
+.dest-card-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.68);
+  line-height: 1.6;
+  margin: 0 0 10px 0;
+}
+
+/* Tags */
+.dest-card-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dest-card-tag {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.62rem;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.82);
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+/* Dots Pagination */
+.carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 28px;
+}
+
+.carousel-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.3s ease;
+}
+
+.carousel-dot--active {
+  width: 20px;
+  background: #3fbf72;
+}
+
+.carousel-dot:hover:not(.carousel-dot--active) {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .nearby-container {
+    padding: 0 20px;
+  }
+
+  .carousel-arrow {
+    display: none;
+    /* Hide arrows on mobile, rely on swipe/dots */
+  }
+
+  .dest-card--featured {
+    width: 260px !important;
+    height: 340px !important;
+  }
+
+  .dest-card:not(.dest-card--featured) {
+    width: 180px !important;
+    height: 280px !important;
+  }
+}
