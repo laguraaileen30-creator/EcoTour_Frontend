@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useEcoTour } from '../../context/EcoTourContext';
 import ClientSidebar from './components/ClientSidebar';
+import ThemeToggle from '../../components/ThemeToggle';
 import './Client.css';
 import ClientServicesTab from './tabs/ClientServicesTab';
 import ActivityLogsTab from './tabs/ActivityLogsTab';
@@ -77,6 +78,7 @@ export const ClientDashboard = () => {
           </div>
 
           <div className="ct-header-right flex items-center gap-4">
+            <ThemeToggle size="sm" />
             <button className="ct-icon-btn relative" onClick={() => setActiveTab('notifications')}>
               <Bell size={18} />
               <em className="absolute -top-1 -right-1 bg-emerald-500 text-slate-950 font-bold text-[10px] w-4 h-4 rounded-full flex items-center justify-center not-italic">3</em>

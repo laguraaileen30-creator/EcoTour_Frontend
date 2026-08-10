@@ -5,20 +5,20 @@
   position: relative;
   margin-top: 0 !important;
   background: linear-gradient(180deg, #050e08 0%, #020604 100%);
-  padding: 40px 0 24px;
+  padding: 50px 0 28px;
   color: #ffffff;
   font-family: 'Inter', sans-serif;
   overflow: hidden;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-.section__bg {
+.site-footer .section__bg {
   position: absolute;
   inset: 0;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  opacity: 0.15;
+  opacity: 0.2;
   z-index: 0;
   pointer-events: none;
 }
@@ -27,8 +27,9 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(5,14,8,0.92) 0%, rgba(2,6,4,0.98) 100%);
+  background: linear-gradient(180deg, rgba(3, 10, 7, 0.88) 0%, rgba(2, 5, 3, 0.95) 100%);
   z-index: 0;
+  pointer-events: none;
 }
 
 .footer-container {

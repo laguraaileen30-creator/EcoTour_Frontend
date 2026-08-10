@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, MapPin, Star } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronLeft, ChevronRight, MapPin, Star, ZoomIn, X, CheckCircle2 } from "lucide-react";
 import "./NearbyDestinations.css";
 import { useEcoTour } from "../context/EcoTourContext";
 
@@ -100,64 +100,64 @@ const destinations = [
     id: 9,
     title: "Kinaiyahan Forest Park",
     image: Kinaiyahan,
-    location: "Zamora",
-    distance: "3 km",
-    description: "A lush 17-hectare bamboo forest park offering scenic trails, picnic areas, and nature activities.",
+    location: "Campagao",
+    distance: "6 km",
+    description: "A peaceful forest park featuring camping grounds, scenic walking paths, and mountain air.",
     tag: "Forest Park",
   },
   {
     id: 10,
     title: "Tinugdan Spring",
     image: Tinugdan,
-    location: "Campagao",
-    distance: "7 km",
-    description: "A refreshing natural spring with ice-cold water and an easy, scenic hiking trail.",
-    tag: "Spring",
+    location: "Poblacion",
+    distance: "3 km",
+    description: "A serene natural spring with cool, flowing mountain water surrounded by lush foliage.",
+    tag: "Natural Spring",
   },
   {
     id: 11,
     title: "Pangas Falls",
     image: Pangas,
     location: "Dagohoy",
-    distance: "15 km",
-    description: "A scenic hidden waterfall featuring crystal-clear turquoise pools surrounded by lush greenery.",
+    distance: "7 km",
+    description: "A cascading waterfall with a wide natural pool, ideal for swimming and picnics.",
     tag: "Waterfall",
   },
   {
     id: 12,
-    title: "Hanging Bridge",
+    title: "Bamboo Hanging Bridge",
     image: HangingBridge,
-    location: "Dagohoy",
-    distance: "15 km",
-    description: "A rustic bamboo hanging bridge near Pangas Falls offering scenic, adventurous views.",
+    location: "Sevilla",
+    distance: "14 km",
+    description: "A pair of woven bamboo suspension bridges crossing the emerald Sipatan River.",
     tag: "Adventure",
   },
   {
     id: 13,
     title: "Dagas-das Falls",
     image: Dagas,
-    location: "Dagohoy",
-    distance: "17 km",
-    description: "A serene, natural waterfall nestled in the lush, green landscape of Barangay Dagohoy.",
-    tag: "Waterfall",
+    location: "Yanaya",
+    distance: "9 km",
+    description: "A hidden waterfall nestled deep in the forest, offering a tranquil escape off the beaten path.",
+    tag: "Hidden Gem",
   },
   {
     id: 14,
-    title: "Camelo Farm",
+    title: "Mt. Camelo Monastery",
     image: Camelo,
-    location: "Zamora",
+    location: "Poblacion",
     distance: "6 km",
-    description: "A peaceful farm venue in Sitio Lagiwliw offering mountain views and a relaxing space for gatherings.",
-    tag: "Farm",
+    description: "A hilltop monastery offering panoramic views of Bilar's lush valleys and quiet meditation grounds.",
+    tag: "Viewpoint",
   },
 ];
 
 export default function NearbyDestinations() {
   const [active, setActive] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+  const [selectedDestination, setSelectedDestination] = useState(null);
   const scrollRef = useRef(null);
 
-  // Smooth horizontal scroll to target card inside carousel only (no page/background movement)
   const scrollToCard = (index) => {
     setActive(index);
     if (scrollRef.current) {
@@ -173,9 +173,24 @@ export default function NearbyDestinations() {
     }
   };
 
-  // Non-stop 2-second smooth infinity loop
+  const handlePrevDestModal = (e) => {
+    e.stopPropagation();
+    if (!selectedDestination) return;
+    const currentIndex = destinations.findIndex((d) => d.id === selectedDestination.id);
+    const prevIndex = (currentIndex - 1 + destinations.length) % destinations.length;
+    setSelectedDestination(destinations[prevIndex]);
+  };
+
+  const handleNextDestModal = (e) => {
+    e.stopPropagation();
+    if (!selectedDestination) return;
+    const currentIndex = destinations.findIndex((d) => d.id === selectedDestination.id);
+    const nextIndex = (currentIndex + 1) % destinations.length;
+    setSelectedDestination(destinations[nextIndex]);
+  };
+
   useEffect(() => {
-    if (isHovered) return;
+    if (isHovered || selectedDestination) return;
 
     const interval = setInterval(() => {
       setActive((prev) => {
@@ -193,10 +208,10 @@ export default function NearbyDestinations() {
         }
         return next;
       });
-    }, 2000);
+    }, 2500);
 
     return () => clearInterval(interval);
-  }, [isHovered]);
+  }, [isHovered, selectedDestination]);
 
   const scroll = (dir) => {
     const next = (active + dir + destinations.length) % destinations.length;
@@ -213,7 +228,7 @@ export default function NearbyDestinations() {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Background Image Layer - Fixed background */}
+      {/* Background Image Layer */}
       <div className="section__bg" style={{ backgroundImage: `url(${currentBg})` }} aria-hidden="true" />
 
       <div className="container nearby-container">
@@ -233,7 +248,7 @@ export default function NearbyDestinations() {
 
         {/* Carousel Wrapper */}
         <div className="carousel-wrapper">
-          {/* Left Arrow - Infinite Loop */}
+          {/* Left Arrow */}
           <motion.button
             className="carousel-arrow carousel-arrow--left"
             onClick={() => scroll(-1)}
@@ -252,7 +267,10 @@ export default function NearbyDestinations() {
                 <motion.div
                   key={dest.id}
                   className={`dest-card ${isFeatured ? "dest-card--featured" : ""}`}
-                  onClick={() => scrollToCard(i)}
+                  onClick={() => {
+                    scrollToCard(i);
+                    setSelectedDestination(dest);
+                  }}
                   initial={{ opacity: 0.8, scale: 0.95 }}
                   animate={{
                     opacity: 1,
@@ -261,10 +279,15 @@ export default function NearbyDestinations() {
                     height: isFeatured ? 360 : 300,
                   }}
                   transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                  whileHover={!isFeatured ? { scale: 1.03 } : {}}
+                  whileHover={{ scale: isFeatured ? 1.02 : 1.04 }}
                 >
                   <img src={dest.image} alt={dest.title} className="dest-card-image" />
                   <div className="dest-card-overlay" />
+
+                  {/* Zoom Cursor Badge Overlay */}
+                  <div className="dest-card-zoom-badge" title="Click to View Destination">
+                    <ZoomIn size={14} />
+                  </div>
 
                   {dest.featured && (
                     <div className="dest-card-badge">
@@ -300,7 +323,7 @@ export default function NearbyDestinations() {
             })}
           </div>
 
-          {/* Right Arrow - Infinite Loop */}
+          {/* Right Arrow */}
           <motion.button
             className="carousel-arrow carousel-arrow--right"
             onClick={() => scroll(1)}
@@ -324,6 +347,110 @@ export default function NearbyDestinations() {
           ))}
         </div>
       </div>
+
+      {/* DESTINATION GLASS LIGHTBOX MODAL */}
+      <AnimatePresence>
+        {selectedDestination && (
+          <div className="dest-lightbox-backdrop" onClick={() => setSelectedDestination(null)}>
+            <motion.div
+              className="dest-lightbox-card"
+              initial={{ opacity: 0, scale: 0.92, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 30 }}
+              transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Top Navigation Bar */}
+              <div className="dest-lightbox-topbar">
+                <div className="dest-lightbox-counter">
+                  <span>Destination {destinations.findIndex(d => d.id === selectedDestination.id) + 1} of {destinations.length}</span>
+                </div>
+                <button
+                  type="button"
+                  className="dest-lightbox-close"
+                  onClick={() => setSelectedDestination(null)}
+                  aria-label="Close"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Main Modal Grid Layout */}
+              <div className="dest-lightbox-main">
+                {/* Left Arrow */}
+                <button
+                  type="button"
+                  className="dest-lightbox-arrow arrow-left"
+                  onClick={handlePrevDestModal}
+                  aria-label="Previous Destination"
+                >
+                  <ChevronLeft size={24} />
+                </button>
+
+                {/* Large Image Box */}
+                <div className="dest-lightbox-image-box">
+                  <motion.img
+                    key={selectedDestination.id}
+                    src={selectedDestination.image}
+                    alt={selectedDestination.title}
+                    initial={{ opacity: 0.6, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                  />
+                  <div className="dest-lightbox-image-overlay" />
+                  <div className="dest-lightbox-badge">{selectedDestination.tag}</div>
+                </div>
+
+                {/* Right Arrow */}
+                <button
+                  type="button"
+                  className="dest-lightbox-arrow arrow-right"
+                  onClick={handleNextDestModal}
+                  aria-label="Next Destination"
+                >
+                  <ChevronRight size={24} />
+                </button>
+
+                {/* Details Side */}
+                <div className="dest-lightbox-details">
+                  <div className="dest-lightbox-location-tag flex items-center gap-1.5 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">
+                    <MapPin size={14} />
+                    <span>{selectedDestination.distance} • {selectedDestination.location}</span>
+                  </div>
+
+                  <h2 className="dest-lightbox-title">{selectedDestination.title}</h2>
+                  <p className="dest-lightbox-desc">{selectedDestination.description}</p>
+
+                  <div className="dest-lightbox-highlights">
+                    <div className="dest-highlight-item">
+                      <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
+                      <span>Top Tourist Attraction in Bohol</span>
+                    </div>
+                    <div className="dest-highlight-item">
+                      <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
+                      <span>Easy Access & Guided Directions</span>
+                    </div>
+                    <div className="dest-highlight-item">
+                      <CheckCircle2 size={16} className="text-emerald-400 flex-shrink-0" />
+                      <span>Scenic Spot & Photo Opportunities</span>
+                    </div>
+                  </div>
+
+                  <div className="dest-lightbox-footer-actions">
+                    <button
+                      type="button"
+                      className="dest-lightbox-close-btn"
+                      onClick={() => setSelectedDestination(null)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

@@ -25,17 +25,17 @@ export default function Contact() {
     <section id="contact" className="contact-section">
       {/* Background Image Layer */}
       <div className="section__bg" style={{ backgroundImage: `url(${currentBg})` }} aria-hidden="true" />
-      
+
       <div className="contact-container">
         {/* Left Column */}
-        <motion.div 
+        <motion.div
           className="contact-left"
-          initial={{ opacity: 0, x: -40 }} 
+          initial={{ opacity: 0, x: -40 }}
           whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }} 
+          viewport={{ once: true }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         >
-          
+
           <p className="contact-eyebrow">Contact Us</p>
           <h2 className="contact-title">
             GET <span className="text-primary">IN TOUCH</span>
@@ -47,12 +47,12 @@ export default function Contact() {
           {/* Contact info cards */}
           <div className="contact-info-list">
             {INFO.map((item, i) => (
-              <motion.div 
+              <motion.div
                 key={i}
                 className="contact-info-card"
-                initial={{ opacity: 0, x: -24 }} 
+                initial={{ opacity: 0, x: -24 }}
                 whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }} 
+                viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: i * 0.08 }}
               >
                 <div className="contact-info-icon">
@@ -68,15 +68,15 @@ export default function Contact() {
             ))}
           </div>
 
-          
+
         </motion.div>
 
         {/* Right Column: Custom Interactive Map Container */}
-        <motion.div 
+        <motion.div
           className="custom-map-container"
-          initial={{ opacity: 0, x: 40 }} 
+          initial={{ opacity: 0, x: 40 }}
           whileInView={{ opacity: 1, x: 0 }}
-          viewport={{ once: true }} 
+          viewport={{ once: true }}
           transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
         >
           {/* Map Canvas Styling simulating Bohol topographic vector map */}

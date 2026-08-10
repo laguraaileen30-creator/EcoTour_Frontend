@@ -363,7 +363,7 @@ export default function About() {
                         <span className="service-badge-pill">{service.badge}</span>
                         
                         {/* Fluid Lightbox Expand Icon Button */}
-                        <div className="lightbox-expand-badge" title="Open Lightbox">
+                        <div className="lightbox-expand-badge" title="Open">
                           <Maximize2 size={14} />
                         </div>
                       </div>
@@ -386,7 +386,7 @@ export default function About() {
                               setSelectedService(service);
                             }}
                           >
-                            <span>Open Fluid Lightbox</span>
+                            <span>Open</span>
                             <ChevronRight size={14} />
                           </button>
                         </div>
@@ -432,7 +432,7 @@ export default function About() {
                 <button 
                   className="fluid-lightbox-close" 
                   onClick={() => setSelectedService(null)}
-                  aria-label="Close Lightbox"
+                  aria-label="Close"
                 >
                   <X size={20} />
                 </button>
@@ -502,7 +502,7 @@ export default function About() {
                       className="lightbox-close-btn"
                       onClick={() => setSelectedService(null)}
                     >
-                      Close Lightbox
+                      Close
                     </button>
                   </div>
                 </div>

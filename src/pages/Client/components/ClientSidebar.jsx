@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import LogoutModal from '../../../components/LogoutModal';
+import ThemeToggle from '../../../components/ThemeToggle';
 import { useEcoTour } from '../../../context/EcoTourContext';
 import {
   Home, CalendarDays, History, CreditCard, Receipt, UserRound, Layers,
   Bell, ClipboardList, Headphones, Settings, LogOut, ChevronDown,
-  ChevronRight, ArrowRight, Sun, Moon
+  ChevronRight, ArrowRight
 } from 'lucide-react';
 
 const CLIENT_NAV = [
@@ -140,21 +141,11 @@ export default function ClientSidebar({ activeTab, setActiveTab, onLogout }) {
             );
           })}
 
-          {/* THEME TOGGLE BUTTON (LIGHT/DARK MODE) */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="w-full mb-2 py-2.5 px-3.5 rounded-xl text-xs font-extrabold text-emerald-300 bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-500/30 transition-all flex items-center justify-between cursor-pointer shadow-md group"
-            title="Toggle Light/Dark Theme Mode"
-          >
-            <div className="flex items-center gap-2.5">
-              {theme === "light" ? <Moon size={16} className="text-emerald-400" /> : <Sun size={16} className="text-amber-300" />}
-              <span>{theme === "light" ? "Dark Mode" : "Light Mode"}</span>
-            </div>
-            <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-200">
-              {theme === "light" ? "LIGHT" : "DARK"}
-            </span>
-          </button>
+          {/* THEME TOGGLE (LIGHT/DARK MODE) */}
+          <div className="w-full mb-2 py-2 px-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-between shadow-md">
+            <span className="text-xs font-extrabold text-emerald-300">Theme Mode</span>
+            <ThemeToggle size="sm" />
+          </div>
 
           <hr className="border-emerald-900/40 my-3" />
           <button

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { User, Calendar, Sun, Moon } from "lucide-react";
+import { User, Calendar } from "lucide-react";
 import EcoTourLogo from "../components/EcoTourLogo";
+import ThemeToggle from "../components/ThemeToggle";
 import { useEcoTour } from "../context/EcoTourContext";
 import "./Navbar.css";
 
 export default function Navbar({ onOpenBooking }) {
   const [isScrolled, setIsScrolled] = useState(false);
-  const { theme, toggleTheme } = useEcoTour();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -45,19 +45,13 @@ export default function Navbar({ onOpenBooking }) {
           <a href="#home" onClick={(e) => handleNavClick(e, "#home")} className="nav__link">Home</a>
           <a href="#about" onClick={(e) => handleNavClick(e, "#about")} className="nav__link">About Us</a>
           <a href="#services" onClick={(e) => handleNavClick(e, "#services")} className="nav__link">Services</a>
-          <a href="#nearby" onClick={(e) => handleNavClick(e, "#nearby")} className="nav__link">Nearby Destinations</a>
           <a href="#contact" onClick={(e) => handleNavClick(e, "#contact")} className="nav__link">Contact</a>
+          <a href="#nearby" onClick={(e) => handleNavClick(e, "#nearby")} className="nav__link">Nearby Destinations</a>
 
-          {/* Theme Toggle Button (Light/Dark Mode) */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="p-2 rounded-xl bg-white/10 hover:bg-emerald-500/20 border border-white/20 text-emerald-400 transition-all flex items-center justify-center cursor-pointer shadow-md"
-            title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
-            aria-label="Toggle Theme Mode"
-          >
-            {theme === "light" ? <Moon size={16} className="text-emerald-700" /> : <Sun size={16} className="text-amber-300" />}
-          </button>
+          {/* Pill Theme Toggle (Light/Dark Mode) */}
+          <div className="flex items-center px-1">
+            <ThemeToggle size="sm" />
+          </div>
 
           {/* Book Reservation Button */}
           <button

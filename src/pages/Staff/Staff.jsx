@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useStaff } from './hooks/useStaff';
 import StaffSidebar from './components/StaffSidebar';
+import ThemeToggle from '../../components/ThemeToggle';
 import '../Client/Client.css';
 import './Staff.css';
 
@@ -112,7 +113,8 @@ export const StaffDashboard = () => {
         <header className="ct-header">
           <button className="ct-icon-btn"><Menu size={18} /></button>
           <div className="ct-header-right">
-            <button className="ct-icon-btn"><Bell size={18} /><em>3</em></button>
+            <ThemeToggle size="sm" />
+            <button className="ct-icon-btn" onClick={() => setActiveTab('notifications')}><Bell size={18} /><em>3</em></button>
             <div className="ct-user">
               <img src={activeStaff?.avatarUrl || 'https://i.pravatar.cc/80?img=33'} alt="staff" />
               <div><strong>{activeStaff?.name || `${activeStaff?.fname || ''} ${activeStaff?.lname || ''}`.trim() || 'Staff Member'}</strong><small>Staff Member <ChevronDown size={12} /></small></div>

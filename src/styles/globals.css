@@ -5,7 +5,7 @@
 :root {
   color-scheme: dark;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  
+
   /* Core Deep Forest Green Gradients & Surfaces for Dark Mode */
   --bg-0: #03130b;
   --bg-1: #061a10;
@@ -141,7 +141,8 @@
 /* =========================================
    LIGHT MODE SYSTEM VARIABLE OVERRIDES
    ========================================= */
-[data-theme="light"], body.light-mode {
+[data-theme="light"],
+body.light-mode {
   color-scheme: light;
   --bg-0: var(--skin-bg-light);
   --bg-1: var(--skin-bg-cream);
@@ -203,7 +204,7 @@ html {
 }
 
 .hero-overlay {
-  background: linear-gradient(180deg, rgba(3,10,7,0.45) 0%, rgba(3,7,5,0.65) 55%, rgba(2,6,4,0.85) 100%);
+  background: linear-gradient(180deg, rgba(3, 10, 7, 0.45) 0%, rgba(3, 7, 5, 0.65) 55%, rgba(2, 6, 4, 0.85) 100%);
 }
 
 /* =========================================
@@ -224,32 +225,22 @@ body.light-mode::before {
   pointer-events: none;
 
   background:
-    radial-gradient(
-      circle at 10% 15%,
+    radial-gradient(circle at 10% 15%,
       var(--skin-10) 0%,
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 85% 10%,
+      transparent 30%),
+    radial-gradient(circle at 85% 10%,
       var(--skin-16) 0%,
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 20% 85%,
+      transparent 30%),
+    radial-gradient(circle at 20% 85%,
       var(--skin-07) 0%,
-      transparent 35%
-    ),
-    radial-gradient(
-      circle at 80% 75%,
+      transparent 35%),
+    radial-gradient(circle at 80% 75%,
       var(--skin-25) 0%,
-      transparent 28%
-    ),
-    linear-gradient(
-      135deg,
+      transparent 28%),
+    linear-gradient(135deg,
       var(--skin-01),
       var(--skin-05),
-      var(--skin-09)
-    );
+      var(--skin-09));
 
   filter: blur(70px);
   opacity: 0.7;
@@ -284,31 +275,46 @@ body.light-mode::before {
   left: 35%;
 }
 
-/* Background Image Rules for Hero & Footer */
+/* Background Image Rules for Hero, Sections, Footer & Auth in Light Mode */
 body.light-mode .hero__bg {
   display: block !important;
-  opacity: 0.9 !important;
+  opacity: 0.95 !important;
   filter: brightness(1.02) contrast(1.02) !important;
 }
 
 body.light-mode .hero__overlay {
   display: block !important;
-  background: linear-gradient(180deg, rgba(255, 248, 240, 0.25) 0%, rgba(255, 248, 240, 0.6) 80%, rgba(255, 248, 240, 0.95) 100%) !important;
+  background: linear-gradient(180deg, rgba(255, 248, 240, 0.15) 0%, rgba(255, 248, 240, 0.45) 70%, rgba(255, 248, 240, 0.9) 100%) !important;
 }
 
-body.light-mode .site-footer .section__bg {
-  display: block !important;
-  opacity: 0.35 !important;
-  filter: brightness(1.04) blur(2px) !important;
+/* Light Mode Hero GIF Wrapper & Border Glow Effects */
+body.light-mode .hero__gif-wrapper {
+  border: 2.5px solid rgba(61, 139, 77, 0.85) !important;
+  box-shadow: 0 20px 45px rgba(41, 37, 31, 0.18), 0 0 25px rgba(61, 139, 77, 0.35) !important;
+  filter: drop-shadow(0px 15px 30px rgba(41, 37, 31, 0.2)) drop-shadow(0px 0px 30px rgba(61, 139, 77, 0.4)) !important;
+  background: rgba(255, 248, 240, 0.8) !important;
+}
+
+body.light-mode .hero__gif-wrapper:hover {
+  border-color: #1A7A48 !important;
+  filter: drop-shadow(0px 20px 40px rgba(41, 37, 31, 0.25)) drop-shadow(0px 0px 40px rgba(61, 139, 77, 0.6)) !important;
+  box-shadow: 0 25px 50px rgba(41, 37, 31, 0.25), 0 0 35px rgba(61, 139, 77, 0.5) !important;
 }
 
 body.light-mode .about-section .section__bg,
 body.light-mode .services-section-enhanced .section__bg,
 body.light-mode .nearby-section .section__bg,
 body.light-mode .contact-section .section__bg,
+body.light-mode .site-footer .section__bg {
+  display: block !important;
+  opacity: 0.45 !important;
+  filter: brightness(1.04) contrast(1.03) !important;
+}
+
 body.light-mode .auth-background {
-  display: none !important;
-  opacity: 0 !important;
+  display: block !important;
+  opacity: 0.75 !important;
+  filter: brightness(1.02) contrast(1.02) !important;
 }
 
 /* =========================================
@@ -672,16 +678,220 @@ body.light-mode .lightbox-overlay-enhanced {
 body.light-mode .lightbox-content-box {
   background: var(--skin-07) !important;
   border: 1px solid var(--border-medium) !important;
-  color: var(--text-primary) !important;
-  border-radius: 24px !important;
-  box-shadow: 0 25px 60px rgba(41, 37, 31, 0.15) !important;
 }
 
-body.light-mode .lightbox-close-btn,
 body.light-mode .lightbox-nav-btn {
   background: var(--green) !important;
   color: #ffffff !important;
   border: none !important;
+}
+
+/* Light Mode Fluid Fullscreen Lightbox Modal */
+body.light-mode .fluid-lightbox-backdrop {
+  background: rgba(255, 248, 240, 0.78) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+}
+
+body.light-mode .fluid-lightbox-card {
+  background: rgba(255, 250, 245, 0.98) !important;
+  border: 1.5px solid var(--border-medium) !important;
+  box-shadow: 0 25px 70px rgba(41, 37, 31, 0.16), 0 0 30px rgba(61, 139, 77, 0.12) !important;
+  color: var(--text-primary) !important;
+}
+
+body.light-mode .fluid-lightbox-topbar {
+  background: rgba(245, 235, 222, 0.6) !important;
+  border-bottom: 1px solid var(--border-medium) !important;
+}
+
+body.light-mode .fluid-lightbox-counter {
+  color: var(--green) !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .fluid-lightbox-close {
+  background: rgba(41, 37, 31, 0.08) !important;
+  border: 1px solid var(--border-medium) !important;
+  color: var(--text-primary) !important;
+}
+
+body.light-mode .fluid-lightbox-close:hover {
+  background: rgba(239, 68, 68, 0.85) !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+}
+
+body.light-mode .fluid-lightbox-arrow {
+  background: rgba(255, 248, 240, 0.9) !important;
+  border: 1.5px solid var(--border-medium) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 8px 24px rgba(41, 37, 31, 0.15) !important;
+}
+
+body.light-mode .fluid-lightbox-arrow:hover {
+  background: var(--green) !important;
+  border-color: var(--green) !important;
+  color: #ffffff !important;
+}
+
+body.light-mode .fluid-lightbox-image-box {
+  background: var(--skin-05) !important;
+}
+
+body.light-mode .fluid-lightbox-image-overlay {
+  background: linear-gradient(180deg, rgba(255, 248, 240, 0.05) 0%, rgba(245, 228, 208, 0.4) 100%) !important;
+}
+
+body.light-mode .fluid-lightbox-badge {
+  background: rgba(255, 248, 240, 0.92) !important;
+  border: 1.5px solid var(--green) !important;
+  color: var(--green) !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .fluid-lightbox-details {
+  background: rgba(255, 250, 245, 0.98) !important;
+}
+
+body.light-mode .lightbox-header-icon {
+  color: var(--green) !important;
+}
+
+body.light-mode .lightbox-tagline {
+  color: var(--green) !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .lightbox-title {
+  color: var(--text-primary) !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .lightbox-desc {
+  color: var(--text-secondary) !important;
+}
+
+body.light-mode .lightbox-features-list {
+  background: var(--skin-05) !important;
+  border: 1px solid var(--border-medium) !important;
+}
+
+body.light-mode .lightbox-feature-item,
+body.light-mode .highlight-item {
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+}
+
+body.light-mode .lightbox-close-btn {
+  background: var(--green) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 20px rgba(61, 139, 77, 0.35) !important;
+}
+
+/* Light Mode Destination Glass Lightbox Modal */
+body.light-mode .dest-lightbox-backdrop {
+  background: rgba(255, 248, 240, 0.78) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+}
+
+body.light-mode .dest-lightbox-card {
+  background: rgba(255, 250, 245, 0.98) !important;
+  border: 1.5px solid var(--border-medium) !important;
+  box-shadow: 0 25px 70px rgba(41, 37, 31, 0.16), 0 0 30px rgba(61, 139, 77, 0.12) !important;
+  color: var(--text-primary) !important;
+}
+
+body.light-mode .dest-lightbox-topbar {
+  background: rgba(245, 235, 222, 0.6) !important;
+  border-bottom: 1px solid var(--border-medium) !important;
+}
+
+body.light-mode .dest-lightbox-counter {
+  color: var(--green) !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .dest-lightbox-close {
+  background: rgba(41, 37, 31, 0.08) !important;
+  border: 1px solid var(--border-medium) !important;
+  color: var(--text-primary) !important;
+}
+
+body.light-mode .dest-lightbox-close:hover {
+  background: rgba(239, 68, 68, 0.85) !important;
+  color: #ffffff !important;
+  border-color: #ef4444 !important;
+}
+
+body.light-mode .dest-lightbox-arrow {
+  background: rgba(255, 248, 240, 0.9) !important;
+  border: 1.5px solid var(--border-medium) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 8px 24px rgba(41, 37, 31, 0.15) !important;
+}
+
+body.light-mode .dest-lightbox-arrow:hover {
+  background: var(--green) !important;
+  border-color: var(--green) !important;
+  color: #ffffff !important;
+}
+
+body.light-mode .dest-lightbox-image-box {
+  background: var(--skin-05) !important;
+}
+
+body.light-mode .dest-lightbox-image-overlay {
+  background: linear-gradient(180deg, rgba(255, 248, 240, 0.05) 0%, rgba(245, 228, 208, 0.4) 100%) !important;
+}
+
+body.light-mode .dest-lightbox-badge {
+  background: rgba(255, 248, 240, 0.92) !important;
+  border: 1.5px solid var(--green) !important;
+  color: var(--green) !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .dest-lightbox-details {
+  background: rgba(255, 250, 245, 0.98) !important;
+}
+
+body.light-mode .dest-lightbox-title {
+  color: var(--text-primary) !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .dest-lightbox-desc {
+  color: var(--text-secondary) !important;
+}
+
+body.light-mode .dest-lightbox-highlights {
+  background: var(--skin-05) !important;
+  border: 1px solid var(--border-medium) !important;
+}
+
+body.light-mode .dest-highlight-item {
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+}
+
+body.light-mode .dest-lightbox-close-btn {
+  background: var(--green) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 20px rgba(61, 139, 77, 0.35) !important;
+}
+
+body.light-mode .dest-card-zoom-badge {
+  background: rgba(255, 248, 240, 0.85) !important;
+  border: 1px solid var(--border-medium) !important;
+  color: var(--green) !important;
+}
+
+body.light-mode .dest-card:hover .dest-card-zoom-badge {
+  background: var(--green) !important;
+  color: #ffffff !important;
+  border-color: var(--green) !important;
 }
 
 /* =========================================
@@ -763,15 +973,17 @@ body.light-mode .contact-desc {
 }
 
 body.light-mode .contact-info-card {
-  background: var(--skin-07) !important;
-  border: 1px solid var(--border-medium) !important;
+  background: rgba(255, 248, 240, 0.68) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(185, 130, 91, 0.28) !important;
   border-radius: 18px !important;
   color: var(--text-primary) !important;
-  box-shadow: 0 8px 24px rgba(41, 37, 31, 0.05) !important;
+  box-shadow: 0 12px 35px rgba(41, 37, 31, 0.08) !important;
 }
 
 body.light-mode .contact-info-icon {
-  background: rgba(61, 139, 77, 0.12) !important;
+  background: rgba(61, 139, 77, 0.15) !important;
   color: var(--green) !important;
   border-radius: 50% !important;
 }
@@ -786,10 +998,12 @@ body.light-mode .contact-info-line {
 }
 
 body.light-mode .custom-map-container {
-  background: var(--sand) !important;
+  background: rgba(255, 248, 240, 0.68) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
   border-radius: 24px !important;
-  border: 1px solid var(--border-medium) !important;
-  box-shadow: 0 16px 40px rgba(41, 37, 31, 0.08) !important;
+  border: 1px solid rgba(185, 130, 91, 0.28) !important;
+  box-shadow: 0 18px 45px rgba(41, 37, 31, 0.1) !important;
 }
 
 body.light-mode .map-overlay-box,
@@ -812,12 +1026,26 @@ body.light-mode .zoom-label {
 body.light-mode .site-footer {
   position: relative;
   overflow: hidden;
-  background: var(--beige) !important;
-  border-top: 1px solid var(--border-medium) !important;
+  background: rgba(255, 248, 240, 0.94) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border-top: 1.5px solid var(--border-medium) !important;
   color: var(--text-primary) !important;
 }
 
-body.light-mode .footer-col h4,
+body.light-mode .site-footer::before {
+  background: linear-gradient(180deg, rgba(255, 248, 240, 0.85) 0%, rgba(245, 228, 208, 0.92) 100%) !important;
+  z-index: 0;
+  pointer-events: none;
+}
+
+body.light-mode .footer-col h4 {
+  color: var(--green) !important;
+  font-weight: 800 !important;
+  font-size: 0.95rem !important;
+  letter-spacing: 0.05em !important;
+}
+
 body.light-mode .footer-brand .brand-logo {
   color: var(--text-primary) !important;
   font-weight: 800 !important;
@@ -827,23 +1055,41 @@ body.light-mode .footer-brand .text-accent {
   color: var(--green) !important;
 }
 
-body.light-mode .footer-col a,
-body.light-mode .brand-desc,
-body.light-mode .copyright-text,
-body.light-mode .legal-links a {
-  color: var(--text-secondary) !important;
+body.light-mode .brand-desc {
+  color: #3D352E !important;
+  font-weight: 500 !important;
+  line-height: 1.6 !important;
 }
 
-body.light-mode .footer-col a:hover,
+body.light-mode .footer-col a {
+  color: #2D251E !important;
+  font-weight: 600 !important;
+}
+
+body.light-mode .footer-col a:hover {
+  color: var(--green) !important;
+}
+
+body.light-mode .copyright-text,
+body.light-mode .legal-links a {
+  color: #52473D !important;
+  font-weight: 600 !important;
+}
+
 body.light-mode .legal-links a:hover {
   color: var(--green) !important;
 }
 
 body.light-mode .newsletter-form input {
-  background: var(--skin-05) !important;
-  border: 1px solid var(--border-medium) !important;
-  color: var(--text-primary) !important;
+  background: #FFFFFF !important;
+  border: 1.5px solid var(--border-medium) !important;
+  color: #2D251E !important;
+  font-weight: 600 !important;
   border-radius: 50px !important;
+}
+
+body.light-mode .newsletter-form input::placeholder {
+  color: #736756 !important;
 }
 
 body.light-mode .newsletter-form button {
@@ -1146,15 +1392,108 @@ body.light-mode .content-card,
 body.light-mode .profile-card,
 body.light-mode .activity-card,
 body.light-mode .room-card,
-body.light-mode .booking-card,
-body.light-mode div[class*="card"],
-body.light-mode div[class*="box"],
-body.light-mode div[class*="panel"],
-body.light-mode div[class*="widget"] {
+body.light-mode .booking-card {
   background: var(--skin-07) !important;
   border: 1px solid var(--border-medium) !important;
   box-shadow: 0 10px 30px rgba(185, 130, 91, 0.08) !important;
   color: var(--text-primary) !important;
+}
+
+/* =========================================
+   EXPLICIT CARD IMAGE & OVERLAY PROTECTIONS (ABOUT & NEARBY DESTINATIONS)
+   ========================================= */
+body.light-mode .stack-card,
+body.light-mode .dest-card,
+body.light-mode .service-card-enhanced {
+  background: transparent !important;
+  overflow: hidden !important;
+}
+
+body.light-mode .stack-card {
+  position: absolute !important;
+}
+
+body.light-mode .dest-card,
+body.light-mode .service-card-enhanced {
+  position: relative !important;
+}
+
+body.light-mode .stack-card img,
+body.light-mode .dest-card-image,
+body.light-mode .service-card-image-wrap img,
+body.light-mode .dest-card img {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 1 !important;
+}
+
+body.light-mode .card-overlay,
+body.light-mode .dest-card-overlay,
+body.light-mode .service-card-overlay {
+  background: linear-gradient(0deg, rgba(4, 14, 8, 0.78) 0%, rgba(4, 14, 8, 0.1) 65%) !important;
+  background-image: linear-gradient(0deg, rgba(4, 14, 8, 0.78) 0%, rgba(4, 14, 8, 0.1) 65%) !important;
+  display: block !important;
+  opacity: 1 !important;
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 2 !important;
+  pointer-events: none !important;
+}
+
+body.light-mode .dest-card-content {
+  position: absolute !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  padding: 18px !important;
+  z-index: 3 !important;
+}
+
+body.light-mode .card-tags,
+body.light-mode .service-card-body {
+  position: relative !important;
+  z-index: 3 !important;
+}
+
+body.light-mode .dest-card-name {
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  font-size: 1.1rem !important;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85) !important;
+  margin-bottom: 6px !important;
+}
+
+body.light-mode .dest-card-distance {
+  color: rgba(134, 239, 172, 0.95) !important;
+  font-weight: 600 !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.85) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+body.light-mode .dest-card-desc {
+  color: rgba(255, 255, 255, 0.92) !important;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.85) !important;
+  font-size: 0.82rem !important;
+  line-height: 1.4 !important;
+}
+
+body.light-mode .dest-card-tag {
+  background: rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  padding: 3px 10px !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
 }
 
 body.light-mode .stat-label,
@@ -1393,6 +1732,13 @@ body.light-mode [class*="text-white"] {
 }
 
 body.light-mode [class*="border-emerald-900"],
+body.light-mode [class*="border-emerald-800"],
+body.light-mode [class*="border-emerald-700"],
+body.light-mode [class*="border-slate-800"],
+body.light-mode [class*="border-slate-700"] {
+  border-color: var(--border-medium) !important;
+}
+
 body.light-mode [class*="border-emerald-800"],
 body.light-mode [class*="border-emerald-700"],
 body.light-mode [class*="border-slate-800"],
