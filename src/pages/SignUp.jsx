@@ -173,50 +173,50 @@ export default function Signup() {
                 </div>
               </div>
 
-              {/* ROW 2: NAME FIELDS */}
-              <div className="form-row form-row-3col">
-                <div className="form-group form-group-standard">
-                  <label>FIRST NAME *</label>
-                  <div className="input-wrapper">
-                    <User size={18} />
-                    <input
-                      type="text"
-                      placeholder="Juan"
-                      value={formData.firstName}
-                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                      required
-                      disabled={loading}
-                    />
-                  </div>
+              {/* FIRST NAME */}
+              <div className="form-group form-group-full">
+                <label>FIRST NAME *</label>
+                <div className="input-wrapper">
+                  <User size={18} />
+                  <input
+                    type="text"
+                    placeholder="Juan"
+                    value={formData.firstName}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    required
+                    disabled={loading}
+                  />
                 </div>
+              </div>
 
-                <div className="form-group form-group-standard">
-                  <label>MIDDLE NAME</label>
-                  <div className="input-wrapper">
-                    <User size={18} />
-                    <input
-                      type="text"
-                      placeholder="Dela"
-                      value={formData.middleName}
-                      onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
-                      disabled={loading}
-                    />
-                  </div>
+              {/* MIDDLE NAME */}
+              <div className="form-group form-group-full">
+                <label>MIDDLE NAME</label>
+                <div className="input-wrapper">
+                  <User size={18} />
+                  <input
+                    type="text"
+                    placeholder="Dela"
+                    value={formData.middleName}
+                    onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                    disabled={loading}
+                  />
                 </div>
+              </div>
 
-                <div className="form-group form-group-standard">
-                  <label>LAST NAME *</label>
-                  <div className="input-wrapper">
-                    <User size={18} />
-                    <input
-                      type="text"
-                      placeholder="Cruz"
-                      value={formData.lastName}
-                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                      required
-                      disabled={loading}
-                    />
-                  </div>
+              {/* LAST NAME */}
+              <div className="form-group form-group-full">
+                <label>LAST NAME *</label>
+                <div className="input-wrapper">
+                  <User size={18} />
+                  <input
+                    type="text"
+                    placeholder="Cruz"
+                    value={formData.lastName}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    required
+                    disabled={loading}
+                  />
                 </div>
               </div>
 
