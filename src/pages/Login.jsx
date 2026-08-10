@@ -189,7 +189,7 @@ export default function Login() {
           </div>
 
           <div className="auth-image-side">
-            <img src={homeImage} alt="Cold Spring Resort" />
+            <img src={currentBg} alt="Cold Spring Resort" />
             <div className="image-overlay" />
             <div className="image-tagline">
               <Leaf size={16} />
