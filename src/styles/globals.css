@@ -1797,11 +1797,307 @@ body.light-mode .btn-secondary {
 /* 8. Portals Footer */
 body.light-mode .ct-footer,
 body.light-mode .staff-footer,
-body.light-mode .etv-footer,
-body.light-mode .ct-copy {
-  background: var(--beige) !important;
-  color: var(--text-primary) !important;
-  border-top: 1px solid var(--border-medium) !important;
+/* =========================================
+   ADMIN DASHBOARD (.etv-app) IN LIGHT MODE
+   ========================================= */
+body.light-mode .etv-app {
+  background: var(--skin-bg-light) !important;
+  color: #2D251E !important;
+}
+
+body.light-mode .etv-main {
+  background: var(--skin-bg-light) !important;
+}
+
+body.light-mode .etv-content {
+  background: var(--skin-bg-light) !important;
+  color: #2D251E !important;
+}
+
+body.light-mode .etv-sidebar {
+  background: linear-gradient(180deg, #FFFDF9 0%, #F5EDE4 100%) !important;
+  border-right: 1.5px solid var(--border-medium) !important;
+  color: #2D251E !important;
+  box-shadow: 4px 0 20px rgba(41, 37, 31, 0.05) !important;
+}
+
+body.light-mode .etv-brand h1 {
+  color: #2D251E !important;
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .etv-brand span {
+  color: var(--green) !important;
+  font-weight: 700 !important;
+}
+
+body.light-mode .etv-nav button {
+  color: #52473D !important;
+  font-weight: 600 !important;
+}
+
+body.light-mode .etv-nav button:hover {
+  color: var(--green) !important;
+  background: rgba(61, 139, 77, 0.08) !important;
+}
+
+body.light-mode .etv-nav button.active {
+  color: #ffffff !important;
+  background: var(--green) !important;
+  border-color: var(--green) !important;
+  font-weight: 800 !important;
+  box-shadow: 0 4px 15px rgba(61, 139, 77, 0.3) !important;
+}
+
+body.light-mode .etv-header {
+  position: relative !important;
+  z-index: 40 !important;
+  background: rgba(255, 248, 240, 0.95) !important;
+  border-bottom: 1.5px solid var(--border-medium) !important;
+  backdrop-filter: blur(16px) !important;
+  color: #2D251E !important;
+}
+
+body.light-mode .etv-app .hero {
+  position: relative !important;
+  z-index: 1 !important;
+  width: 100% !important;
+  height: 180px !important;
+  min-height: 180px !important;
+  max-height: 190px !important;
+  border-radius: 20px !important;
+  overflow: hidden !important;
+  padding: 24px 32px !important;
+  margin-bottom: 20px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  background-image: linear-gradient(90deg, rgba(255, 248, 240, 0.95) 25%, rgba(255, 248, 240, 0.78) 60%, rgba(255, 248, 240, 0.35)),
+    url('https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=1600&q=70') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  border: 1.5px solid var(--border-medium) !important;
+  box-shadow: 0 10px 30px rgba(41, 37, 31, 0.08) !important;
+}
+
+body.light-mode .etv-app .hero h2,
+body.light-mode .ct-hero h2 {
+  font-size: 34px !important;
+  line-height: 1.2 !important;
+  color: #2D251E !important;
+  text-shadow: none !important;
+  font-weight: 800 !important;
+  margin-bottom: 8px !important;
+}
+
+body.light-mode .etv-app .hero h2 span,
+body.light-mode .ct-hero h2 span {
+  color: var(--green) !important;
+}
+
+body.light-mode .etv-app .hero-welcome,
+body.light-mode .ct-hero .hi {
+  color: var(--green) !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  margin-bottom: 4px !important;
+}
+
+body.light-mode .etv-app .hero-sub,
+body.light-mode .etv-app .hero p,
+body.light-mode .ct-hero .sub {
+  color: #52473D !important;
+  font-size: 13.5px !important;
+  line-height: 1.5 !important;
+  font-weight: 500 !important;
+}
+
+body.light-mode .etv-app .hero-sub strong,
+body.light-mode .etv-app .hero p strong {
+  color: #2D251E !important;
+}
+
+body.light-mode .hero-thumb-img {
+  border: 1.5px solid var(--border-medium) !important;
+  box-shadow: 0 4px 12px rgba(41, 37, 31, 0.1) !important;
+}
+
+body.light-mode .hero-welcome {
+  color: var(--green) !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .hero-divider i {
+  background: var(--border-medium) !important;
+}
+
+body.light-mode .card,
+body.light-mode .stat-card {
+  background: rgba(255, 250, 245, 0.96) !important;
+  border: 1.5px solid var(--border-medium) !important;
+  box-shadow: 0 10px 30px rgba(41, 37, 31, 0.06) !important;
+  backdrop-filter: blur(12px) !important;
+  color: #2D251E !important;
+}
+
+body.light-mode .stat-label {
+  color: #736756 !important;
+  font-weight: 700 !important;
+}
+
+body.light-mode .stat-value {
+  color: #2D251E !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .stat-up {
+  color: var(--green) !important;
+  font-weight: 700 !important;
+}
+
+body.light-mode .stat-muted {
+  color: #736756 !important;
+  font-weight: 600 !important;
+}
+
+body.light-mode .stat-icon {
+  background: rgba(61, 139, 77, 0.12) !important;
+  border: 1px solid var(--border-medium) !important;
+  color: var(--green) !important;
+}
+
+body.light-mode .card-title {
+  color: #2D251E !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .select {
+  background: #FFFFFF !important;
+  border: 1.5px solid var(--border-medium) !important;
+  color: #2D251E !important;
+  font-weight: 600 !important;
+}
+
+body.light-mode .y-axis,
+body.light-mode .x-labels span {
+  color: #52473D !important;
+  font-weight: 600 !important;
+}
+
+body.light-mode .grid-line {
+  stroke: rgba(185, 130, 91, 0.18) !important;
+}
+
+body.light-mode .area-line {
+  stroke: #3D8B4D !important;
+}
+
+body.light-mode .dot {
+  fill: #FFFFFF !important;
+  stroke: #3D8B4D !important;
+}
+
+body.light-mode .dot.hi {
+  fill: #3D8B4D !important;
+}
+
+body.light-mode .chart-tip {
+  background: #3D8B4D !important;
+  color: #ffffff !important;
+}
+
+body.light-mode .chart-tip::after {
+  border-top-color: #3D8B4D !important;
+}
+
+body.light-mode .booking-row,
+body.light-mode .dest-row {
+  border-bottom: 1px solid var(--border-medium) !important;
+}
+
+body.light-mode .b-name,
+body.light-mode .dest-name {
+  color: #2D251E !important;
+  font-weight: 700 !important;
+}
+
+body.light-mode .b-date,
+body.light-mode .b-pax,
+body.light-mode .dest-num span {
+  color: #52473D !important;
+}
+
+body.light-mode .dest-num strong {
+  color: #2D251E !important;
+}
+
+body.light-mode .dest-thumb {
+  background: radial-gradient(circle at 30% 30%, #EFC7A8, #FAF0E3) !important;
+  border: 1px solid var(--border-medium) !important;
+}
+
+body.light-mode .progress {
+  background: rgba(185, 130, 91, 0.15) !important;
+}
+
+body.light-mode .rev-box {
+  background: rgba(255, 250, 245, 0.9) !important;
+  border: 1px solid var(--border-medium) !important;
+}
+
+body.light-mode .rev-box small,
+body.light-mode .legend-item small,
+body.light-mode .nat-top span {
+  color: #52473D !important;
+}
+
+body.light-mode .rev-box-row strong,
+body.light-mode .legend-item strong,
+body.light-mode .donut-center strong,
+body.light-mode .nat-top strong {
+  color: #2D251E !important;
+}
+
+body.light-mode .rev-box-row em {
+  color: var(--green) !important;
+  font-weight: 700 !important;
+}
+
+body.light-mode .donut-center span {
+  color: #52473D !important;
+}
+
+body.light-mode .nat-flag {
+  background: rgba(255, 248, 240, 0.9) !important;
+  border: 1px solid var(--border-medium) !important;
+}
+
+body.light-mode .etv-footer {
+  background: rgba(255, 248, 240, 0.95) !important;
+  border-top: 1.5px solid var(--border-medium) !important;
+}
+
+body.light-mode .footer-brand strong {
+  color: #2D251E !important;
+}
+
+body.light-mode .footer-brand span,
+body.light-mode .etv-footer p {
+  color: #52473D !important;
+}
+
+body.light-mode .footer-social button {
+  background: rgba(255, 250, 245, 0.9) !important;
+  border: 1px solid var(--border-medium) !important;
+  color: #2D251E !important;
+}
+
+body.light-mode .footer-social button:hover {
+  color: var(--green) !important;
+  border-color: var(--green) !important;
 }
 
 /* Universal Fallback Box Override (Eliminates any residual dark boxes) */
@@ -1861,8 +2157,13 @@ body.light-mode [class*="bg-[#07150e]"],
 body.light-mode [class*="bg-[#071d13]"],
 body.light-mode [class*="bg-[#04170e]"],
 body.light-mode [class*="bg-[#0c2718]"],
-body.light-mode [class*="bg-[#071a10]"] {
-  background-color: var(--skin-07) !important;
+body.light-mode [class*="bg-[#071a10]"],
+body.light-mode [class*="bg-[#04150e]"],
+body.light-mode [class*="bg-[#0c1f16]"],
+body.light-mode [class*="bg-[#051c14]"],
+body.light-mode [class*="bg-[#041710]"],
+body.light-mode [class*="bg-[#0a1c15]"] {
+  background-color: rgba(255, 250, 245, 0.98) !important;
   background-image: none !important;
   color: var(--text-primary) !important;
   border-color: var(--border-medium) !important;
@@ -1900,4 +2201,408 @@ body.light-mode [class*="border-emerald-700"],
 body.light-mode [class*="border-slate-800"],
 body.light-mode [class*="border-slate-700"] {
   border-color: var(--border-medium) !important;
+}
+
+/* =========================================
+   ADMIN PROFILE TAB LIGHT MODE SPECIFIC STYLING
+   ========================================= */
+body.light-mode .etv-app [class*="bg-[#04150e]"] {
+  background-color: var(--skin-05) !important;
+  border: 1px solid var(--border-medium) !important;
+  color: #2D251E !important;
+}
+
+body.light-mode .etv-app [class*="bg-[#0c1f16]"] {
+  background-color: rgba(255, 250, 245, 0.96) !important;
+  border: 1.5px solid var(--border-medium) !important;
+  box-shadow: 0 10px 30px rgba(41, 37, 31, 0.06) !important;
+  color: #2D251E !important;
+}
+
+body.light-mode .etv-app [class*="text-slate-400"],
+body.light-mode .etv-app [class*="text-slate-500"] {
+  color: #52473D !important;
+}
+
+body.light-mode .etv-app [class*="text-slate-300"] {
+  color: #2D251E !important;
+  font-weight: 600 !important;
+}
+
+body.light-mode .etv-app [class*="text-white"] {
+  color: #2D251E !important;
+}
+
+body.light-mode .etv-app input[type="password"],
+body.light-mode .etv-app input[type="text"],
+body.light-mode .etv-app input[type="email"] {
+  background-color: #FFFFFF !important;
+  color: #2D251E !important;
+  border: 1.5px solid var(--border-medium) !important;
+}
+
+body.light-mode .etv-app input[type="password"]::placeholder,
+body.light-mode .etv-app input[type="text"]::placeholder,
+body.light-mode .etv-app input[type="email"]::placeholder {
+  color: #736756 !important;
+}
+
+/* =========================================
+   USER MANAGEMENT LIGHT MODE STYLES
+   ========================================= */
+body.light-mode .etv-user-table-card {
+  background: var(--skin-07) !important;
+  border: 1px solid var(--border-medium) !important;
+  box-shadow: 0 10px 30px rgba(41, 37, 31, 0.08) !important;
+  color: var(--text-primary) !important;
+}
+
+body.light-mode .etv-user-table-card button:not(.bg-\[\#22c55e\]) {
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-user-table-card button:hover:not(.bg-\[\#22c55e\]) {
+  background: #f1f5f9 !important;
+  color: #16a34a !important;
+  border-color: #94a3b8 !important;
+}
+
+body.light-mode .etv-user-table-card input,
+body.light-mode .etv-user-table-card select {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-user-table-card input::placeholder {
+  color: #94a3b8 !important;
+}
+
+body.light-mode .etv-user-table-card .overflow-x-auto {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .etv-user-table-card table thead {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+body.light-mode .etv-user-table-card table thead th {
+  color: #0f172a !important;
+  font-weight: 800 !important;
+}
+
+body.light-mode .etv-user-table-card table tbody tr {
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+body.light-mode .etv-user-table-card table tbody tr:hover {
+  background: #f8fafc !important;
+}
+
+body.light-mode .etv-user-table-card table tbody td {
+  color: #334155 !important;
+}
+
+body.light-mode .etv-user-table-card table tbody td div span,
+body.light-mode .etv-user-table-card table tbody td div strong {
+  color: #0f172a !important;
+}
+
+/* User Role Badges in Light Mode */
+body.light-mode .etv-user-table-card .bg-sky-950\/80 {
+  background: #e0f2fe !important;
+  color: #0284c7 !important;
+  border-color: #7dd3fc !important;
+}
+
+body.light-mode .etv-user-table-card .bg-purple-950\/80 {
+  background: #f3e8ff !important;
+  color: #9333ea !important;
+  border-color: #d8b4fe !important;
+}
+
+body.light-mode .etv-user-table-card .bg-emerald-950\/80 {
+  background: #dcfce7 !important;
+  color: #15803d !important;
+  border-color: #86efac !important;
+}
+
+body.light-mode .etv-user-table-card .bg-amber-950\/80 {
+  background: #fef3c7 !important;
+  color: #b45309 !important;
+  border-color: #fde68a !important;
+}
+
+body.light-mode .etv-user-table-card .bg-rose-950\/80 {
+  background: #ffe4e6 !important;
+  color: #e11d48 !important;
+  border-color: #fecdd3 !important;
+}
+
+body.light-mode .etv-user-table-card .bg-slate-900\/80 {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Light Mode Action Buttons */
+body.light-mode .etv-user-table-card button.w-8.h-8 {
+  background: #ffffff !important;
+  color: #16a34a !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-user-table-card button.w-8.h-8:hover {
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border-color: #16a34a !important;
+}
+
+/* Light Mode User Details & Personal Profiling Modal */
+body.light-mode .etv-user-modal-card {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+body.light-mode .etv-user-modal-card .bg-\[\#041710\],
+body.light-mode .etv-user-modal-card div:first-child {
+  background: #f8fafc !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+body.light-mode .etv-user-modal-card h2,
+body.light-mode .etv-user-modal-card h3,
+body.light-mode .etv-user-modal-card h4,
+body.light-mode .etv-user-modal-card strong {
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-user-modal-card p,
+body.light-mode .etv-user-modal-card label {
+  color: #334155 !important;
+}
+
+body.light-mode .etv-user-modal-card input,
+body.light-mode .etv-user-modal-card select,
+body.light-mode .etv-user-modal-card textarea {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-user-modal-card select option {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-user-modal-card input::placeholder,
+body.light-mode .etv-user-modal-card textarea::placeholder {
+  color: #64748b !important;
+}
+
+body.light-mode .etv-user-modal-card input[readOnly] {
+  background: #f0fdf4 !important;
+  color: #15803d !important;
+  border-color: #bbf7d0 !important;
+}
+
+body.light-mode .etv-user-modal-card .relative svg {
+  color: #16a34a !important;
+}
+
+body.light-mode .etv-user-modal-card .bg-emerald-950\/60,
+body.light-mode .etv-user-modal-card .bg-emerald-950\/80 {
+  background: #f0fdf4 !important;
+  color: #15803d !important;
+  border-color: #bbf7d0 !important;
+}
+
+body.light-mode .etv-user-modal-card .bg-rose-950\/90 {
+  background: #fff1f2 !important;
+  color: #be123c !important;
+  border-color: #fecdd3 !important;
+}
+
+body.light-mode .etv-user-modal-card button.text-slate-400 {
+  color: #64748b !important;
+}
+
+body.light-mode .etv-user-modal-card button.text-slate-400:hover {
+  color: #0f172a !important;
+  background: #e2e8f0 !important;
+}
+
+/* Light Mode Staff Management Card & Table */
+body.light-mode .etv-staff-table-card {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-mode .etv-staff-table-card h3,
+body.light-mode .etv-staff-table-card h4,
+body.light-mode .etv-staff-table-card strong {
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-staff-table-card p {
+  color: #475569 !important;
+}
+
+body.light-mode .etv-staff-table-card input,
+body.light-mode .etv-staff-table-card select {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-staff-table-card table thead {
+  background: #f1f5f9 !important;
+  color: #15803d !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+body.light-mode .etv-staff-table-card table tbody tr {
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+body.light-mode .etv-staff-table-card table tbody tr:hover {
+  background: #f8fafc !important;
+}
+
+body.light-mode .etv-staff-table-card table tbody td {
+  color: #334155 !important;
+}
+
+body.light-mode .etv-staff-table-card table tbody td div span {
+  color: #0f172a !important;
+}
+
+/* Light Mode Reports Card & Daily Cash Ledger */
+body.light-mode .etv-reports-card {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-mode .etv-reports-card h3,
+body.light-mode .etv-reports-card h4,
+body.light-mode .etv-reports-card strong {
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-reports-card p {
+  color: #475569 !important;
+}
+
+body.light-mode .etv-reports-card table thead {
+  background: #f1f5f9 !important;
+  color: #15803d !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+body.light-mode .etv-reports-card table tbody tr {
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+body.light-mode .etv-reports-card table tbody tr:hover {
+  background: #f8fafc !important;
+}
+
+body.light-mode .etv-reports-card table tbody td {
+  color: #334155 !important;
+}
+
+/* Light Mode Admin Profile Cards & Form Inputs */
+body.light-mode .etv-profile-card {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05) !important;
+}
+
+body.light-mode .etv-profile-card h3,
+body.light-mode .etv-profile-card h4,
+body.light-mode .etv-profile-card h5,
+body.light-mode .etv-profile-card strong {
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-profile-card p,
+body.light-mode .etv-profile-card label {
+  color: #334155 !important;
+}
+
+body.light-mode .etv-profile-card input,
+body.light-mode .etv-profile-card select {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-profile-card select option {
+  background: #ffffff !important;
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-profile-card .bg-\[\#04150e\] {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+/* =========================================
+   LIVE SEARCH RESULTS DROPDOWN (ADMIN, STAFF, CLIENT)
+   ========================================= */
+.search-dropdown-results {
+  background: rgba(7, 25, 17, 0.98);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  backdrop-filter: blur(20px);
+  color: #eafff2;
+}
+
+.search-result-item {
+  background: rgba(5, 24, 16, 0.6);
+  border-color: rgba(74, 222, 128, 0.2);
+  color: #ffffff;
+}
+
+.search-result-item:hover {
+  background: rgba(16, 61, 41, 0.85);
+  border-color: rgba(74, 222, 128, 0.5);
+  transform: translateX(2px);
+}
+
+body.light-mode .search-dropdown-results {
+  background: #ffffff !important;
+  border: 1.5px solid #bbf7d0 !important;
+  box-shadow: 0 20px 30px -5px rgba(0, 0, 0, 0.12), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  color: #0f172a !important;
+}
+
+body.light-mode .search-result-item {
+  background: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+body.light-mode .search-result-item:hover {
+  background: #f0fdf4 !important;
+  border-color: #86efac !important;
+}
+
+body.light-mode .search-result-item strong {
+  color: #0f172a !important;
+}
+
+body.light-mode .search-result-item small {
+  color: #475569 !important;
 }

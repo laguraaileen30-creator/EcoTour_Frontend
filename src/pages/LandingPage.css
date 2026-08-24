@@ -80,15 +80,6 @@ body {
   font-weight: 600;
 }
 
-.nav__hamburger {
-  display: none;
-  background: none;
-  border: 0;
-  padding: 8px;
-  cursor: pointer;
-  color: var(--muted);
-}
-
 
 
 /* About */

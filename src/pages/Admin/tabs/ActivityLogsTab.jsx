@@ -1,138 +1,293 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   ClipboardList, Download, Activity, User, Edit3, Trash2, ShieldAlert,
-  Search, Filter, ChevronLeft, ChevronRight, TrendingUp, TrendingDown
+  Search, Filter, ChevronLeft, ChevronRight, TrendingUp, RefreshCw,
+  Eye, CheckCircle2, AlertTriangle, Key, Calendar, ShieldCheck, Clock,
+  ArrowUpRight, FileText, Info, X
 } from 'lucide-react';
-
-const LOG_ITEMS = [
-  { id: 1, date: 'May 25, 2024 10:30 AM', name: 'Maria Santos', avatar: 1, role: 'Admin', action: 'Login', actionType: 'login', module: 'Authentication', desc: 'User logged in to the system', ip: '192.168.1.101' },
-  { id: 2, date: 'May 25, 2024 10:15 AM', name: 'John Dela Cruz', avatar: 12, role: 'Staff', action: 'Update', actionType: 'update', module: 'Reservations', desc: 'Updated reservation RES-2024-0342', ip: '192.168.1.102' },
-  { id: 3, date: 'May 25, 2024 10:10 AM', name: 'Karen Lopez', avatar: 45, role: 'Staff', action: 'Create', actionType: 'create', module: 'Walk-in', desc: 'New walk-in transaction TRX-2024-0157', ip: '192.168.1.102' },
-  { id: 4, date: 'May 25, 2024 09:58 AM', name: 'Mark Villanueva', avatar: 53, role: 'Admin', action: 'Update', actionType: 'update', module: 'Pricing', desc: 'Updated entrance fee (Local)', ip: '192.168.1.101' },
-  { id: 5, date: 'May 25, 2024 09:45 AM', name: 'Anna Reyes', avatar: 32, role: 'Staff', action: 'Delete', actionType: 'delete', module: 'Services', desc: 'Deleted service Old Videoke Rental', ip: '192.168.1.105' },
-  { id: 6, date: 'May 25, 2024 09:30 AM', name: 'Pedro Garcia', avatar: 15, role: 'Staff', action: 'Login', actionType: 'login', module: 'Authentication', desc: 'User logged in to the system', ip: '192.168.1.103' },
-  { id: 7, date: 'May 25, 2024 09:20 AM', name: 'Sofia Martinez', avatar: 24, role: 'Staff', action: 'Update', actionType: 'update', module: 'User Management', desc: 'Updated user role (USR-0005)', ip: '192.168.1.103' },
-  { id: 8, date: 'May 25, 2024 09:05 AM', name: 'Luis Cruz', avatar: 67, role: 'Admin', action: 'Update', actionType: 'update', module: 'Cottages', desc: 'Updated cottage availability', ip: '192.168.1.101' },
-  { id: 9, date: 'May 25, 2024 08:50 AM', name: 'Emily Johnson', avatar: 41, role: 'Admin', action: 'Delete', actionType: 'delete', module: 'Walk-in', desc: 'Deleted walk-in TRX-2024-0155', ip: '192.168.1.101' },
-  { id: 10, date: 'May 25, 2024 08:30 AM', name: 'System', avatar: 99, role: 'System', action: 'Alert', actionType: 'alert', module: 'Security', desc: 'Failed login attempt (3 times)', ip: '192.168.1.200' },
-];
+import { useEcoTour } from '../../../context/EcoTourContext';
 
 export default function ActivityLogsTab() {
+  const { auditLogs: contextLogs, currentUser, theme } = useEcoTour();
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRole, setSelectedRole] = useState('all');
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedLog, setSelectedLog] = useState(null);
+  const [lastSyncedTime, setLastSyncedTime] = useState(new Date());
 
-  const filteredLogs = LOG_ITEMS.filter((item) => {
-    const q = searchQuery.toLowerCase();
-    const matchesSearch = item.name.toLowerCase().includes(q) || item.desc.toLowerCase().includes(q) || item.module.toLowerCase().includes(q);
-    if (activeTab === 'logins') return matchesSearch && item.actionType === 'login';
-    if (activeTab === 'data') return matchesSearch && item.actionType === 'update';
-    if (activeTab === 'deletions') return matchesSearch && item.actionType === 'delete';
-    if (activeTab === 'security') return matchesSearch && item.actionType === 'alert';
-    return matchesSearch;
-  });
+  const fetchAuditLogs = async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const res = await fetch('http://localhost:5000/api/v1/audit_logs');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.logs)) {
+        const formatted = data.logs.map((l, index) => {
+          const actLower = (l.action || '').toLowerCase();
+          const descLower = (l.description || '').toLowerCase();
+
+          let actionType = 'update';
+          if (actLower.includes('delete') || actLower.includes('remove') || descLower.includes('cancelled') || descLower.includes('rejected')) {
+            actionType = 'delete';
+          } else if (actLower.includes('login') || actLower.includes('auth') || actLower.includes('sign in')) {
+            actionType = 'login';
+          } else if (actLower.includes('create') || actLower.includes('add') || actLower.includes('register') || descLower.includes('created') || descLower.includes('approved')) {
+            actionType = 'create';
+          } else if (actLower.includes('alert') || actLower.includes('security') || actLower.includes('reset') || actLower.includes('closure') || descLower.includes('auto')) {
+            actionType = 'security';
+          }
+
+          let moduleName = 'System';
+          if (descLower.includes('profile') || descLower.includes('password') || descLower.includes('user') || actLower.includes('user')) {
+            moduleName = 'Profile & Users';
+          } else if (descLower.includes('booking') || descLower.includes('reservation') || actLower.includes('booking')) {
+            moduleName = 'Reservations';
+          } else if (descLower.includes('walk-in') || descLower.includes('pos') || descLower.includes('payment') || descLower.includes('receipt')) {
+            moduleName = 'Walk-In & POS';
+          } else if (descLower.includes('service') || descLower.includes('cottage') || descLower.includes('facility')) {
+            moduleName = 'Services & Resort';
+          } else if (descLower.includes('announcement')) {
+            moduleName = 'Announcements';
+          }
+
+          const userName = l.fname 
+            ? `${l.fname} ${l.lname || ''}`.trim() 
+            : (l.name || l.email || (l.user_id ? `User #${l.user_id}` : 'System Terminal'));
+
+          const userRole = l.role 
+            ? (l.role.charAt(0).toUpperCase() + l.role.slice(1)) 
+            : (descLower.includes('admin') ? 'Admin' : (descLower.includes('staff') ? 'Staff' : (descLower.includes('client') ? 'Client' : 'System')));
+
+          return {
+            id: l.log_id || l.id || `LOG-${Date.now()}-${index}`,
+            date: l.created_at ? new Date(l.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : 'Just now',
+            rawDate: l.created_at || new Date().toISOString(),
+            name: userName,
+            avatar: ((l.log_id || index + 1) % 70) + 1,
+            role: userRole,
+            action: l.action || 'ACTIVITY_EXECUTION',
+            actionType,
+            module: moduleName,
+            desc: l.description || l.action || 'System action executed',
+            ip: l.ip_address || '127.0.0.1 (Local Portal)'
+          };
+        });
+
+        // Sort descending by rawDate/id
+        formatted.sort((a, b) => new Date(b.rawDate) - new Date(a.rawDate));
+        setLogs(formatted);
+        setLastSyncedTime(new Date());
+      } else if (contextLogs && contextLogs.length > 0) {
+        setLogs(contextLogs);
+      }
+    } catch (err) {
+      if (contextLogs && contextLogs.length > 0) {
+        setLogs(contextLogs);
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
+  // Initial Fetch & Real-Time Sync Interval
+  useEffect(() => {
+    fetchAuditLogs();
+
+    // Auto poll every 6s for real-time history
+    const interval = setInterval(() => {
+      fetchAuditLogs(true);
+    }, 6000);
+
+    // Event listener for immediate sync across tabs/components
+    const handleSync = () => fetchAuditLogs(true);
+    window.addEventListener('ecotour:sync', handleSync);
+    window.addEventListener('ecotour:daily-reset', handleSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('ecotour:sync', handleSync);
+      window.removeEventListener('ecotour:daily-reset', handleSync);
+    };
+  }, []);
+
+  // Filtered Logs
+  const filteredLogs = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return logs.filter((item) => {
+      const matchesSearch = (
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        item.desc.toLowerCase().includes(q) ||
+        item.module.toLowerCase().includes(q) ||
+        item.action.toLowerCase().includes(q)
+      );
+
+      let matchesTab = true;
+      if (activeTab === 'logins') matchesTab = item.actionType === 'login';
+      else if (activeTab === 'data') matchesTab = item.actionType === 'update' || item.actionType === 'create';
+      else if (activeTab === 'deletions') matchesTab = item.actionType === 'delete';
+      else if (activeTab === 'security') matchesTab = item.actionType === 'security';
+      else if (activeTab === 'walkin') matchesTab = item.module === 'Walk-In & POS';
+
+      let matchesRole = true;
+      if (selectedRole !== 'all') {
+        matchesRole = item.role.toLowerCase() === selectedRole.toLowerCase();
+      }
+
+      return matchesSearch && matchesTab && matchesRole;
+    });
+  }, [logs, searchQuery, activeTab, selectedRole]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const paginatedLogs = filteredLogs.slice((safeCurrentPage - 1) * pageSize, safeCurrentPage * pageSize);
+
+  const loginCount = logs.filter(l => l.actionType === 'login').length;
+  const updateCount = logs.filter(l => l.actionType === 'update' || l.actionType === 'create').length;
+  const deleteCount = logs.filter(l => l.actionType === 'delete').length;
+  const securityCount = logs.filter(l => l.actionType === 'security').length;
+
+  const handleExportCSV = () => {
+    const header = "Log ID,Date & Time,User Name,Role,Action Event,Module,Description,IP Address\n";
+    const body = filteredLogs.map(l => 
+      `"${l.id}","${l.date}","${l.name}","${l.role}","${l.action}","${l.module}","${l.desc.replace(/"/g, '""')}","${l.ip}"`
+    ).join("\n");
+    
+    const blob = new Blob([header + body], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `EcoTourVista_Activity_Logs_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <div className="space-y-6 p-2 sm:p-6 max-w-[1600px] mx-auto text-white">
+    <div className="space-y-6 p-2 sm:p-6 max-w-[1600px] mx-auto text-slate-900 dark:text-white transition-colors duration-300">
       
-      {/* PAGE HEADER */}
-      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+      {/* ── PAGE HEADER ── */}
+      <div className="bg-white dark:bg-[#071911] p-5 rounded-2xl border border-slate-200 dark:border-emerald-500/20 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-            <ClipboardList className="w-5 h-5" />
+          <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <ClipboardList className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Activity Logs
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-              Monitor all system activities and user actions
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 dark:text-white">
+                Real-Time Website Activity &amp; Audit Logs
+              </h2>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-500/40 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" /> Live Sync (6s)
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Immutable audit history of visitor registrations, staff POS walk-in collections, profile changes, and admin actions.
             </p>
           </div>
         </div>
 
-        <button className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-semibold px-5 py-2.5 rounded-full cursor-pointer flex items-center gap-2 shadow-lg shadow-emerald-950/60 transition-all border border-emerald-400/40 self-start sm:self-auto">
-          <Download className="w-4 h-4" /> Export Logs
-        </button>
+        <div className="flex items-center gap-2 self-stretch sm:self-auto justify-between sm:justify-end">
+          <button
+            onClick={() => fetchAuditLogs(false)}
+            title="Refresh logs from MySQL database"
+            className="p-2.5 bg-slate-100 dark:bg-[#0c1f16] border border-slate-300 dark:border-emerald-800/60 text-slate-700 dark:text-emerald-300 hover:bg-slate-200 dark:hover:bg-emerald-900/40 rounded-xl cursor-pointer shadow transition-all flex items-center gap-1 text-xs font-bold"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-emerald-500' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+
+          <button 
+            onClick={handleExportCSV}
+            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-xl cursor-pointer flex items-center gap-1.5 shadow-md shadow-emerald-950/20 transition-all border border-emerald-400"
+          >
+            <Download className="w-4 h-4" /> Export CSV Audit Logs
+          </button>
+        </div>
       </div>
 
-      {/* 5 TOP STAT CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="rounded-2xl border border-emerald-500/15 bg-[#0c1f16] p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+      {/* ── 5 STAT CARDS (LIVE COMPUTED) ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="rounded-2xl border border-slate-200 dark:border-emerald-500/15 bg-white dark:bg-[#0c1f16] p-4 flex items-center gap-3 shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-500/15 border border-emerald-300 dark:border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
             <Activity className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">TOTAL ACTIVITIES</span>
-            <p className="text-xl font-bold text-white mt-0.5">1,245</p>
-            <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 mt-0.5"><TrendingUp className="w-3 h-3" /> 15.6% vs last week</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">TOTAL LOGS</span>
+            <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{logs.length}</p>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-0.5">
+              <TrendingUp className="w-3 h-3" /> Live DB Audit
+            </span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-emerald-500/15 bg-[#0c1f16] p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+        <div className="rounded-2xl border border-slate-200 dark:border-emerald-500/15 bg-white dark:bg-[#0c1f16] p-4 flex items-center gap-3 shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-500/15 border border-sky-300 dark:border-sky-500/20 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
             <User className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">USER LOGINS</span>
-            <p className="text-xl font-bold text-white mt-0.5">256</p>
-            <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 mt-0.5"><TrendingUp className="w-3 h-3" /> 12.3% vs last week</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">USER LOGINS</span>
+            <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{loginCount}</p>
+            <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold">Authentication</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-emerald-500/15 bg-[#0c1f16] p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+        <div className="rounded-2xl border border-slate-200 dark:border-emerald-500/15 bg-white dark:bg-[#0c1f16] p-4 flex items-center gap-3 shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-500/15 border border-amber-300 dark:border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
             <Edit3 className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">DATA CHANGES</span>
-            <p className="text-xl font-bold text-white mt-0.5">342</p>
-            <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 mt-0.5"><TrendingUp className="w-3 h-3" /> 18.7% vs last week</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">DATA CHANGES</span>
+            <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{updateCount}</p>
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">DB Modifications</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-emerald-500/15 bg-[#0c1f16] p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+        <div className="rounded-2xl border border-slate-200 dark:border-emerald-500/15 bg-white dark:bg-[#0c1f16] p-4 flex items-center gap-3 shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-rose-100 dark:bg-rose-500/15 border border-rose-300 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
             <Trash2 className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">DELETIONS</span>
-            <p className="text-xl font-bold text-white mt-0.5">45</p>
-            <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1 mt-0.5"><TrendingDown className="w-3 h-3" /> 10.2% vs last week</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">DELETIONS / CANCEL</span>
+            <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{deleteCount}</p>
+            <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold">Cancellations</span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-emerald-500/15 bg-[#0c1f16] p-4 flex items-center gap-3 shadow-lg">
-          <div className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+        <div className="col-span-2 sm:col-span-1 rounded-2xl border border-slate-200 dark:border-emerald-500/15 bg-white dark:bg-[#0c1f16] p-4 flex items-center gap-3 shadow-md">
+          <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-500/15 border border-purple-300 dark:border-purple-500/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
             <ShieldAlert className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">SECURITY EVENTS</span>
-            <p className="text-xl font-bold text-white mt-0.5">12</p>
-            <span className="text-[10px] text-rose-400 font-semibold flex items-center gap-1 mt-0.5"><TrendingDown className="w-3 h-3" /> 7.7% vs last week</span>
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">SYSTEM SECURITY</span>
+            <p className="text-xl font-black text-slate-900 dark:text-white mt-0.5">{securityCount}</p>
+            <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">Daily Closures</span>
           </div>
         </div>
       </div>
 
-      {/* MAIN LOGS TABLE CARD */}
-      <div className="rounded-2xl border border-emerald-500/15 bg-[#0c1f16] p-4 sm:p-6 space-y-5 shadow-xl">
+      {/* ── MAIN LOGS TABLE CARD ── */}
+      <div className="rounded-2xl border border-slate-200 dark:border-emerald-500/15 bg-white dark:bg-[#0c1f16] p-4 sm:p-6 space-y-5 shadow-xl">
         
-        {/* TABS */}
+        {/* CATEGORY TABS */}
         <div className="flex flex-wrap gap-2">
           {[
-            { id: 'all', label: 'All Activities' },
-            { id: 'logins', label: 'Logins' },
-            { id: 'data', label: 'Data Changes' },
-            { id: 'deletions', label: 'Deletions' },
-            { id: 'security', label: 'Security' },
-            { id: 'system', label: 'System' },
+            { id: 'all', label: `All Activities (${logs.length})` },
+            { id: 'logins', label: `Logins & Auth (${loginCount})` },
+            { id: 'data', label: `Modifications (${updateCount})` },
+            { id: 'walkin', label: `Walk-In & POS Operations` },
+            { id: 'security', label: `Security & Auto-Closure (${securityCount})` },
+            { id: 'deletions', label: `Deletions (${deleteCount})` },
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-2 rounded-full text-xs font-semibold cursor-pointer transition-all ${
+              onClick={() => { setActiveTab(tab.id); setCurrentPage(1); }}
+              className={`px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer transition-all ${
                 activeTab === tab.id
-                  ? 'bg-[#22c55e] text-white shadow-md shadow-emerald-950/60'
-                  : 'bg-[#092217]/80 text-emerald-200/80 hover:bg-emerald-900/40 border border-emerald-800/50'
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'bg-slate-100 dark:bg-[#092217]/80 text-slate-600 dark:text-emerald-200/80 hover:bg-slate-200 dark:hover:bg-emerald-900/40 border border-slate-300 dark:border-emerald-800/50'
               }`}
             >
               {tab.label}
@@ -140,211 +295,232 @@ export default function ActivityLogsTab() {
           ))}
         </div>
 
-        {/* CONTROLS */}
+        {/* SEARCH, ROLE FILTER & PAGE SIZE */}
         <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-1">
-          <div className="flex items-center gap-2 text-xs text-slate-300">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300 w-full sm:w-auto">
             <span>Show</span>
-            <select className="bg-[#092217] border border-emerald-800/60 text-emerald-100 text-xs rounded-lg px-3 py-1.5 outline-none cursor-pointer">
+            <select 
+              value={pageSize}
+              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+              className="bg-slate-100 dark:bg-[#092217] border border-slate-300 dark:border-emerald-800/60 text-slate-800 dark:text-emerald-100 text-xs rounded-xl px-3 py-1.5 outline-none cursor-pointer font-bold"
+            >
               <option value="10">10</option>
               <option value="25">25</option>
               <option value="50">50</option>
+              <option value="100">100</option>
             </select>
             <span>entries</span>
+
+            <span className="mx-2 text-slate-400">|</span>
+
+            <span>Role:</span>
+            <select
+              value={selectedRole}
+              onChange={(e) => { setSelectedRole(e.target.value); setCurrentPage(1); }}
+              className="bg-slate-100 dark:bg-[#092217] border border-slate-300 dark:border-emerald-800/60 text-slate-800 dark:text-emerald-100 text-xs rounded-xl px-3 py-1.5 outline-none cursor-pointer font-bold"
+            >
+              <option value="all">All Roles</option>
+              <option value="admin">Admin</option>
+              <option value="staff">Staff</option>
+              <option value="client">Client</option>
+              <option value="system">System</option>
+            </select>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <div className="relative flex-1 sm:w-64">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search activities..."
-                className="w-full bg-[#092217] border border-emerald-800/60 pl-4 pr-9 py-1.5 rounded-full text-xs text-emerald-100 placeholder:text-emerald-500/50 outline-none focus:border-emerald-400 transition-all"
-              />
-              <Search className="w-3.5 h-3.5 absolute right-3.5 top-1/2 -translate-y-1/2 text-emerald-400/70 pointer-events-none" />
-            </div>
-
-            <button className="p-2 bg-[#092217] border border-emerald-800/60 text-emerald-300 hover:bg-emerald-900/40 rounded-full cursor-pointer transition-all shrink-0">
-              <Filter className="w-4 h-4" />
-            </button>
+          <div className="relative w-full sm:w-80">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              placeholder="Search by user, action, module, or keyword…"
+              className="w-full bg-slate-100 dark:bg-[#092217] border border-slate-300 dark:border-emerald-800/60 pl-9 pr-4 py-2 rounded-xl text-xs text-slate-900 dark:text-emerald-100 placeholder:text-slate-400 dark:placeholder:text-emerald-500/50 outline-none focus:border-emerald-500 font-medium"
+            />
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-emerald-400/70 pointer-events-none" />
           </div>
         </div>
 
-        {/* TABLE */}
-        <div className="overflow-x-auto rounded-xl border border-emerald-900/40 bg-[#04150e]/60">
+        {/* ── TABLE ── */}
+        <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-emerald-900/40 bg-slate-50/50 dark:bg-[#04150e]/60">
           <table className="w-full text-left text-xs">
-            <thead className="bg-[#061d13] text-emerald-400 border-b border-emerald-900/40 font-bold uppercase tracking-wider text-[11px]">
+            <thead className="bg-slate-100 dark:bg-[#061d13] text-slate-700 dark:text-emerald-400 border-b border-slate-200 dark:border-emerald-900/40 font-extrabold uppercase tracking-wider text-[10px]">
               <tr>
-                <th className="p-3.5">DATE & TIME</th>
-                <th className="p-3.5">USER</th>
-                <th className="p-3.5">ROLE</th>
+                <th className="p-3.5">DATE &amp; TIME</th>
+                <th className="p-3.5">USER / ACTOR</th>
+                <th className="p-3.5 text-center">ROLE</th>
                 <th className="p-3.5">ACTION</th>
                 <th className="p-3.5">MODULE</th>
-                <th className="p-3.5">DESCRIPTION</th>
+                <th className="p-3.5">DESCRIPTION &amp; DETAILS</th>
                 <th className="p-3.5">IP ADDRESS</th>
+                <th className="p-3.5 text-center">VIEW</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-emerald-900/30 text-slate-200 font-medium">
-              {filteredLogs.map((item) => (
-                <tr key={item.id} className="hover:bg-emerald-950/40 transition-colors">
-                  <td className="p-3.5 text-slate-300 whitespace-nowrap">{item.date}</td>
-                  <td className="p-3.5">
-                    <div className="flex items-center gap-2.5">
-                      {item.role === 'System' ? (
-                        <div className="w-7 h-7 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-[10px]">S</div>
-                      ) : (
-                        <img src={`https://i.pravatar.cc/80?img=${item.avatar}`} alt="" className="w-7 h-7 rounded-full object-cover border border-emerald-500/30" />
-                      )}
-                      <span className="font-bold text-white">{item.name}</span>
-                    </div>
+            <tbody className="divide-y divide-slate-200 dark:divide-emerald-900/30 text-slate-800 dark:text-slate-200 font-medium">
+              {loading ? (
+                <tr>
+                  <td colSpan="8" className="p-8 text-center text-slate-500 dark:text-slate-400 font-semibold">
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto text-emerald-500 mb-2" />
+                    Fetching real-time activity audit logs from database…
                   </td>
-                  <td className="p-3.5">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                      item.role === 'Admin' ? 'bg-purple-950 text-purple-400 border border-purple-800' :
-                      item.role === 'Staff' ? 'bg-sky-950 text-sky-400 border border-sky-800' :
-                      'bg-slate-900 text-slate-400 border border-slate-700'
-                    }`}>
-                      {item.role}
-                    </span>
-                  </td>
-                  <td className="p-3.5">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${
-                      item.actionType === 'login' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                      item.actionType === 'create' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
-                      item.actionType === 'update' ? 'bg-amber-950 text-amber-400 border border-amber-800' :
-                      item.actionType === 'delete' ? 'bg-rose-950 text-rose-400 border border-rose-800' :
-                      'bg-sky-950 text-sky-400 border border-sky-800'
-                    }`}>
-                      {item.action}
-                    </span>
-                  </td>
-                  <td className="p-3.5 text-slate-300">{item.module}</td>
-                  <td className="p-3.5 text-slate-300 truncate max-w-xs">{item.desc}</td>
-                  <td className="p-3.5 font-mono text-slate-400 text-[11px]">{item.ip}</td>
                 </tr>
-              ))}
+              ) : paginatedLogs.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="p-8 text-center text-slate-500 dark:text-slate-400 font-semibold">
+                    No activity logs found matching the filter criteria.
+                  </td>
+                </tr>
+              ) : (
+                paginatedLogs.map((item) => (
+                  <tr 
+                    key={item.id} 
+                    className="hover:bg-slate-100/80 dark:hover:bg-emerald-950/40 transition-colors"
+                  >
+                    <td className="p-3.5 text-slate-600 dark:text-slate-300 whitespace-nowrap font-mono text-[11px]">
+                      {item.date}
+                    </td>
+
+                    <td className="p-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <img 
+                          src={`https://i.pravatar.cc/80?img=${item.avatar}`} 
+                          alt="" 
+                          className="w-7 h-7 rounded-full object-cover border border-slate-300 dark:border-emerald-500/30 shrink-0" 
+                        />
+                        <span className="font-bold text-slate-900 dark:text-white truncate max-w-[140px]">{item.name}</span>
+                      </div>
+                    </td>
+
+                    <td className="p-3.5 text-center">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase inline-block ${
+                        item.role === 'Admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800' :
+                        item.role === 'Staff' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800' :
+                        item.role === 'Client' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
+                        'bg-slate-200 text-slate-800 dark:bg-slate-900 dark:text-slate-400 border border-slate-300 dark:border-slate-700'
+                      }`}>
+                        {item.role}
+                      </span>
+                    </td>
+
+                    <td className="p-3.5">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase inline-block ${
+                        item.actionType === 'login' ? 'bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-300 dark:border-sky-800' :
+                        item.actionType === 'create' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800' :
+                        item.actionType === 'update' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800' :
+                        item.actionType === 'delete' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800' :
+                        'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
+                      }`}>
+                        {item.action}
+                      </span>
+                    </td>
+
+                    <td className="p-3.5 text-slate-700 dark:text-slate-300 font-semibold">{item.module}</td>
+                    
+                    <td className="p-3.5 text-slate-600 dark:text-slate-300 max-w-sm">
+                      <span className="line-clamp-2">{item.desc}</span>
+                    </td>
+
+                    <td className="p-3.5 font-mono text-slate-500 dark:text-slate-400 text-[11px] whitespace-nowrap">
+                      {item.ip}
+                    </td>
+
+                    <td className="p-3.5 text-center">
+                      <button
+                        onClick={() => setSelectedLog(item)}
+                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-emerald-950 rounded-lg text-slate-600 dark:text-emerald-400 cursor-pointer transition-colors"
+                        title="View Full Log Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
 
-        {/* PAGINATION */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2 text-xs text-slate-400">
-          <div>Showing 1 to 10 of 1,245 entries</div>
+        {/* ── PAGINATION ── */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-2 text-xs text-slate-500 dark:text-slate-400">
+          <div>
+            Showing {filteredLogs.length > 0 ? (safeCurrentPage - 1) * pageSize + 1 : 0} to {Math.min(safeCurrentPage * pageSize, filteredLogs.length)} of {filteredLogs.length} entries
+          </div>
           <div className="flex items-center gap-1.5">
-            <button className="p-1.5 rounded-lg bg-[#092217] border border-emerald-800/50 text-emerald-300"><ChevronLeft className="w-4 h-4" /></button>
-            <button className="px-3 py-1 rounded-md font-bold bg-[#22c55e] text-white">1</button>
-            <button className="px-3 py-1 rounded-md font-bold bg-[#092217] text-emerald-300">2</button>
-            <button className="px-3 py-1 rounded-md font-bold bg-[#092217] text-emerald-300">3</button>
-            <span className="px-1 text-slate-500">...</span>
-            <button className="px-3 py-1 rounded-md font-bold bg-[#092217] text-emerald-300">125</button>
-            <button className="p-1.5 rounded-lg bg-[#092217] border border-emerald-800/50 text-emerald-300"><ChevronRight className="w-4 h-4" /></button>
+            <button 
+              disabled={safeCurrentPage === 1}
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              className="p-2 rounded-xl bg-slate-100 dark:bg-[#092217] border border-slate-300 dark:border-emerald-800/50 text-slate-700 dark:text-emerald-300 disabled:opacity-40 cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="px-3.5 py-1.5 rounded-xl font-bold bg-emerald-600 text-white shadow">
+              Page {safeCurrentPage} of {totalPages}
+            </span>
+            <button 
+              disabled={safeCurrentPage >= totalPages}
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              className="p-2 rounded-xl bg-slate-100 dark:bg-[#092217] border border-slate-300 dark:border-emerald-800/50 text-slate-700 dark:text-emerald-300 disabled:opacity-40 cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
       </div>
 
-      {/* BOTTOM 3-COLUMN GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* ACTIVITY OVERVIEW DONUT CHART */}
-        <div className="rounded-2xl border border-emerald-500/15 bg-[#0c1f16] p-5 space-y-4 shadow-xl flex flex-col justify-between">
-          <div className="flex justify-between items-center border-b border-white/5 pb-3">
-            <h4 className="font-bold text-white text-base">Activity Overview</h4>
-            <button className="text-xs text-slate-300 border border-white/10 rounded-lg px-3 py-1 hover:bg-white/5 cursor-pointer">This Week</button>
-          </div>
+      {/* ── LOG DETAILS MODAL ── */}
+      {selectedLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-[#0c1f16] border border-slate-200 dark:border-emerald-500/30 rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 text-slate-900 dark:text-white">
+            <div className="flex justify-between items-center border-b border-slate-200 dark:border-emerald-900/60 pb-3">
+              <div className="flex items-center gap-2">
+                <Info className="w-5 h-5 text-emerald-500" />
+                <h3 className="font-black text-base">Activity Log Details</h3>
+              </div>
+              <button 
+                onClick={() => setSelectedLog(null)}
+                className="p-1 hover:bg-slate-100 dark:hover:bg-white/10 rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
 
-          <div className="flex flex-col items-center justify-center my-auto py-2">
-            <div className="relative w-44 h-44 flex items-center justify-center">
-              <svg viewBox="0 0 100 100" className="w-full h-full transform -rotate-90">
-                <circle cx="50" cy="50" r="38" fill="none" stroke="#4ade80" strokeWidth="14" strokeDasharray="49 190" strokeDashoffset="0" />
-                <circle cx="50" cy="50" r="38" fill="none" stroke="#38bdf8" strokeWidth="14" strokeDasharray="65 174" strokeDashoffset="-49" />
-                <circle cx="50" cy="50" r="38" fill="none" stroke="#a855f7" strokeWidth="14" strokeDasharray="57 182" strokeDashoffset="-114" />
-                <circle cx="50" cy="50" r="38" fill="none" stroke="#f87171" strokeWidth="14" strokeDasharray="9 230" strokeDashoffset="-171" />
-                <circle cx="50" cy="50" r="38" fill="none" stroke="#fbbf24" strokeWidth="14" strokeDasharray="3 236" strokeDashoffset="-180" />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-2xl font-bold text-white">1,245</span>
-                <span className="text-[10px] text-slate-400 font-semibold">Total Activities</span>
+            <div className="space-y-3 text-xs">
+              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-white/5">
+                <span className="text-slate-500 dark:text-slate-400">Timestamp:</span>
+                <span className="font-mono font-bold">{selectedLog.date}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-white/5">
+                <span className="text-slate-500 dark:text-slate-400">Actor / User:</span>
+                <span className="font-bold">{selectedLog.name} ({selectedLog.role})</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-white/5">
+                <span className="text-slate-500 dark:text-slate-400">Action Type:</span>
+                <span className="font-mono font-extrabold text-emerald-600 dark:text-emerald-400">{selectedLog.action}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-white/5">
+                <span className="text-slate-500 dark:text-slate-400">Affected Module:</span>
+                <span className="font-bold">{selectedLog.module}</span>
+              </div>
+              <div className="flex justify-between py-1 border-b border-slate-100 dark:border-white/5">
+                <span className="text-slate-500 dark:text-slate-400">IP Address:</span>
+                <span className="font-mono">{selectedLog.ip}</span>
+              </div>
+              <div className="py-2">
+                <span className="text-slate-500 dark:text-slate-400 block mb-1">Full Description:</span>
+                <div className="p-3 bg-slate-100 dark:bg-black/40 rounded-xl border border-slate-200 dark:border-emerald-900/60 font-medium leading-relaxed">
+                  {selectedLog.desc}
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs mt-4 w-full">
-              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#4ade80]" /><span className="text-slate-300">Logins: 256 (20.6%)</span></div>
-              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8]" /><span className="text-slate-300">Data: 342 (27.5%)</span></div>
-              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#a855f7]" /><span className="text-slate-300">Creations: 298 (24%)</span></div>
-              <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[#f87171]" /><span className="text-slate-300">Deletions: 45 (3.6%)</span></div>
-            </div>
+            <button
+              onClick={() => setSelectedLog(null)}
+              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl cursor-pointer"
+            >
+              Close Details
+            </button>
           </div>
         </div>
-
-        {/* TOP ACTIVE USERS */}
-        <div className="rounded-2xl border border-emerald-500/15 bg-[#0c1f16] p-5 space-y-4 shadow-xl flex flex-col justify-between">
-          <div className="flex justify-between items-center border-b border-white/5 pb-3">
-            <h4 className="font-bold text-white text-base">Top Active Users</h4>
-            <button className="text-xs text-slate-300 border border-white/10 rounded-lg px-3 py-1 hover:bg-white/5 cursor-pointer">This Week</button>
-          </div>
-
-          <div className="space-y-3">
-            {[
-              { name: 'Maria Santos', role: 'Admin', count: 128, img: 1 },
-              { name: 'John Dela Cruz', role: 'Staff', count: 115, img: 12 },
-              { name: 'Karen Lopez', role: 'Staff', count: 98, img: 45 },
-              { name: 'Mark Villanueva', role: 'Admin', count: 85, img: 53 },
-              { name: 'Anna Reyes', role: 'Staff', count: 76, img: 32 },
-            ].map((u, i) => (
-              <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-[#04150e] border border-emerald-900/30">
-                <div className="flex items-center gap-3">
-                  <img src={`https://i.pravatar.cc/80?img=${u.img}`} alt="" className="w-8 h-8 rounded-full object-cover border border-emerald-500/30" />
-                  <div>
-                    <h5 className="text-xs font-bold text-white">{u.name}</h5>
-                    <span className="text-[10px] text-emerald-400 font-semibold">{u.role}</span>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-bold text-white block">{u.count}</span>
-                  <span className="text-[9px] text-slate-400">activities</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button className="w-full py-2 bg-[#092217] hover:bg-emerald-900/40 text-emerald-300 text-xs font-semibold rounded-xl border border-emerald-800/40 cursor-pointer">
-            View All Users
-          </button>
-        </div>
-
-        {/* RECENT SECURITY EVENTS */}
-        <div className="rounded-2xl border border-emerald-500/15 bg-[#0c1f16] p-5 space-y-4 shadow-xl flex flex-col justify-between">
-          <div className="flex justify-between items-center border-b border-white/5 pb-3">
-            <h4 className="font-bold text-white text-base">Recent Security Events</h4>
-            <button className="text-xs text-slate-300 border border-white/10 rounded-lg px-3 py-1 hover:bg-white/5 cursor-pointer">View All</button>
-          </div>
-
-          <div className="space-y-3">
-            {[
-              { title: 'Failed login attempt', ip: '192.168.1.200', time: '10:20 AM', alert: true },
-              { title: 'Unauthorized access attempt', ip: '192.168.1.201', time: '09:15 AM', alert: true },
-              { title: 'Password change', ip: 'by Maria Santos', time: '08:45 AM', alert: false },
-              { title: 'New admin login', ip: 'Maria Santos', time: '08:30 AM', alert: false },
-              { title: 'Session timeout', ip: 'User: Pedro Garcia', time: '08:20 AM', alert: false },
-            ].map((ev, i) => (
-              <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-[#04150e] border border-emerald-900/30">
-                <div className="flex items-center gap-3">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${ev.alert ? 'bg-rose-500/20 text-rose-400 border border-rose-800' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-800'}`}>
-                    {ev.alert ? '⚠️' : '✓'}
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-white">{ev.title}</h5>
-                    <p className="text-[10px] text-slate-400">{ev.ip}</p>
-                  </div>
-                </div>
-                <span className="text-[10px] text-slate-500">{ev.time}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-      </div>
+      )}
 
     </div>
   );

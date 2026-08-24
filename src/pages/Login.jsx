@@ -5,10 +5,11 @@ import "./Auth.css";
 import homeImage from "../assets/home.png";
 import lightImage from "../assets/light.png";
 import { useEcoTour } from "../context/EcoTourContext";
+import LoadingScreen from "../components/LoadingScreen";
 
 export default function Login() {
   const navigate = useNavigate();
-  const { theme } = useEcoTour();
+  const { theme, setCurrentUser } = useEcoTour();
   const currentBg = theme === "light" ? lightImage : homeImage;
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
@@ -18,6 +19,7 @@ export default function Login() {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [transitionState, setTransitionState] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -37,7 +39,14 @@ export default function Login() {
         }),
       });
 
-      const data = await response.json();
+      const contentType = response.headers.get("content-type");
+      let data = {};
+      if (contentType && contentType.includes("application/json")) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        data = { message: text || `Server returned error (${response.status})` };
+      }
 
       if (!response.ok) {
         setError(data.message || "Login failed");
@@ -45,37 +54,53 @@ export default function Login() {
       }
 
       localStorage.setItem("user", JSON.stringify(data.user));
+      if (setCurrentUser) {
+        setCurrentUser(data.user);
+      }
       if (data.token) {
         localStorage.setItem("token", data.token);
       }
 
-      switch (data.user.role) {
-        case "admin":
-          navigate("/admin/dashboard");
-          break;
+      const roleLower = (data.user.role || "").toLowerCase();
+      const statusLower = (data.user.status || "").toLowerCase();
 
-        case "staff":
-          navigate("/staff/dashboard");
-          break;
-
-        case "client":
-          if (data.user.status === "approved") {
-            navigate("/home");
-          } else {
-            setError("Your account is waiting for admin approval.");
-          }
-          break;
-
-        default:
-          setError("Invalid user role.");
+      let targetPath = "/home";
+      if (roleLower === "admin") {
+        targetPath = "/admin/dashboard";
+      } else if (roleLower === "staff") {
+        targetPath = "/staff/dashboard";
+      } else if (roleLower === "client") {
+        if (statusLower !== "pending" && statusLower !== "rejected" && statusLower !== "suspended") {
+          targetPath = "/home";
+        } else {
+          setError("Your account is waiting for admin approval.");
+          return;
+        }
       }
+
+      // Fast transition through the Loading Screen
+      setTransitionState({
+        active: true,
+        targetPath,
+        role: roleLower || 'client'
+      });
     } catch (err) {
       console.error(err);
-      setError("Unable to connect to the server.");
+      setError(err.message === "Failed to fetch" ? "Unable to connect to the server. Please check if the backend server is running." : (err.message || "Unable to connect to the server."));
     } finally {
       setLoading(false);
     }
   };
+
+  if (transitionState?.active) {
+    return (
+      <LoadingScreen
+        role={transitionState.role}
+        minDuration={1200}
+        onComplete={() => navigate(transitionState.targetPath)}
+      />
+    );
+  }
 
   return (
     <div className="auth-page-login">
@@ -118,7 +143,7 @@ export default function Login() {
                     type="text"
                     placeholder="Enter your email"
                     value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
                     required
                     disabled={loading}
                   />

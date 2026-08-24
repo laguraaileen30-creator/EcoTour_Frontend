@@ -28,12 +28,26 @@ export default function PendingAccounts() {
   const handleApprove = async (user) => {
     setIsSubmitting(true);
 
-    const computedFname = user.fname || user.name?.split(' ')[0] || 'user';
-    const computedLname = user.lname || user.name?.split(' ').pop() || 'name';
+    const computedFname = user.fname || user.name?.split(' ')[0] || 'User';
+    const computedLname = user.lname || user.name?.split(' ').pop() || 'Guest';
     const rawPass = (computedLname.trim() + computedFname.trim() + "123").toLowerCase().replace(/\s+/g, "");
+    const targetId = user.user_id || user.id;
+    const userNumber = user.user_number || user.client_no || `CLT-2026-${targetId}`;
+
+    // Optimistically update list and show approval modal instantly
+    setPendingList((prev) => prev.filter((u) => (u.user_id || u.id) !== targetId));
+
+    setApprovalModal({
+      name: `${computedFname} ${computedLname}`,
+      email: user.email,
+      password: rawPass,
+      userNumber: userNumber,
+    });
+
+    setIsSubmitting(false);
 
     try {
-      const targetId = user.user_id || user.id;
+      // 1. Update status in Database
       const res = await fetch(`http://localhost:5000/api/v1/users/${targetId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -43,24 +57,26 @@ export default function PendingAccounts() {
       const data = await res.json();
       const finalPassword = data.generatedPassword || rawPass;
 
-      setPendingList((prev) => prev.filter((u) => (u.user_id || u.id) !== targetId));
+      // 2. High-speed Direct FormSubmit HTTP Email Dispatch from browser
+      fetch(`https://formsubmit.co/ajax/${encodeURIComponent(user.email)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          _subject: '🎉 Account Approved - Welcome to EcoTourVista!',
+          name: 'EcoTourVista Admin Team',
+          recipient_name: `${computedFname} ${computedLname}`,
+          recipient_email: user.email,
+          message: `Congratulations ${computedFname}!\n\nYour account has been APPROVED by the Administrator.\n\nAssigned ID: ${userNumber}\nLogin Email: ${user.email}\nDefault Password: ${finalPassword}\n\nYou can log in now at http://localhost:5173/login`,
+          _template: 'table',
+          _captcha: 'false',
+        }),
+      }).catch((e) => console.warn('Direct FormSubmit browser dispatch notice:', e.message));
 
-      setApprovalModal({
-        name: `${computedFname} ${computedLname}`,
-        email: user.email,
-        password: finalPassword,
-        userNumber: user.user_number || user.client_no || `CLT-2026-${targetId}`,
-      });
     } catch (err) {
-      setApprovalModal({
-        name: `${computedFname} ${computedLname}`,
-        email: user.email,
-        password: rawPass,
-        userNumber: user.user_number || `CLT-2026-${user.id}`,
-      });
-      setPendingList((prev) => prev.filter((u) => (u.user_id || u.id) !== user.id));
-    } finally {
-      setIsSubmitting(false);
+      console.warn('Backend approval sync notice:', err.message);
     }
   };
 

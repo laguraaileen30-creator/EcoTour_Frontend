@@ -91,7 +91,7 @@ const destinations = [
     id: 8,
     title: "Rajah Sikatuna Protected Landscape",
     image: Rajah,
-    location: "Zamora",
+    location: "Riverside",
     distance: "5 km",
     description: "Bohol's largest protected forest sanctuary, home to rare birds, lush trails, and natural springs.",
     tag: "Protected Area",
@@ -100,7 +100,7 @@ const destinations = [
     id: 9,
     title: "Kinaiyahan Forest Park",
     image: Kinaiyahan,
-    location: "Campagao",
+    location: "Zamora",
     distance: "6 km",
     description: "A peaceful forest park featuring camping grounds, scenic walking paths, and mountain air.",
     tag: "Forest Park",
@@ -109,7 +109,7 @@ const destinations = [
     id: 10,
     title: "Tinugdan Spring",
     image: Tinugdan,
-    location: "Poblacion",
+    location: "Campagao",
     distance: "3 km",
     description: "A serene natural spring with cool, flowing mountain water surrounded by lush foliage.",
     tag: "Natural Spring",
@@ -125,9 +125,9 @@ const destinations = [
   },
   {
     id: 12,
-    title: "Bamboo Hanging Bridge",
+    title: "Hanging Bridge",
     image: HangingBridge,
-    location: "Sevilla",
+    location: "Dagohoy",
     distance: "14 km",
     description: "A pair of woven bamboo suspension bridges crossing the emerald Sipatan River.",
     tag: "Adventure",
@@ -136,18 +136,18 @@ const destinations = [
     id: 13,
     title: "Dagas-das Falls",
     image: Dagas,
-    location: "Yanaya",
+    location: "Dagohoy",
     distance: "9 km",
     description: "A hidden waterfall nestled deep in the forest, offering a tranquil escape off the beaten path.",
     tag: "Hidden Gem",
   },
   {
     id: 14,
-    title: "Mt. Camelo Monastery",
+    title: "Camelo View Deck",
     image: Camelo,
-    location: "Poblacion",
+    location: "Zamora",
     distance: "6 km",
-    description: "A hilltop monastery offering panoramic views of Bilar's lush valleys and quiet meditation grounds.",
+    description: "A viewpoint offering panoramic views of Bilar's lush valleys.",
     tag: "Viewpoint",
   },
 ];
@@ -413,7 +413,7 @@ export default function NearbyDestinations() {
 
                 {/* Details Side */}
                 <div className="dest-lightbox-details">
-                  <div className="dest-lightbox-location-tag flex items-center gap-1.5 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">
+                  <div className="dest-lightbox-location-tag">
                     <MapPin size={14} />
                     <span>{selectedDestination.distance} • {selectedDestination.location}</span>
                   </div>

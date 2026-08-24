@@ -1,0 +1,349 @@
+/* =========================================
+   OFFICIAL RECEIPT MODAL THEMED STYLESHEET
+   DARK MODE & LIGHT MODE COMPATIBLE
+   ========================================= */
+
+/* FULL OVERLAY BACKDROP */
+.etv-or-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  background-color: rgba(2, 18, 12, 0.85) !important;
+  backdrop-filter: blur(8px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 1rem !important;
+}
+
+/* MAIN MODAL CARD CONTAINER */
+.etv-or-card {
+  width: 100% !important;
+  max-width: 52rem !important; /* ~832px */
+  max-height: 90vh !important;
+  background-color: #051c14 !important;
+  border: 2px solid rgba(16, 185, 129, 0.4) !important;
+  border-radius: 1.5rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  box-shadow: 0 25px 50px -12px rgba(2, 44, 34, 0.9) !important;
+  color: #ffffff !important;
+}
+
+/* PINNED TOP BAR */
+.etv-or-topbar {
+  flex-shrink: 0 !important;
+  padding: 1rem 1.75rem !important;
+  background-color: #07241a !important;
+  border-bottom: 1px solid rgba(6, 78, 59, 0.6) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.etv-or-topbar h3 {
+  color: #ffffff !important;
+}
+
+.etv-or-topbar p {
+  color: #a7f3d0 !important;
+}
+
+/* PINNED BOTTOM BAR */
+.etv-or-bottombar {
+  flex-shrink: 0 !important;
+  padding: 1rem 1.75rem !important;
+  background-color: #07241a !important;
+  border-top: 1px solid rgba(6, 78, 59, 0.6) !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 0.75rem !important;
+}
+
+/* SCROLLABLE RECEIPT BODY */
+.etv-or-body {
+  flex: 1 1 0% !important;
+  overflow-y: auto !important;
+  padding: 1.75rem 2rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1.5rem !important;
+}
+
+/* RECEIPT BRAND HEADER */
+.etv-or-header {
+  text-align: center !important;
+  padding-bottom: 1.25rem !important;
+  border-bottom: 2px dashed rgba(6, 95, 70, 0.6) !important;
+}
+
+.etv-or-header h2 {
+  font-size: 1.75rem !important;
+  font-weight: 900 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  color: #ffffff !important;
+  margin: 0.35rem 0 0.15rem 0 !important;
+}
+
+.etv-or-header p {
+  font-size: 0.875rem !important;
+  color: #a7f3d0 !important;
+  margin: 0.15rem 0 !important;
+}
+
+.etv-or-badge {
+  display: inline-block !important;
+  margin-top: 0.75rem !important;
+  padding: 0.4rem 1.25rem !important;
+  background-color: #022c22 !important;
+  color: #6ee7b7 !important;
+  border: 2px solid rgba(5, 150, 105, 0.6) !important;
+  font-family: monospace !important;
+  font-weight: 800 !important;
+  font-size: 0.95rem !important;
+  border-radius: 9999px !important;
+}
+
+/* METADATA GRID */
+.etv-or-meta-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 1rem !important;
+  background-color: #04150e !important;
+  padding: 1.25rem !important;
+  border-radius: 1rem !important;
+  border: 1px solid rgba(6, 95, 70, 0.5) !important;
+}
+
+.etv-or-meta-item span.label {
+  display: block !important;
+  font-size: 0.7rem !important;
+  font-weight: 700 !important;
+  color: #94a3b8 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.etv-or-meta-item strong {
+  display: block !important;
+  font-size: 0.95rem !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  margin-top: 0.2rem !important;
+}
+
+/* ITEMIZED PARTICULAR SERVICES TABLE */
+.etv-or-table-container {
+  border-radius: 1rem !important;
+  border: 1px solid rgba(6, 95, 70, 0.5) !important;
+  background-color: #04150e !important;
+  overflow: hidden !important;
+}
+
+.etv-or-table {
+  width: 100% !important;
+  text-align: left !important;
+  border-collapse: collapse !important;
+  font-size: 0.875rem !important;
+}
+
+.etv-or-table th {
+  background-color: #07241a !important;
+  color: #34d399 !important;
+  font-weight: 800 !important;
+  text-transform: uppercase !important;
+  font-size: 0.75rem !important;
+  padding: 0.875rem 1rem !important;
+  border-bottom: 1px solid rgba(6, 95, 70, 0.5) !important;
+}
+
+.etv-or-table td {
+  padding: 0.875rem 1rem !important;
+  border-bottom: 1px solid rgba(6, 95, 70, 0.3) !important;
+  color: #f1f5f9 !important;
+}
+
+/* LGU REVENUE SHARE BOX */
+.etv-or-lgu-box {
+  background-color: #04150e !important;
+  padding: 1.25rem 1.5rem !important;
+  border-radius: 1rem !important;
+  border: 1px solid rgba(6, 95, 70, 0.5) !important;
+  font-size: 0.875rem !important;
+}
+
+.etv-or-lgu-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  margin-top: 0.4rem !important;
+  color: #cbd5e1 !important;
+}
+
+.etv-or-lgu-row strong {
+  color: #ffffff !important;
+}
+
+/* TOTAL AMOUNT PAID BOX */
+.etv-or-total-box {
+  background-color: rgba(2, 44, 34, 0.9) !important;
+  padding: 1.35rem 1.5rem !important;
+  border-radius: 1rem !important;
+  border: 2px solid rgba(16, 185, 129, 0.4) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3) !important;
+}
+
+.etv-or-total-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.etv-or-grand-amount {
+  font-size: 2rem !important;
+  font-weight: 900 !important;
+  color: #34d399 !important;
+  font-family: monospace !important;
+}
+
+.etv-or-footer-sig {
+  padding-top: 1rem !important;
+  border-top: 1px dashed rgba(6, 95, 70, 0.6) !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+}
+
+.etv-or-notice {
+  text-align: center !important;
+  font-size: 0.7rem !important;
+  color: #94a3b8 !important;
+  font-family: monospace !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* =========================================
+   LIGHT MODE STYLING OVERRIDES (body.light-mode)
+   ========================================= */
+body.light-mode .etv-or-backdrop {
+  background-color: rgba(15, 23, 42, 0.65) !important;
+}
+
+body.light-mode .etv-or-card {
+  background-color: #ffffff !important;
+  border: 2px solid #16a34a !important;
+  color: #0f172a !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+body.light-mode .etv-or-topbar,
+body.light-mode .etv-or-bottombar {
+  background-color: #f8fafc !important;
+  border-color: #e2e8f0 !important;
+}
+
+body.light-mode .etv-or-topbar h3 {
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-or-topbar p {
+  color: #15803d !important;
+}
+
+body.light-mode .etv-or-header {
+  border-bottom-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-or-header h2 {
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-or-header p {
+  color: #15803d !important;
+}
+
+body.light-mode .etv-or-badge {
+  background-color: #f0fdf4 !important;
+  color: #15803d !important;
+  border-color: #86efac !important;
+}
+
+body.light-mode .etv-or-meta-grid,
+body.light-mode .etv-or-table-container,
+body.light-mode .etv-or-lgu-box {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-or-meta-item span.label {
+  color: #64748b !important;
+}
+
+body.light-mode .etv-or-meta-item strong {
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-or-table th {
+  background-color: #f1f5f9 !important;
+  color: #15803d !important;
+  border-bottom-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-or-table td {
+  color: #1e293b !important;
+  border-bottom-color: #e2e8f0 !important;
+}
+
+body.light-mode .etv-or-lgu-row {
+  color: #334155 !important;
+}
+
+body.light-mode .etv-or-lgu-row strong {
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-or-total-box {
+  background-color: #f0fdf4 !important;
+  border: 2px solid #16a34a !important;
+  box-shadow: 0 10px 25px rgba(22, 163, 74, 0.15) !important;
+}
+
+body.light-mode .etv-or-total-box span,
+body.light-mode .etv-or-total-box div {
+  color: #0f172a !important;
+}
+
+body.light-mode .etv-or-grand-amount {
+  color: #15803d !important;
+}
+
+body.light-mode .etv-or-footer-sig {
+  border-top-color: #cbd5e1 !important;
+}
+
+body.light-mode .etv-or-footer-sig p,
+body.light-mode .etv-or-footer-sig span {
+  color: #475569 !important;
+}
+
+body.light-mode .etv-or-notice {
+  color: #64748b !important;
+}
+
+/* PRINT MEDIA OVERRIDES */
+@media print {
+  .etv-or-backdrop {
+    position: static !important;
+    background: #ffffff !important;
+    padding: 0 !important;
+  }
+  .etv-or-card {
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+}

@@ -148,28 +148,33 @@ export default function Signup() {
 
             <form onSubmit={handleSubmit} className="auth-form">
 
-              {/* ROW 1: CLIENT SIGN UP HEADER & AUTO-GENERATED CLIENT NO */}
+              {/* ROW 1: ACCOUNT TYPE SELECTOR & AUTO-GENERATED ID (STAFF CODE / CLIENT ID) */}
               <div className="form-row form-row-2col">
                 <div className="form-group form-group-standard">
-                  <label>ACCOUNT TYPE</label>
-                  <input
-                    type="text"
-                    value="Client / Tourist"
-                    readOnly
-                    className="w-full bg-emerald-950/40 border border-emerald-800/50 p-2.5 rounded-xl text-xs font-bold text-emerald-300 cursor-not-allowed"
-                  />
-                  <small className="input-hint">Public registration is for Client accounts only</small>
+                  <label>ACCOUNT TYPE *</label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => handleRoleChange(e.target.value)}
+                    className="w-full bg-emerald-950/40 border border-emerald-800/50 p-2.5 rounded-xl text-xs font-bold text-emerald-300 outline-none focus:border-emerald-400"
+                    disabled={loading}
+                  >
+                    <option value="client">Client / Tourist</option>
+                    <option value="staff">Resort Staff</option>
+                  </select>
+                  <small className="input-hint">Select whether registering as a Client or Staff</small>
                 </div>
 
                 <div className="form-group form-group-standard">
-                  <label>AUTO-GENERATED CLIENT ID</label>
+                  <label>{formData.role === 'staff' ? 'AUTO-GENERATED STAFF CODE' : 'AUTO-GENERATED CLIENT ID'}</label>
                   <input
                     type="text"
                     value={assignedNo}
                     readOnly
                     className="w-full bg-emerald-50 border border-emerald-200 p-2.5 rounded-xl text-xs font-mono font-bold text-emerald-800"
                   />
-                  <small className="input-hint">System generated Client ID</small>
+                  <small className="input-hint">
+                    {formData.role === 'staff' ? 'Official Staff ID code (STF-2026-XXXXXX)' : 'System generated Client ID'}
+                  </small>
                 </div>
               </div>
 
@@ -180,9 +185,9 @@ export default function Signup() {
                   <User size={18} />
                   <input
                     type="text"
-                    placeholder="Juan"
+                    placeholder="Enter your First Name"
                     value={formData.firstName}
-                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, firstName: e.target.value.replace(/[^a-zA-Z\s'-]/g, "") })}
                     required
                     disabled={loading}
                   />
@@ -196,9 +201,9 @@ export default function Signup() {
                   <User size={18} />
                   <input
                     type="text"
-                    placeholder="Dela"
+                    placeholder="Enter your Middle Name"
                     value={formData.middleName}
-                    onChange={(e) => setFormData({ ...formData, middleName: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, middleName: e.target.value.replace(/[^a-zA-Z\s'-]/g, "") })}
                     disabled={loading}
                   />
                 </div>
@@ -211,9 +216,9 @@ export default function Signup() {
                   <User size={18} />
                   <input
                     type="text"
-                    placeholder="Cruz"
+                    placeholder="Enter your Last Name"
                     value={formData.lastName}
-                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, lastName: e.target.value.replace(/[^a-zA-Z\s'-]/g, "") })}
                     required
                     disabled={loading}
                   />
@@ -244,7 +249,7 @@ export default function Signup() {
                       type="tel"
                       placeholder="09123456789"
                       value={formData.contactNumber}
-                      onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value.replace(/\D/g, "") })}
                       required
                       disabled={loading}
                     />
@@ -260,9 +265,9 @@ export default function Signup() {
                     <Mail size={18} />
                     <input
                       type="email"
-                      placeholder="juan.cruz@email.com"
+                      placeholder="Enter your Email"
                       value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
                       required
                       disabled={loading}
                     />

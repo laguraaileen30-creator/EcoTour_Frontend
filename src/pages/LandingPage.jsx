@@ -15,9 +15,9 @@ export default function LandingPage() {
     <div className="landing-page">
       <Navbar onOpenBooking={() => setIsBookingOpen(true)} />
       <main>
-        {/* Exact Order: Hero -> About Us -> Contact -> Nearby Destinations */}
+        {/* Exact Flow: Hero -> About Us (with Explore Services Live Tracker) -> Contact -> Nearby Destinations */}
         <Hero onOpenBooking={() => setIsBookingOpen(true)} />
-        <About />
+        <About onOpenBooking={() => setIsBookingOpen(true)} />
         <Contact />
         <NearbyDestinations />
       </main>

@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { useEcoTour } from '../../../context/EcoTourContext';
 
 export const useStaff = () => {
-  const [activeTab, setActiveTab] = useState('pos');
-  const ecoTour = useEcoTour();
+  const [activeTab, setActiveTab] = useState('overview');
+  const ecoTour = useEcoTour() || {};
 
-  const activeStaff = (ecoTour && ecoTour.currentUser?.role === 'staff')
+  const activeStaff = (ecoTour.currentUser?.role === 'staff')
     ? ecoTour.currentUser
-    : (ecoTour && ecoTour.currentUser ? ecoTour.currentUser : { name: 'Staff Member', role: 'Staff', tasks: [] });
+    : (ecoTour.currentUser ? ecoTour.currentUser : { name: 'Staff Member', role: 'Staff', tasks: [] });
 
   const pricingList = [
     { id: 1, category: 'Entrance', name: 'Local Adult', price: 100, unit: 'per head' },
@@ -21,7 +21,7 @@ export const useStaff = () => {
   };
 
   const triggerPrintModal = (data) => {
-    alert(`🖨️ Printing: ${data.title}\nReceipt No: ${data.receipt?.receiptNo || 'N/A'}`);
+    alert(`🖨️ Printing: ${data?.title || 'Receipt'}\nReceipt No: ${data?.receipt?.receiptNo || 'N/A'}`);
   };
 
   return {
@@ -29,11 +29,11 @@ export const useStaff = () => {
     activeTab,
     setActiveTab,
     pricingList,
-    facilities: ecoTour.facilities,
-    receipts: ecoTour.receipts,
-    resortBookings: ecoTour.resortBookings,
-    parkConfig: ecoTour.parkConfig,
-    revenueShare: ecoTour.revenueShare,
+    facilities: ecoTour.facilities || [],
+    receipts: ecoTour.receipts || [],
+    resortBookings: ecoTour.resortBookings || [],
+    parkConfig: ecoTour.parkConfig || {},
+    revenueShare: ecoTour.revenueShare || {},
     processPOSTransaction: ecoTour.processPOSTransaction,
     returnFacilityItem: ecoTour.returnFacilityItem,
     reprintReceipt,

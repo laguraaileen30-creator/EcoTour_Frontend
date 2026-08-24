@@ -24,8 +24,26 @@ const getServiceIcon = (category, serviceName) => {
 };
 
 export default function POSTab() {
-  const { parkConfig, processPOSTransaction, activeStaff } = useStaff();
-  const { resortServices } = useEcoTour();
+  const { parkConfig, activeStaff } = useStaff();
+  const {
+    resortServices,
+    resortBookings,
+    reservations,
+    updateResortBookingStatus,
+    walkIns = [],
+    createWalkInTransaction,
+    completeWalkInTransaction,
+    autoCompleteDailyWalkIns
+  } = useEcoTour();
+
+  // Maps booking status string to a stage index (0=pending,1=confirmed,2=in-service,3=done)
+  const getStageIndex = (status) => {
+    const s = (status || '').toLowerCase();
+    if (s.includes('using') || s.includes('in service') || s.includes('checked in') || s.includes('active')) return 2;
+    if (s.includes('paid') || s.includes('completed') || s.includes('done')) return 3;
+    if (s.includes('confirmed') || s.includes('approved')) return 1;
+    return 0;
+  };
 
   const generateUserNumber = () => `CLT-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
   const [userNumber, setUserNumber] = useState(generateUserNumber());
@@ -41,44 +59,122 @@ export default function POSTab() {
   const [addonCart, setAddonCart] = useState({}); // { [serviceKey]: qty }
   const [cashReceived, setCashReceived] = useState('');
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
+  const [loadedBookingRef, setLoadedBookingRef] = useState(null);
 
   // Receipt Preview state
   const [previewReceipt, setPreviewReceipt] = useState(null);
 
   const totalVisitors = adults + children + students + seniors;
 
-  // DYNAMIC COTTAGES: Filter services matching category 'Cottage' or name containing 'Cottage'
-  const dbCottages = (resortServices || []).filter(
-    (s) => (s.category || '').toLowerCase() === 'cottage' || (s.service_name || s.name || '').toLowerCase().includes('cottage')
-  );
+  // Active bookings and walk-ins currently using facilities & services
+  const allBookings = (resortBookings || []).length ? (resortBookings || []) : (reservations || []);
 
-  const COTTAGE_OPTIONS = [
-    { id: 'COT-NONE', service_code: 'COT-NONE', name: 'No Cottage (Walk-In Only)', service_name: 'No Cottage (Walk-In Only)', price: 0 },
-    ...(dbCottages.length > 0
-      ? dbCottages.map((c) => ({
-          id: c.service_id || c.service_code || c.id,
-          service_id: c.service_id,
-          service_code: c.service_code,
-          name: c.service_name || c.name,
-          service_name: c.service_name || c.name,
-          category: c.category || 'Cottage',
-          price: parseFloat(c.price || 0),
-          unit: c.unit || 'day',
-          available_qty: c.available_qty !== undefined ? c.available_qty : (c.available_quantity !== undefined ? c.available_quantity : c.total_capacity || 10),
-          status: c.status || 'Active',
-        }))
-      : [
-          { id: 'COT-01', service_code: 'DSVC-002', name: 'Standard Open Cottage', service_name: 'Standard Open Cottage', price: 600, category: 'Cottage' },
-          { id: 'COT-02', service_code: 'DSVC-012', name: 'Large Family Covered Cottage', service_name: 'Large Family Covered Cottage', price: 1000, category: 'Cottage' },
-          { id: 'COT-03', service_code: 'DSVC-013', name: 'Executive Umbrella Shade', service_name: 'Executive Umbrella Shade', price: 400, category: 'Cottage' },
-        ]),
+  const getInUseCount = (serviceName, serviceCode) => {
+    const sName = (serviceName || '').toLowerCase().trim();
+    const sCode = (serviceCode || '').toLowerCase().trim();
+    let count = 0;
+
+    // 1. Check in-service / active reservations (deduct while in use, restore when Completed / Cancelled / Voided)
+    allBookings.forEach(b => {
+      const status = (b.status || '').toLowerCase();
+      const isConcluded = status.includes('completed') || status.includes('cancel') || status.includes('void') || status.includes('checkout') || status.includes('checked out') || status.includes('done');
+      const isPaidOrInService = (
+        status.includes('paid') ||
+        status.includes('using') ||
+        status.includes('in resort') ||
+        status.includes('checked in') ||
+        status.includes('active') ||
+        status.includes('confirmed')
+      );
+
+      if (isPaidOrInService && !isConcluded) {
+        if (Array.isArray(b.items) && b.items.length > 0) {
+          b.items.forEach(it => {
+            const itName = (it.name || it.serviceName || '').toLowerCase();
+            if (itName.includes(sName) || sName.includes(itName)) {
+              count += parseInt(it.quantity || 1, 10);
+            }
+          });
+        } else {
+          const bSvc = (b.specificType || b.serviceName || b.packageName || '').toLowerCase();
+          if (bSvc.includes(sName) || sName.includes(bSvc)) {
+            count += 1;
+          }
+        }
+      }
+    });
+
+    // 2. Check active walk-in transactions (deduct while ACTIVE/PAID, restore when COMPLETED)
+    (walkIns || []).forEach(w => {
+      const isConcluded = w.walk_in_status === 'COMPLETED' || (w.status || '').toLowerCase().includes('completed') || (w.payment_status || '').toLowerCase().includes('cancel');
+      const isWalkInActive = (w.walk_in_status === 'ACTIVE' || w.payment_status === 'PAID') && !isConcluded;
+
+      if (isWalkInActive && Array.isArray(w.items) && w.items.length > 0) {
+        w.items.forEach(it => {
+          const itName = (it.name || it.serviceName || '').toLowerCase();
+          if (itName.includes(sName) || sName.includes(itName)) {
+            count += parseInt(it.quantity || 1, 10);
+          }
+        });
+      }
+    });
+
+    return count;
+  };
+
+  const RAW_COTTAGES = [
+    { id: 'COT-NONE', service_code: 'COT-NONE', name: 'No Cottage (Walk-In Only)', service_name: 'No Cottage (Walk-In Only)', price: 0, total_capacity: 999 },
+    { id: 'COT-01', service_code: 'DSVC-002', name: 'Standard Open Cottage', service_name: 'Standard Open Cottage', price: 600, category: 'Cottage', total_capacity: 10 },
+    { id: 'COT-02', service_code: 'DSVC-003', name: 'Large Family Covered Cottage', service_name: 'Large Family Covered Cottage', price: 1000, category: 'Cottage', total_capacity: 6 },
+    { id: 'COT-03', service_code: 'DSVC-004', name: 'Executive Umbrella Shade', service_name: 'Executive Umbrella Shade', price: 400, category: 'Cottage', total_capacity: 15 },
   ];
 
-  // DYNAMIC RESORT SERVICES & FACILITIES ADD-ONS (Exclude Entrance and Cottage categories)
-  const AMENITY_ADDONS = (resortServices || []).filter((s) => {
-    const cat = (s.category || '').toLowerCase();
-    const name = (s.service_name || s.name || '').toLowerCase();
-    return cat !== 'entrance' && cat !== 'cottage' && !name.includes('entrance ticket');
+  const COTTAGE_OPTIONS = RAW_COTTAGES.map(c => {
+    if (c.id === 'COT-NONE') return { ...c, available_qty: 999, inUse: 0 };
+    const inUse = getInUseCount(c.name, c.service_code);
+    const available = Math.max(0, (c.total_capacity || 10) - inUse);
+    return {
+      ...c,
+      inUse,
+      available_qty: available,
+    };
+  });
+
+  const RAW_ADDONS = [
+    { service_id: 'DSVC-005', service_code: 'DSVC-005', name: 'Resort Table & Chairs Set', service_name: 'Resort Table & Chairs Set', category: 'Rental', price: 250, unit: 'day', total_capacity: 15 },
+    { service_id: 'DSVC-006', service_code: 'DSVC-006', name: 'Life Vest / Safety Gear', service_name: 'Life Vest / Safety Gear', category: 'Safety', price: 50, unit: 'head', total_capacity: 30 },
+    { service_id: 'DSVC-007', service_code: 'DSVC-007', name: 'Videoke Karaoke System', service_name: 'Videoke Karaoke System', category: 'Entertainment', price: 500, unit: 'day', total_capacity: 4 },
+    { service_id: 'DSVC-008', service_code: 'DSVC-008', name: 'Kayak / Floating Pad Rental', service_name: 'Kayak / Floating Pad Rental', category: 'Water Activity', price: 300, unit: 'hour', total_capacity: 5 },
+    { service_id: 'DSVC-009', service_code: 'DSVC-009', name: 'Camping Pitch & Tent', service_name: 'Camping Pitch & Tent', category: 'Accommodation', price: 450, unit: 'night', total_capacity: 8 },
+    { service_id: 'DSVC-010', service_code: 'DSVC-010', name: 'Aircon Kubo Guest Room', service_name: 'Aircon Kubo Guest Room', category: 'Accommodation', price: 1500, unit: 'night', total_capacity: 4 },
+    { service_id: 'DSVC-011', service_code: 'DSVC-011', name: 'Private Event Pavilion', service_name: 'Private Event Pavilion', category: 'Event', price: 3500, unit: 'event', total_capacity: 2 },
+    { service_id: 'DSVC-012', service_code: 'DSVC-012', name: 'Buffet & Catering Station', service_name: 'Buffet & Catering Station', category: 'Food', price: 450, unit: 'head', total_capacity: 50 },
+    { service_id: 'DSVC-013', service_code: 'DSVC-013', name: 'Secured Resort Parking Slot', service_name: 'Secured Resort Parking Slot', category: 'Parking', price: 50, unit: 'vehicle', total_capacity: 40 },
+  ];
+
+  const mergedAddons = (resortServices && resortServices.length > 0)
+    ? resortServices.filter(s => {
+        const cat = (s.category || '').toLowerCase();
+        const name = (s.service_name || s.name || '').toLowerCase();
+        return cat !== 'entrance' && cat !== 'cottage' && !name.includes('entrance ticket') && !name.includes('open cottage');
+      })
+    : RAW_ADDONS;
+
+  const AMENITY_ADDONS = (mergedAddons.length >= 9 ? mergedAddons : RAW_ADDONS).map(a => {
+    const name = a.service_name || a.name;
+    const code = a.service_code || a.service_id || a.id;
+    const totalCap = parseInt(a.total_capacity || a.totalQuantity || 10, 10);
+    const inUse = getInUseCount(name, code);
+    const available = Math.max(0, totalCap - inUse);
+    return {
+      ...a,
+      name,
+      service_name: name,
+      service_code: code,
+      inUse,
+      available_qty: available,
+      total_capacity: totalCap,
+    };
   });
 
   // Filtered Cottage Options & Addon Services based on Search Query
@@ -171,14 +267,16 @@ export default function POSTab() {
     if (totalVisitors <= 0) return alert('Please enter at least 1 visitor count.');
     if (!isCashSufficient) return alert(`Insufficient Cash! Total is ₱${grandTotal.toLocaleString()}. Cash given: ₱${parsedCash.toLocaleString()}`);
 
+    const dObj = new Date();
+    const localDate = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
     const draftReceipt = {
-      receiptNo: `OR-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.floor(100 + Math.random() * 900)}`,
+      receiptNo: `OR-${localDate.replace(/-/g,'')}-${Math.floor(100 + Math.random() * 900)}`,
       userNumber: userNumber.trim() || generateUserNumber(),
       touristName: touristName.trim(),
       touristContact: touristContact.trim(),
       touristEmail: touristEmail.trim(),
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: localDate,
+      time: dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       items: currentCartItems,
       grandTotal,
       cashReceived: parsedCash,
@@ -192,7 +290,7 @@ export default function POSTab() {
   const handleSaveTransaction = (shouldPrint = false) => {
     if (!previewReceipt) return;
 
-    const createdReceipt = processPOSTransaction({
+    const createdWalkIn = createWalkInTransaction({
       userNumber: previewReceipt.userNumber,
       touristName: previewReceipt.touristName,
       touristContact: previewReceipt.touristContact,
@@ -200,14 +298,28 @@ export default function POSTab() {
       items: previewReceipt.items,
       cashReceived: previewReceipt.cashReceived,
       grandTotal: previewReceipt.grandTotal,
-      staffName: previewReceipt.staffName,
+      staffName: activeStaff?.name || previewReceipt.staffName,
+      visitorType: 'Local'
     });
+
+    // Also update any matching pending client reservation to Paid
+    if (updateResortBookingStatus && reservations) {
+      const matchingRes = reservations.find(r => 
+        (r.clientName && r.clientName.toLowerCase() === previewReceipt.touristName.toLowerCase()) ||
+        (r.userNumber && r.userNumber === previewReceipt.userNumber) ||
+        (r.email && r.email.toLowerCase() === previewReceipt.touristEmail.toLowerCase()) ||
+        (loadedBookingRef && r.bookingRef === loadedBookingRef)
+      );
+      if (matchingRes) {
+        updateResortBookingStatus(matchingRes.bookingRef || matchingRes.id, 'Paid (Cash - Gate Verified)');
+      }
+    }
 
     if (shouldPrint) {
       window.print();
     }
 
-    alert(`Receipt ${createdReceipt.receiptNo} successfully saved to Database and Client Account!`);
+    alert(`✅ Walk-In #${createdWalkIn.walk_in_id} (${createdWalkIn.receiptNo}) successfully saved!\n- Status: ACTIVE\n- Payment: PAID (Cash)\n- Services are now In-Use in real time.`);
     resetForm();
   };
 
@@ -227,10 +339,105 @@ export default function POSTab() {
     setPreviewReceipt(null);
   };
 
+  // Pending Walk-In Self-Service Client Bookings
+  const pendingClientBookings = (reservations || []).filter(r => 
+    (r.status || '').toLowerCase().includes('pending') || (r.status || '').toLowerCase().includes('counter')
+  );
+
+  const handleLoadPendingBooking = (bookingRef) => {
+    if (!bookingRef) return;
+    const found = pendingClientBookings.find(r => r.bookingRef === bookingRef || r.id === bookingRef || String(r.id) === String(bookingRef));
+    if (!found) return;
+
+    setUserNumber(found.userNumber || found.client_no || generateUserNumber());
+    setTouristName(found.clientName || found.fullName || found.touristName || found.name || '');
+    setTouristContact(found.clientPhone || found.contactNumber || found.touristContact || found.contact_no || '0917-123-4567');
+    setTouristEmail(found.clientEmail || found.email || found.touristEmail || '');
+
+    // 1. Parse Pax Breakdown
+    if (found.paxBreakdown) {
+      setAdults(found.paxBreakdown.adults || 1);
+      setChildren(found.paxBreakdown.children || 0);
+      setStudents(found.paxBreakdown.students || 0);
+      setSeniors(found.paxBreakdown.seniors || 0);
+    } else if (Array.isArray(found.items) && found.items.length > 0) {
+      let a = 0, c = 0, st = 0, sn = 0;
+      found.items.forEach(it => {
+        const n = (it.name || it.serviceName || '').toLowerCase();
+        const qty = parseInt(it.quantity || 1, 10);
+        if (n.includes('adult')) a += qty;
+        else if (n.includes('child')) c += qty;
+        else if (n.includes('student')) st += qty;
+        else if (n.includes('senior') || n.includes('pwd')) sn += qty;
+      });
+      setAdults(a || found.totalVisitors || found.numberOfGuests || 1);
+      setChildren(c);
+      setStudents(st);
+      setSeniors(sn);
+    } else if (found.numberOfGuests || found.totalVisitors) {
+      setAdults(found.numberOfGuests || found.totalVisitors || 1);
+      setChildren(0);
+      setStudents(0);
+      setSeniors(0);
+    }
+
+    // 2. Parse Cottage Selection
+    if (found.selectedCottage) {
+      setSelectedCottage(found.selectedCottage);
+    } else if (Array.isArray(found.items) && found.items.length > 0) {
+      const cottageItem = found.items.find(it => {
+        const n = (it.name || it.serviceName || '').toLowerCase();
+        return n.includes('cottage') || n.includes('shade') || n.includes('kubo');
+      });
+      if (cottageItem) {
+        const cName = cottageItem.name || cottageItem.serviceName;
+        const matchingOpt = COTTAGE_OPTIONS.find(c => c.name.toLowerCase() === cName.toLowerCase() || cName.toLowerCase().includes(c.name.toLowerCase()));
+        if (matchingOpt) {
+          setSelectedCottage(matchingOpt);
+        } else {
+          setSelectedCottage({ id: 'COT-CUSTOM', service_code: 'COT-CUSTOM', name: cName, price: cottageItem.unitPrice || cottageItem.price || 0 });
+        }
+      } else {
+        setSelectedCottage(COTTAGE_OPTIONS[0]); // No Cottage
+      }
+    }
+
+    // 3. Parse Addon Cart
+    if (found.addonCart && Object.keys(found.addonCart).length > 0) {
+      setAddonCart(found.addonCart);
+    } else if (Array.isArray(found.items) && found.items.length > 0) {
+      const newCart = {};
+      found.items.forEach(it => {
+        const n = (it.name || it.serviceName || '').toLowerCase();
+        if (!n.includes('entrance') && !n.includes('cottage') && !n.includes('shade')) {
+          const matchedAddon = AMENITY_ADDONS.find(a => 
+            (a.service_name || a.name || '').toLowerCase() === n ||
+            n.includes((a.service_name || a.name || '').toLowerCase())
+          );
+          if (matchedAddon) {
+            newCart[matchedAddon.id || matchedAddon.service_id] = parseInt(it.quantity || 1, 10);
+          }
+        }
+      });
+      setAddonCart(newCart);
+    }
+
+    setLoadedBookingRef(found.bookingRef || found.id);
+
+    alert(`✅ Loaded pending booking (${found.bookingRef}) for ${found.clientName || found.touristName || 'Client'}!\n- Visitors: ${found.totalVisitors || found.numberOfGuests || 1}\n- Cottage & Addons restored.\nProceed with cash collection & receipt printing.`);
+  };
+
+  const dNow = new Date();
+  const todayStr = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}-${String(dNow.getDate()).padStart(2, '0')}`;
+  const todayWalkIns = walkIns.filter(w => (w.transaction_date === todayStr || w.operating_date === todayStr || (w.date && String(w.date).startsWith(todayStr))));
+  const activeWalkIns = todayWalkIns.filter(w => w.walk_in_status === 'ACTIVE');
+  const completedTodayWalkIns = todayWalkIns.filter(w => w.walk_in_status === 'COMPLETED');
+  const totalPaidWalkIns = todayWalkIns.filter(w => w.payment_status === 'PAID');
+
   return (
     <div className="space-y-6 text-white max-w-[1600px] mx-auto p-2 sm:p-4">
-      {/* HEADER BANNER */}
-      <div className="bg-[#071911] p-5 rounded-2xl border border-emerald-500/20 shadow-xl flex justify-between items-center">
+      {/* HEADER BANNER & PENDING BOOKINGS QUICK LOADER */}
+      <div className="bg-[#071911] p-5 rounded-2xl border border-emerald-500/20 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
             <Ticket className="w-6 h-6" />
@@ -243,6 +450,56 @@ export default function POSTab() {
               Register walk-in tourists, select entrance tickets & resort services/facilities, calculate totals, record cash, and issue official receipts.
             </p>
           </div>
+        </div>
+
+        {/* PENDING CLIENT BOOKINGS LOADER DROPDOWN */}
+        {pendingClientBookings.length > 0 && (
+          <div className="bg-emerald-950/90 p-3 rounded-xl border border-emerald-500/40 space-y-1 w-full sm:w-80 shrink-0">
+            <label className="text-[10px] font-extrabold text-emerald-300 uppercase tracking-wider block">
+              📥 Load Pending Client Self-Service Booking ({pendingClientBookings.length} Ready):
+            </label>
+            <select
+              onChange={(e) => handleLoadPendingBooking(e.target.value)}
+              className="w-full bg-[#04150e] border border-emerald-700/60 rounded-lg px-2.5 py-1.5 text-xs text-emerald-200 outline-none cursor-pointer font-medium"
+            >
+              <option value="">-- Select Pending Client Booking --</option>
+              {pendingClientBookings.map((b) => (
+                <option key={b.bookingRef || b.id} value={b.bookingRef || b.id}>
+                  {b.bookingRef} - {b.clientName || b.touristName || 'Client'} (₱{(b.estimatedTotal || 0).toLocaleString()})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* TODAY'S WALK-IN OPERATIONAL STATUS KPIS */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-[#0c1f16] p-4 rounded-xl border border-emerald-500/20 shadow-md">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Today's Walk-Ins</span>
+          <p className="text-2xl font-black text-white mt-1">{todayWalkIns.length} Groups</p>
+          <span className="text-[10px] text-emerald-400 font-medium">{todayWalkIns.reduce((s, w) => s + (w.guest_count || 1), 0)} Total Pax</span>
+        </div>
+
+        <div className="bg-[#0c1f16] p-4 rounded-xl border border-emerald-500/20 shadow-md">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Paid Transactions</span>
+          <p className="text-2xl font-black text-emerald-400 font-mono mt-1">₱{todayWalkIns.reduce((s, w) => s + (w.total_amount || 0), 0).toLocaleString()}</p>
+          <span className="text-[10px] text-emerald-300 font-medium">{totalPaidWalkIns.length} Settled in Cash</span>
+        </div>
+
+        <div className="bg-[#0c1f16] p-4 rounded-xl border border-emerald-500/30 shadow-md relative overflow-hidden">
+          <div className="flex justify-between items-center">
+            <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider block">Active / Using Services</span>
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          </div>
+          <p className="text-2xl font-black text-emerald-300 mt-1">{activeWalkIns.length} Active</p>
+          <span className="text-[10px] text-emerald-400/90 font-medium">Occupying Cottages &amp; Facilities</span>
+        </div>
+
+        <div className="bg-[#0c1f16] p-4 rounded-xl border border-emerald-500/20 shadow-md">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Completed Visits</span>
+          <p className="text-2xl font-black text-slate-200 mt-1">{completedTodayWalkIns.length} Finished</p>
+          <span className="text-[10px] text-slate-400 font-medium">Services Released back to Available</span>
         </div>
       </div>
 
@@ -289,7 +546,7 @@ export default function POSTab() {
                     type="text"
                     placeholder="e.g. Juan Dela Cruz"
                     value={touristName}
-                    onChange={(e) => setTouristName(e.target.value)}
+                    onChange={(e) => setTouristName(e.target.value.replace(/[^a-zA-Z\s'-]/g, ""))}
                     className="w-full bg-black/40 border border-emerald-900/60 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-400 font-medium"
                   />
                 </div>
@@ -303,7 +560,7 @@ export default function POSTab() {
                     type="text"
                     placeholder="0917-123-4567"
                     value={touristContact}
-                    onChange={(e) => setTouristContact(e.target.value)}
+                    onChange={(e) => setTouristContact(e.target.value.replace(/\D/g, ""))}
                     className="w-full bg-black/40 border border-emerald-900/60 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-400 font-medium"
                   />
                 </div>
@@ -317,7 +574,7 @@ export default function POSTab() {
                     type="email"
                     placeholder="client@gmail.com"
                     value={touristEmail}
-                    onChange={(e) => setTouristEmail(e.target.value)}
+                    onChange={(e) => setTouristEmail(e.target.value.toLowerCase())}
                     className="w-full bg-black/40 border border-emerald-900/60 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 outline-none focus:border-emerald-400 font-medium"
                   />
                 </div>
@@ -395,23 +652,41 @@ export default function POSTab() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {filteredCottageOptions.map((c) => {
                   const isSelected = selectedCottage?.id === c.id || (c.id === 'COT-NONE' && !selectedCottage);
+                  const isFull = c.available_qty === 0 && c.id !== 'COT-NONE';
+
                   return (
                     <button
                       key={c.id}
-                      onClick={() => setSelectedCottage(c.id === 'COT-NONE' ? null : c)}
-                      className={`p-3 rounded-xl border text-left cursor-pointer transition-all flex justify-between items-center ${
-                        isSelected
-                          ? 'bg-emerald-600/90 text-white border-emerald-400 shadow-md font-bold'
-                          : 'bg-black/30 border-emerald-900/60 text-slate-300 hover:bg-emerald-950/60'
+                      disabled={isFull}
+                      onClick={() => !isFull && setSelectedCottage(c.id === 'COT-NONE' ? null : c)}
+                      className={`p-3 rounded-xl border text-left transition-all flex justify-between items-center ${
+                        isFull
+                          ? 'opacity-40 bg-rose-950/30 border-rose-900/40 cursor-not-allowed'
+                          : isSelected
+                          ? 'bg-emerald-600/90 text-white border-emerald-400 shadow-md font-bold cursor-pointer'
+                          : 'bg-black/30 border-emerald-900/60 text-slate-300 hover:bg-emerald-950/60 cursor-pointer'
                       }`}
                     >
-                      <div>
-                        <span className="text-xs font-bold block">{c.name}</span>
-                        {c.service_code && c.service_code !== 'COT-NONE' && (
-                          <span className="text-[9px] font-mono text-emerald-400 font-bold">{c.service_code}</span>
-                        )}
+                      <div className="min-w-0 pr-2">
+                        <span className="text-xs font-bold block truncate">{c.name}</span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {c.service_code && c.service_code !== 'COT-NONE' && (
+                            <span className="text-[9px] font-mono text-emerald-400 font-bold">{c.service_code}</span>
+                          )}
+                          {c.id !== 'COT-NONE' && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
+                              c.available_qty === 0
+                                ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                                : c.available_qty <= 3
+                                ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            }`}>
+                              {c.available_qty === 0 ? '🚫 0 left (Full)' : `${c.available_qty} left`}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <span className="text-xs font-mono font-extrabold text-emerald-300">
+                      <span className="text-xs font-mono font-extrabold text-emerald-300 shrink-0">
                         {c.price > 0 ? `₱${c.price.toLocaleString()}${c.unit ? `/${c.unit}` : ''}` : 'Free'}
                       </span>
                     </button>
@@ -440,7 +715,7 @@ export default function POSTab() {
                     const IconComp = getServiceIcon(addon.category, addon.service_name || addon.name);
                     const qty = addonCart[key] || 0;
                     const price = parseFloat(addon.price || addon.unitPrice || 0);
-                    const availQty = addon.available_qty !== undefined ? parseInt(addon.available_qty, 10) : (addon.available_quantity !== undefined ? parseInt(addon.available_quantity, 10) : (addon.total_capacity || 99));
+                    const availQty = addon.available_qty !== undefined ? parseInt(addon.available_qty, 10) : 10;
 
                     return (
                       <div
@@ -460,18 +735,22 @@ export default function POSTab() {
                             <h4 className="text-xs font-bold text-white leading-tight truncate">
                               {addon.service_name || addon.name}
                             </h4>
-                            <div className="flex items-center gap-1.5 mt-0.5">
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                               <span className="text-[10px] font-mono text-emerald-300 font-extrabold">
                                 ₱{price.toLocaleString()}
                               </span>
                               <span className="text-[9px] text-slate-400 font-normal">
                                 / {addon.unit || 'unit'}
                               </span>
-                              {availQty <= 5 && (
-                                <span className="text-[9px] text-amber-400 font-bold bg-amber-950/60 px-1 rounded">
-                                  {availQty} left
-                                </span>
-                              )}
+                              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded font-mono ${
+                                availQty === 0
+                                  ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                                  : availQty <= 3
+                                  ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                                  : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                              }`}>
+                                {availQty === 0 ? '🚫 0 left' : `${availQty} left`}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -490,7 +769,7 @@ export default function POSTab() {
                           <button
                             type="button"
                             onClick={() => handleAddonQty(key, 1, availQty)}
-                            disabled={qty >= availQty}
+                            disabled={qty >= availQty || availQty === 0}
                             className="w-6 h-6 rounded bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold flex items-center justify-center cursor-pointer text-xs shadow"
                           >
                             +
@@ -682,6 +961,121 @@ export default function POSTab() {
           </div>
         </div>
       )}
+
+      {/* ── REAL-TIME ACTIVE WALK-IN VISITORS (CURRENTLY USING SERVICES) ── */}
+      <div className="bg-[#0c1f16] p-5 rounded-2xl border border-emerald-500/20 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-emerald-900/60 pb-3">
+          <div>
+            <h3 className="font-extrabold text-white text-base flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+              🟢 Real-Time Active Walk-In Visitors &amp; Service Occupancy
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Guests who have paid in cash and are currently occupying cottages &amp; enjoying resort amenities. Click <strong>Complete Walk-In</strong> when guests leave to instantly release cottages/services.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono font-bold text-emerald-300 bg-emerald-950 px-3 py-1 rounded-full border border-emerald-800">
+              {activeWalkIns.length} Active in Resort
+            </span>
+          </div>
+        </div>
+
+        {todayWalkIns.length === 0 ? (
+          <div className="text-center py-8 text-slate-400 text-xs font-medium">
+            No walk-in transactions recorded for today yet. Use the POS form above to register walk-in tourists.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-black/40 text-slate-400 uppercase font-mono text-[10px] border-b border-emerald-900/60">
+                <tr>
+                  <th className="p-3">Walk-In ID</th>
+                  <th className="p-3">Tourist / Client</th>
+                  <th className="p-3 text-center">Guests</th>
+                  <th className="p-3">Availed Cottages &amp; Services</th>
+                  <th className="p-3 text-right">Cash Paid (₱)</th>
+                  <th className="p-3 text-center">Status</th>
+                  <th className="p-3">Staff / Time</th>
+                  <th className="p-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-900/40 font-medium">
+                {todayWalkIns.map(w => {
+                  const isActive = w.walk_in_status === 'ACTIVE';
+                  const isAutoClosed = w.completion_type === 'AUTO_DAILY_CLOSURE';
+
+                  return (
+                    <tr key={w.id || w.walk_in_id} className="hover:bg-white/5 transition-all">
+                      <td className="p-3 font-mono font-bold text-emerald-400">
+                        {w.walk_in_id || `WI-${w.id}`}
+                      </td>
+                      <td className="p-3 font-extrabold text-white">
+                        <div>{w.customer_name || w.touristName}</div>
+                        <span className="text-[10px] font-mono text-slate-400">{w.userNumber}</span>
+                      </td>
+                      <td className="p-3 text-center font-bold text-slate-200">
+                        {w.guest_count || w.totalVisitors || 1} Pax
+                      </td>
+                      <td className="p-3 text-slate-300">
+                        <div className="space-y-0.5 max-w-xs">
+                          {w.items?.map((item, idx) => (
+                            <div key={idx} className="text-[11px] text-emerald-300/90 font-medium">
+                              • {item.name} <span className="font-bold text-white">(x{item.quantity})</span>
+                            </div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="p-3 text-right font-mono font-black text-emerald-400">
+                        ₱{parseFloat(w.total_amount || w.grandTotal || 0).toLocaleString()}
+                      </td>
+                      <td className="p-3 text-center">
+                        {isActive ? (
+                          <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/50 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 shadow-sm">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> ACTIVE (IN USE)
+                          </span>
+                        ) : (
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 ${
+                            isAutoClosed
+                              ? 'bg-amber-950/70 text-amber-300 border border-amber-600/50'
+                              : 'bg-slate-800 text-slate-300 border border-slate-700'
+                          }`}>
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            {isAutoClosed ? 'AUTO-COMPLETED' : 'COMPLETED'}
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-slate-400 text-[11px]">
+                        <div>{w.created_by || 'Staff'}</div>
+                        <span className="font-mono text-[10px] text-slate-500">{w.time || 'Today'}</span>
+                      </td>
+                      <td className="p-3 text-center">
+                        {isActive ? (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Complete Walk-In #${w.walk_in_id} for ${w.customer_name}?\nThis will release all rented cottages/services back into available inventory.`)) {
+                                completeWalkInTransaction(w.id || w.walk_in_id, activeStaff?.name);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs rounded-xl cursor-pointer shadow-md transition-all uppercase tracking-wider flex items-center justify-center gap-1 mx-auto"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Complete Walk-In
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-500 font-medium">
+                            {w.completed_by ? `By ${w.completed_by}` : 'Closed'}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

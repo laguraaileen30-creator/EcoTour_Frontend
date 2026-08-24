@@ -69,8 +69,8 @@ export default function ClientTab() {
           <button className="modal-close" onClick={() => setIsModalOpen(false)}>✕</button>
           <h3 className="modal-title">Register New Client</h3>
           <form onSubmit={handleAdd}>
-            <input className="modal-input" placeholder="Full Name" required value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
-            <input className="modal-input" type="email" placeholder="Email Address" required value={form.email} onChange={e => setForm({...form, email: e.target.value})} />
+            <input className="modal-input" placeholder="Full Name" required value={form.name} onChange={e => setForm({...form, name: e.target.value.replace(/[^a-zA-Z\s'-]/g, '')})} />
+            <input className="modal-input" type="email" placeholder="Email Address" required value={form.email} onChange={e => setForm({...form, email: e.target.value.toLowerCase()})} />
             <select className="modal-input" value={form.membership} onChange={e => setForm({...form, membership: e.target.value})}>
               <option>Standard</option>
               <option>VIP</option>

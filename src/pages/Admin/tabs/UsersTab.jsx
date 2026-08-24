@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserPlus, Users, UserRound, Briefcase, Clock } from 'lucide-react';
 import UserTable from '../components/UserTable';
 import AddUserModal from '../modals/AddUserModal';
@@ -9,6 +9,34 @@ import RoleDistribution from '../components/RoleDistribution';
 export default function UsersTab() {
   const [open, setOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [userStats, setUserStats] = useState({
+    all: 11,
+    clients: 6,
+    staff: 4,
+    pending: 1
+  });
+
+  const fetchUserStats = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/v1/users');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users)) {
+        const allUsers = data.users;
+        setUserStats({
+          all: allUsers.length,
+          clients: allUsers.filter(u => (u.role || '').toLowerCase() === 'client').length,
+          staff: allUsers.filter(u => (u.role || '').toLowerCase() === 'staff').length,
+          pending: allUsers.filter(u => (u.status || '').toLowerCase() === 'pending').length
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to fetch user stats:', e.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchUserStats();
+  }, [refreshKey]);
 
   return (
     <div className="space-y-6 p-2 sm:p-6 max-w-[1600px] mx-auto">
@@ -35,12 +63,12 @@ export default function UsersTab() {
         </button>
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - Dynamic Database Counts */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="ALL USERS" value="256" trend="12.5%" trendUp={true} icon={<Users className="w-5 h-5" />} />
-        <StatCard title="CLIENT ACCOUNTS" value="186" trend="8.3%" trendUp={true} icon={<UserRound className="w-5 h-5" />} />
-        <StatCard title="STAFF ACCOUNTS" value="48" trend="5.7%" trendUp={true} icon={<Briefcase className="w-5 h-5" />} />
-        <StatCard title="PENDING ACCOUNTS" value="22" trend="3.2%" trendUp={false} icon={<Clock className="w-5 h-5" />} />
+        <StatCard title="ALL USERS" value={String(userStats.all)} trend="12.5%" trendUp={true} icon={<Users className="w-5 h-5" />} />
+        <StatCard title="CLIENT ACCOUNTS" value={String(userStats.clients)} trend="8.3%" trendUp={true} icon={<UserRound className="w-5 h-5" />} />
+        <StatCard title="STAFF ACCOUNTS" value={String(userStats.staff)} trend="5.7%" trendUp={true} icon={<Briefcase className="w-5 h-5" />} />
+        <StatCard title="PENDING ACCOUNTS" value={String(userStats.pending)} trend="3.2%" trendUp={false} icon={<Clock className="w-5 h-5" />} />
       </div>
 
       {/* Table (tabs, search, pagination live inside UserTable) */}

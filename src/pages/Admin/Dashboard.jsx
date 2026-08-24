@@ -15,6 +15,7 @@ import ReportsTab from './tabs/ReportsTab';
 import GalleryTab from './tabs/GalleryTab';
 import AnnouncementTab from './tabs/AnnouncementTab';
 import SettingsTab from './tabs/SettingsTab';
+import RevenuePaymentsTab from './tabs/RevenuePaymentsTab';
 import ProfileTab from './tabs/ProfileTab';
 import ActivityLogsTab from './tabs/ActivityLogsTab';
 import AvailabilityTab from '../Staff/tabs/AvailabilityTab';
@@ -74,10 +75,11 @@ const TabRouter = () => {
       return <AnnouncementTab />;
     case 'activity_logs':
       return <ActivityLogsTab />;
-    case 'settings':
     case 'payments':
     case 'payments_daily':
     case 'payments_commission':
+      return <RevenuePaymentsTab />;
+    case 'settings':
       return <SettingsTab />;
     case 'profile':
       return <ProfileTab />;

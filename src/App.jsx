@@ -20,6 +20,9 @@ import ClientDashboard from "./pages/Client/Client";
 // --- Staff Pages ---
 import StaffDashboard from "./pages/Staff/Staff";
 
+import { useState } from "react";
+import LoadingScreen from "./components/LoadingScreen";
+
 function Layout({ children }) {
   return <div className="app-shell min-h-screen bg-[#03130b] text-white">{children}</div>;
 }

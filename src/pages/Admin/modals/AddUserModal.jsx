@@ -20,13 +20,21 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Auto-generate Client/Staff/Admin Number
-  const generateClientNumber = (roleType) => {
-    const r = roleType.toLowerCase();
+  // Auto-generate Client/Staff/Admin Number from MySQL sequence
+  const generateClientNumber = async (roleType) => {
+    const r = (roleType || 'client').toLowerCase();
     const prefix = r === 'staff' ? 'STF' : r === 'admin' ? 'ADM' : 'CLT';
     const year = new Date().getFullYear();
-    const randomSeq = Math.floor(100000 + Math.random() * 900000);
-    return `${prefix}-${year}-${randomSeq}`;
+
+    try {
+      const res = await fetch('http://localhost:5000/api/v1/users');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users)) {
+        const count = data.users.filter(u => (u.role || '').toLowerCase() === r).length + 1;
+        return `${prefix}-${year}-${String(count).padStart(6, '0')}`;
+      }
+    } catch (e) {}
+    return `${prefix}-${year}-000015`;
   };
 
   // Calculate Auto-Generated Password: lastname + firstname (lowercase)
@@ -35,9 +43,9 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
   ).toLowerCase();
 
   // Handle Role Change
-  const handleRoleChange = (e) => {
+  const handleRoleChange = async (e) => {
     const newRole = e.target.value;
-    const newNo = generateClientNumber(newRole);
+    const newNo = await generateClientNumber(newRole);
     setFormData(prev => ({
       ...prev,
       role: newRole,
@@ -48,18 +56,20 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
   // Reset Form when Modal opens
   useEffect(() => {
     if (isOpen) {
-      setFormData({
-        role: 'client',
-        clientNumber: generateClientNumber('client'),
-        firstname: '',
-        middlename: '',
-        lastname: '',
-        gender: 'Male',
-        contactnumber: '',
-        email: '',
-        address: '',
-        status: 'Pending',
-        agreeTerms: false,
+      generateClientNumber('client').then(newNo => {
+        setFormData({
+          role: 'client',
+          clientNumber: newNo,
+          firstname: '',
+          middlename: '',
+          lastname: '',
+          gender: 'Male',
+          contactnumber: '',
+          email: '',
+          address: '',
+          status: 'Pending',
+          agreeTerms: false,
+        });
       });
       setIsSubmitting(false);
       setErrorMessage('');
@@ -69,9 +79,21 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let val = type === 'checkbox' ? checked : value;
+
+    if (typeof val === 'string') {
+      if (name === 'firstname' || name === 'middlename' || name === 'lastname') {
+        val = val.replace(/[^a-zA-Z\s'-]/g, '');
+      } else if (name === 'contactnumber') {
+        val = val.replace(/\D/g, '');
+      } else if (name === 'email') {
+        val = val.toLowerCase();
+      }
+    }
+
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: val,
     }));
   };
 
@@ -146,7 +168,7 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-[#051c14] border border-emerald-800/60 rounded-3xl w-full max-w-xl shadow-2xl shadow-emerald-950/80 overflow-hidden my-6 animate-in fade-in zoom-in duration-200 text-white">
+      <div className="etv-user-modal-card bg-[#051c14] border border-emerald-800/60 rounded-3xl w-full max-w-xl shadow-2xl shadow-emerald-950/80 overflow-hidden my-6 animate-in fade-in zoom-in duration-200 text-white">
 
         {/* Modal Header */}
         <div className="px-6 pt-6 pb-2 text-center relative border-b border-emerald-900/40 bg-[#041710]">

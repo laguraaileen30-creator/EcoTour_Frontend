@@ -1,3 +1,4 @@
+// @refresh reset
 import { createContext, useContext, useState } from 'react';
 import { useEcoTour } from '../../../context/EcoTourContext';
 
@@ -5,11 +6,14 @@ const DashboardContext = createContext(null);
 
 const useDashboardState = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [searchQuery, setSearchQuery] = useState('');
   const ecoTour = useEcoTour();
 
   return {
     activeTab,
     setActiveTab,
+    searchQuery,
+    setSearchQuery,
     staffList: ecoTour.staffList,
     addStaff: ecoTour.addStaff,
     updateStaff: ecoTour.updateStaff,

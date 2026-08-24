@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useStaff } from './hooks/useStaff';
 import StaffSidebar from './components/StaffSidebar';
+import StaffHeader from './components/StaffHeader';
 import ThemeToggle from '../../components/ThemeToggle';
 import '../Client/Client.css';
 import './Staff.css';
@@ -21,8 +22,11 @@ import DailySalesTab from './tabs/DailySalesTab';
 import AvailabilityTab from './tabs/AvailabilityTab';
 import NotificationsTab from './tabs/NotificationsTab';
 import InventoryTab from './tabs/InventoryTab';
+import PendingBookingsTab from './tabs/PendingBookingsTab';
 import { MailOutboxModal } from '../MailBox';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useEcoTour } from '../../context/EcoTourContext';
+import { getPhilippineDateStr, getPhilippineFormattedDate } from '../../utils/phTime';
 
 const VISITS = [0, 0, 0, 0, 0, 0, 0, 0, 0];
 const WALKINS = [
@@ -94,7 +98,161 @@ function BreakdownDonut() {
 
 export const StaffDashboard = () => {
   const [showMailOutbox, setShowMailOutbox] = useState(false);
-  const { activeTab, setActiveTab, activeStaff, resortBookings } = useStaff();
+  const [activeTab, setActiveTab] = useState('overview');
+  const { activeStaff } = useStaff();
+  const {
+    resortBookings = [],
+    receipts = [],
+    walkIns = [],
+    facilities = [],
+    resortServices = [],
+    refreshAllLiveData
+  } = useEcoTour();
+
+  // Philippine Time standardized operating date (August 24, 2026 / 2026-08-24)
+  const todayStr = getPhilippineDateStr();
+  const todayFormatted = getPhilippineFormattedDate();
+
+  // Real-time synchronization listener & auto-poll
+  useEffect(() => {
+    if (refreshAllLiveData) refreshAllLiveData();
+
+    const interval = setInterval(() => {
+      if (refreshAllLiveData) refreshAllLiveData();
+    }, 3000);
+
+    const handleSync = () => {
+      if (refreshAllLiveData) refreshAllLiveData();
+    };
+
+    window.addEventListener('ecotour:sync', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('ecotour:sync', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [refreshAllLiveData]);
+
+  const isMatchingToday = (dateVal) => {
+    if (!dateVal) return false;
+    const s = String(dateVal).split('T')[0].trim();
+    return s === todayStr;
+  };
+
+  // 1. Walk-Ins for Today
+  const todayWalkIns = (walkIns || []).filter(w => isMatchingToday(w.transaction_date || w.operating_date || w.created_at || w.date));
+  const todayPaidWalkIns = todayWalkIns.filter(w => w.payment_status === 'PAID' || w.status === 'Paid');
+
+  // 2. Reservation Receipts for Today
+  const todayReservationReceipts = (receipts || []).filter(r => {
+    const isPaid = r.status === 'Paid' || (r.status || '').toLowerCase().includes('paid');
+    const matchDate = isMatchingToday(r.date || r.created_at);
+    const isRes = Boolean(r.bookingRef || r.booking_id || !r.walk_in_id);
+    return matchDate && isPaid && isRes;
+  });
+
+  // 3. Cash Drawer Breakdowns
+  const walkInCashToday = todayPaidWalkIns.reduce((s, w) => s + (parseFloat(w.total_amount || w.grandTotal || w.amount || 0)), 0);
+  const reservationCashToday = todayReservationReceipts.reduce((s, r) => s + (parseFloat(r.grandTotal || r.amount || 0)), 0);
+  const todayRevenue = walkInCashToday + reservationCashToday;
+
+  // 4. Visitors count
+  const walkInVisitors = todayPaidWalkIns.reduce((s, w) => s + (parseInt(w.guest_count || w.totalVisitors || 1, 10)), 0);
+  const reservationVisitors = todayReservationReceipts.reduce((s, r) => s + (parseInt(r.totalVisitors || 1, 10)), 0);
+  const todayVisitors = walkInVisitors + reservationVisitors;
+
+  // 5. Pending Reservations
+  const todayPendingBookings = (resortBookings || []).filter(b => {
+    const s = (b.status || '').toLowerCase();
+    const isPending = (s.includes('pending') || s.includes('waiting') || s.includes('counter')) && !s.includes('cancel') && !s.includes('void');
+    return isPending;
+  });
+
+  // 6. Receipts Printed
+  const todayReceiptsCount = todayPaidWalkIns.length + todayReservationReceipts.length;
+
+  // Real-time facility occupancy computed from active bookings & walk-ins
+  const getOccupancy = (keyword, fallbackTotal = 10) => {
+    let inUse = 0;
+    let total = fallbackTotal;
+
+    const sItem = (resortServices || []).find(s => (s.service_name || s.name || '').toLowerCase().includes(keyword.toLowerCase()));
+    if (sItem) {
+      total = parseInt(sItem.total_capacity || sItem.totalQuantity || fallbackTotal, 10);
+    }
+
+    // Check active paid / in-service reservations
+    (resortBookings || []).forEach(b => {
+      const s = (b.status || '').toLowerCase();
+      const isConcluded = s.includes('completed') || s.includes('cancel') || s.includes('void') || s.includes('checked out');
+      const isPaidOrActive = s.includes('paid') || s.includes('using') || s.includes('in resort') || s.includes('checked in') || s.includes('confirmed');
+      if (isPaidOrActive && !isConcluded) {
+        if (Array.isArray(b.items) && b.items.length > 0) {
+          b.items.forEach(it => {
+            if ((it.name || '').toLowerCase().includes(keyword.toLowerCase())) {
+              inUse += parseInt(it.quantity || 1, 10);
+            }
+          });
+        } else if ((b.specificType || b.serviceName || '').toLowerCase().includes(keyword.toLowerCase())) {
+          inUse += 1;
+        }
+      }
+    });
+
+    // Check active walk-ins
+    (walkIns || []).forEach(w => {
+      const isWalkInActive = (w.walk_in_status === 'ACTIVE' || w.payment_status === 'PAID') && w.walk_in_status !== 'COMPLETED';
+      if (isWalkInActive && Array.isArray(w.items)) {
+        w.items.forEach(it => {
+          if ((it.name || '').toLowerCase().includes(keyword.toLowerCase())) {
+            inUse += parseInt(it.quantity || 1, 10);
+          }
+        });
+      }
+    });
+
+    return { occupied: inUse, total };
+  };
+
+  const cottageOp = getOccupancy('cottage', 10);
+  const tableOp = getOccupancy('table', 15);
+  const vestOp = getOccupancy('vest', 30);
+  const videokeOp = getOccupancy('videoke', 4);
+  const kayakOp = getOccupancy('kayak', 5);
+  const roomOp = getOccupancy('room', 4);
+
+  // Unified Real-Time Combined Transactions (Newest First)
+  const allTodayActivities = [
+    ...todayWalkIns.map(w => ({
+      id: w.walk_in_id || `WI-${w.id}`,
+      name: w.customer_name || w.touristName || w.lead_guest_name || 'Walk-In Guest',
+      sub: `${w.time || 'Today'} • ${w.items?.map(i => i.name).join(', ') || 'Day Pass & Entrance'} (${w.guest_count || w.totalVisitors || 1} Pax)`,
+      amt: parseFloat(w.total_amount || w.grandTotal || 0),
+      status: w.walk_in_status === 'ACTIVE' ? 'In Resort' : 'Paid',
+      badgeClass: w.walk_in_status === 'ACTIVE' ? 'confirmed' : 'confirmed',
+      rawTime: new Date(w.created_at || w.paid_at || Date.now()).getTime(),
+      isWalkIn: true
+    })),
+    ...(resortBookings || []).map(b => {
+      const s = (b.status || '').toLowerCase();
+      const isVoid = s.includes('cancel') || s.includes('void');
+      const isPaid = s.includes('paid') || s.includes('using') || s.includes('complete');
+      const isToday = isMatchingToday(b.reservationDate || b.bookingDate || b.created_at);
+      return {
+        id: b.bookingRef || b.bookingNumber || `BK-${b.id}`,
+        name: b.clientName || b.fullName || b.touristName || 'Online Client',
+        sub: `${b.reservationDate || b.bookingDate || todayStr} • ${b.specificType || b.serviceName || 'Day Pass'} (${b.numberOfGuests || b.totalVisitors || 1} Pax)`,
+        amt: parseFloat(b.estimatedTotal || b.grandTotal || b.totalPrice || 0),
+        status: isVoid ? 'Voided' : (isPaid ? 'Paid' : 'Pending'),
+        badgeClass: isVoid ? 'bg-rose-950/80 text-rose-300 border border-rose-500/40' : (isPaid ? 'confirmed' : 'pending'),
+        rawTime: new Date(b.created_at || Date.now()).getTime(),
+        isWalkIn: false,
+        isToday
+      };
+    })
+  ].sort((a, b) => b.rawTime - a.rawTime).slice(0, 6);
 
   const QUICK = [
     { label: 'New Walk-in', sub: 'Register new walk-in visitor', icon: UserPlus, tab: 'pos' },
@@ -110,57 +268,84 @@ export const StaffDashboard = () => {
       <StaffSidebar activeTab={activeTab} setActiveTab={setActiveTab} />
 
       <div className="ct-main">
-        <header className="ct-header">
-          <button className="ct-icon-btn"><Menu size={18} /></button>
-          <div className="ct-header-right">
-            <ThemeToggle size="sm" />
-            <button className="ct-icon-btn" onClick={() => setActiveTab('notifications')}><Bell size={18} /><em>3</em></button>
-            <div className="ct-user">
-              <img src={activeStaff?.avatarUrl || 'https://i.pravatar.cc/80?img=33'} alt="staff" />
-              <div><strong>{activeStaff?.name || `${activeStaff?.fname || ''} ${activeStaff?.lname || ''}`.trim() || 'Staff Member'}</strong><small>Staff Member <ChevronDown size={12} /></small></div>
-            </div>
-          </div>
-        </header>
+        <StaffHeader activeTab={activeTab} setActiveTab={setActiveTab} activeStaff={activeStaff} />
 
         <main className="ct-content">
           {activeTab === 'overview' && (
             <>
               <section className="ct-hero">
                 <p className="hi">Welcome back,</p>
-                <h2 style={{ fontSize: 34 }}>Good Morning, <span>Staff!</span> 🌿</h2>
-                <p className="sub">Let's make today another amazing day<br />for our visitors.</p>
+                <h2 style={{ fontSize: 34 }}>Good Day, <span>{activeStaff?.name || 'Staff Member'}!</span> 🌿</h2>
+                <p className="sub">Operating Date: <strong>{todayFormatted} ({todayStr})</strong> • Philippine Time (PHT)<br />Live terminal synced with resort front gate POS.</p>
               </section>
 
               <section className="st-stats">
-                <div className="ct-card ct-stat"><div className="top"><span className="ico"><Users size={17} /></span><small>TODAY'S VISITORS</small></div><strong>124</strong><button className="ct-link">↑ 18.6% vs yesterday</button></div>
-                <div className="ct-card ct-stat"><div className="top"><span className="ico font-extrabold text-emerald-400 font-mono text-base">₱</span><small>TODAY'S REVENUE</small></div><strong>₱25,680.00</strong><button className="ct-link">↑ 21.4% vs yesterday</button></div>
-                <div className="ct-card ct-stat"><div className="top"><span className="ico"><CalendarCheck size={17} /></span><small>PENDING RESERVATIONS</small></div><strong>{resortBookings?.length || 8}</strong><button className="ct-link" onClick={() => setActiveTab('service_orders')}>View all reservations</button></div>
-                <div className="ct-card ct-stat"><div className="top"><span className="ico"><Printer size={17} /></span><small>RECEIPTS PRINTED</small></div><strong>96</strong><button className="ct-link" onClick={() => setActiveTab('receipts')}>View all receipts</button></div>
+                <div className="ct-card ct-stat">
+                  <div className="top"><span className="ico"><Users size={17} /></span><small>TODAY'S VISITORS</small></div>
+                  <strong>{todayVisitors} Pax</strong>
+                  <button className="ct-link" onClick={() => setActiveTab('pos')}>Live count for today</button>
+                </div>
+
+                <div className="ct-card ct-stat">
+                  <div className="top"><span className="ico font-extrabold text-emerald-400 font-mono text-base">₱</span><small>TODAY'S REVENUE</small></div>
+                  <strong className="font-mono text-emerald-400">₱{todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>
+                  <button className="ct-link" onClick={() => setActiveTab('daily_reports')}>100% Cash Collections</button>
+                </div>
+
+                <div className="ct-card ct-stat">
+                  <div className="top"><span className="ico"><CalendarCheck size={17} /></span><small>PENDING RESERVATIONS</small></div>
+                  <strong>{todayPendingBookings.length}</strong>
+                  <button className="ct-link" onClick={() => setActiveTab('service_orders')}>View today's bookings</button>
+                </div>
+
+                <div className="ct-card ct-stat">
+                  <div className="top"><span className="ico"><Printer size={17} /></span><small>RECEIPTS PRINTED</small></div>
+                  <strong>{todayReceiptsCount}</strong>
+                  <button className="ct-link" onClick={() => setActiveTab('receipts')}>View today's receipts</button>
+                </div>
               </section>
 
               <section className="ct-mid-grid">
                 <div className="ct-card ct-pad">
-                  <div className="ct-card-head"><span>TODAY'S VISITOR OVERVIEW</span><select className="ct-promo-btn" style={{ width: 'auto' }}><option>Today</option><option>This Week</option></select></div>
-                  <VisitorChart />
+                  <div className="ct-card-head"><span>TODAY'S VISITOR OVERVIEW ({todayStr})</span><button className="ct-link" onClick={() => setActiveTab('pos')}>Register New</button></div>
+                  <div className="p-4 text-center space-y-2">
+                    <div className="text-3xl font-black text-emerald-400 font-mono">{todayVisitors} Visitors Registered Today</div>
+                    <p className="text-xs text-slate-400">Visitor count automatically resets to 0 at the start of each operating day (12:00 AM Midnight).</p>
+                  </div>
                 </div>
                 <div className="ct-card ct-pad">
-                  <div className="ct-card-head"><span>VISITOR BREAKDOWN</span></div>
-                  <BreakdownDonut />
+                  <div className="ct-card-head"><span>TODAY'S CASH DRAWER</span></div>
+                  <div className="p-4 space-y-3">
+                    <div className="flex justify-between text-xs"><span className="text-slate-400">Total Cash Collected:</span><strong className="text-emerald-400 font-mono text-base">₱{todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+                    <div className="flex justify-between text-xs"><span className="text-slate-400">Walk-In Gate POS:</span><strong className="font-mono text-white">₱{walkInCashToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+                    <div className="flex justify-between text-xs"><span className="text-slate-400">Reservation Counter:</span><strong className="font-mono text-white">₱{reservationCashToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+                  </div>
                 </div>
               </section>
 
               <section className="ct-mid-grid">
                 <div className="ct-card ct-pad">
-                  <div className="ct-card-head"><span>RECENT WALK-IN VISITORS</span><button className="ct-link">View All</button></div>
-                  {WALKINS.map((w) => (
-                    <div className="st-visitor" key={w.name}>
-                      <img src={`https://i.pravatar.cc/80?img=${w.img}`} alt={w.name} />
-                      <div className="info"><strong>{w.name}</strong><small>{w.time} • {w.pax}</small></div>
-                      <span className="amt">₱{w.amt}.00</span>
-                      <span className="ct-badge confirmed">Paid</span>
-                    </div>
-                  ))}
-                  <button className="st-new-btn" onClick={() => setActiveTab('pos')}>+ New Walk-in Visitor</button>
+                  <div className="ct-card-head"><span>RECENT CLIENT BOOKINGS & WALK-INS (TODAY)</span><button className="ct-link" onClick={() => setActiveTab('service_orders')}>View All</button></div>
+                  {allTodayActivities.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-slate-400">No bookings recorded for today yet. Use POS to register walk-ins.</div>
+                  ) : (
+                    allTodayActivities.map((b) => (
+                      <div className="st-visitor" key={b.id}>
+                        <div className="w-8 h-8 rounded-full bg-emerald-950 border border-emerald-700/50 flex items-center justify-center font-bold text-xs text-emerald-400 shrink-0 font-mono">
+                          {(b.name || 'G')[0]}
+                        </div>
+                        <div className="info">
+                          <strong>{b.name}</strong>
+                          <small>{b.sub}</small>
+                        </div>
+                        <span className="amt font-mono text-emerald-400">₱{b.amt.toLocaleString()}</span>
+                        <span className={`ct-badge ${b.badgeClass}`}>
+                          {b.status}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                  <button className="st-new-btn" onClick={() => setActiveTab('pos')}>+ New Walk-in Visitor (POS)</button>
                 </div>
 
                 <div className="ct-card ct-pad">
@@ -179,37 +364,36 @@ export const StaffDashboard = () => {
               <section className="st-bottom">
                 <div className="ct-card ct-pad">
                   <div className="ct-card-head"><span>PAYMENT SUMMARY (TODAY)</span></div>
-                  <div className="st-pay-row"><span>Cash Payments</span><strong>₱23,680.00</strong></div>
-                  <div className="st-pay-row"><span>Card Payments</span><strong>₱2,000.00</strong></div>
-                  <div className="st-pay-row total"><span>Total Revenue</span><strong>₱25,680.00</strong></div>
+                  <div className="st-pay-row"><span>Walk-In Gate Cash</span><strong className="font-mono">₱{walkInCashToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+                  <div className="st-pay-row"><span>Reservation Counter Cash</span><strong className="font-mono">₱{reservationCashToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
+                  <div className="st-pay-row total"><span>Total Cash Revenue</span><strong className="font-mono text-emerald-400">₱{todayRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong></div>
                 </div>
 
                 <div className="ct-card ct-pad">
-                  <div className="ct-card-head"><span>DUANGON OPERATIONS TODAY</span><button className="ct-link" onClick={() => setActiveTab('facilities')}>View Facilities</button></div>
+                  <div className="ct-card-head"><span>DUANGON LIVE OPERATIONS TODAY</span><button className="ct-link" onClick={() => setActiveTab('facilities')}>View Facilities</button></div>
                   {[
-                    { name: 'Cottages Occupied', occ: 18, total: 30, icon: '🛖' },
-                    { name: 'Resort Tables Rented', occ: 24, total: 40, icon: '🪑' },
-                    { name: 'Life Vests In Use', occ: 31, total: 50, icon: '🦺' },
-                    { name: 'Videoke Units Active', occ: 3, total: 4, icon: '🎤' },
-                    { name: 'Kayaks / Floating Pads', occ: 3, total: 5, icon: '🛶' },
-                    { name: 'Aircon Rooms Booked', occ: 2, total: 6, icon: '🛌' },
+                    { name: 'Cottages Occupied', occ: cottageOp.occupied, total: cottageOp.total, icon: '🛖' },
+                    { name: 'Resort Tables Rented', occ: tableOp.occupied, total: tableOp.total, icon: '🪑' },
+                    { name: 'Life Vests In Use', occ: vestOp.occupied, total: vestOp.total, icon: '🦺' },
+                    { name: 'Videoke Units Active', occ: videokeOp.occupied, total: videokeOp.total, icon: '🎤' },
+                    { name: 'Kayaks / Floating Pads', occ: kayakOp.occupied, total: kayakOp.total, icon: '🛶' },
+                    { name: 'Aircon Rooms Booked', occ: roomOp.occupied, total: roomOp.total, icon: '🛌' },
                   ].map((op) => (
                     <div className="st-dest" key={op.name}>
                       <span className="thumb">{op.icon}</span>
                       <div className="info">
                         <div className="name font-bold">{op.name}</div>
-                        <div className="st-bar"><i style={{ width: `${(op.occ / op.total) * 100}%` }} /></div>
+                        <div className="st-bar"><i style={{ width: `${Math.min(100, (op.occ / Math.max(1, op.total)) * 100)}%` }} /></div>
                       </div>
-                      <div className="num"><strong>{op.occ}</strong><small>/ {op.total} total</small></div>
+                      <div className="num font-mono"><strong>{op.occ}</strong><small>/ {op.total} total</small></div>
                     </div>
                   ))}
                 </div>
 
                 <div className="ct-card ct-pad">
-                  <div className="ct-card-head"><span>REMINDERS & ANNOUNCEMENTS</span><button className="ct-link">View All</button></div>
-                  <div className="st-rem"><span className="ico purple"><Wrench size={16} /></span><div><h5>System Maintenance</h5><p>The system will be updated on May 27, 2024 at 12:00 AM.</p><small>May 25, 2024</small></div></div>
-                  <div className="st-rem"><span className="ico green"><Users size={16} /></span><div><h5>Staff Meeting</h5><p>Meeting at the admin office on May 26, 2024 at 2:00 PM.</p><small>May 24, 2024</small></div></div>
-                  <div className="st-rem"><span className="ico green"><Leaf size={16} /></span><div><h5>Clean as You Go</h5><p>Please maintain cleanliness in all areas of the resort.</p><small>May 24, 2024</small></div></div>
+                  <div className="ct-card-head"><span>RESORT REMINDERS</span></div>
+                  <div className="st-rem"><span className="ico green"><Users size={16} /></span><div><h5>Daily Cash Tally</h5><p>Submit shift closing report at the end of each duty.</p><small>Today</small></div></div>
+                  <div className="st-rem"><span className="ico green"><Leaf size={16} /></span><div><h5>Clean as You Go</h5><p>Please inspect and maintain cottages after visitor checkout.</p><small>Today</small></div></div>
                 </div>
               </section>
 
@@ -222,40 +406,53 @@ export const StaffDashboard = () => {
             </>
           )}
 
-          {/* small new tabs */}
+          {/* Real-time Tourist Visitor Logbook */}
           {(activeTab === 'visitor_logs' || activeTab.startsWith('visitor_logs_')) && (
             <div className="ct-card ct-pad space-y-4">
               <div className="ct-card-head flex justify-between items-center pb-2 border-b border-emerald-900/40">
-                <span className="font-extrabold text-white text-base">DUANGON VISITOR LOGS & HISTORY</span>
+                <span className="font-extrabold text-white text-base">DUANGON TOURIST VISITOR LOGBOOK ({todayStr})</span>
                 <span className="text-xs font-mono text-emerald-400 bg-emerald-950 px-2.5 py-1 rounded-md border border-emerald-800">
-                  {WALKINS.length} Checked-in Guests
+                  {todayWalkIns.length} Walk-Ins • {todayVisitors} Total Pax Today
                 </span>
               </div>
               <div className="space-y-3">
-                {WALKINS.map((w) => (
-                  <div className="st-visitor flex items-center justify-between p-3 rounded-xl bg-black/20 border border-emerald-900/40" key={w.name}>
-                    <div className="flex items-center gap-3">
-                      <img src={`https://i.pravatar.cc/80?img=${w.img}`} alt={w.name} className="w-10 h-10 rounded-full border border-emerald-500/40" />
-                      <div className="info">
-                        <strong className="text-white text-sm block">{w.name}</strong>
-                        <small className="text-slate-400 text-xs">{w.time} • {w.pax}</small>
+                {todayWalkIns.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-400">
+                    No visitor check-ins recorded for today yet. Use Walk-In POS to register new guests.
+                  </div>
+                ) : (
+                  todayWalkIns.map((w, index) => (
+                    <div className="st-visitor flex items-center justify-between p-3 rounded-xl bg-black/20 border border-emerald-900/40" key={w.walk_in_id || w.id || index}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-950 border border-emerald-500/40 flex items-center justify-center font-bold text-xs text-emerald-300 font-mono">
+                          {(w.lead_guest_name || 'G')[0]}
+                        </div>
+                        <div className="info">
+                          <strong className="text-white text-sm block">{w.lead_guest_name}</strong>
+                          <small className="text-slate-400 text-xs">
+                            {w.time || 'Today'} • {w.guest_count || 1} Pax • {w.cottage_name || w.facility_name || 'Day Pass & Entrance'}
+                          </small>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-extrabold text-emerald-400 text-xs font-mono">₱{(parseFloat(w.total_amount || w.grandTotal) || 0).toLocaleString()}</span>
+                        <span className={`ct-badge confirmed ${w.walk_in_status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-300 border border-slate-700'} px-2.5 py-0.5 rounded-full text-[10px] font-bold`}>
+                          {w.walk_in_status === 'ACTIVE' ? 'In Resort' : 'Completed'}
+                        </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-extrabold text-emerald-400 text-xs">₱{w.amt}.00</span>
-                      <span className="ct-badge confirmed bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-0.5 rounded-full text-[10px] font-bold">Checked In</span>
-                    </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </div>
           )}
           {activeTab === 'inventory' && <InventoryTab />}
+          {activeTab === 'pending_bookings' && <PendingBookingsTab setActiveTab={setActiveTab} />}
 
           {/* Existing functional tabs & sub-keys */}
-          {(activeTab === 'pos' || activeTab === 'pos_today' || activeTab === 'pos_history') && <POSTab />}
+          {(activeTab === 'pos' || activeTab === 'walkin_pos' || activeTab === 'pos_today' || activeTab === 'pos_history') && <POSTab />}
           {(activeTab === 'facilities' || activeTab.startsWith('facilities_')) && <FacilitiesTab />}
-          {activeTab === 'availability' && <AvailabilityTab />}
+          {(activeTab === 'availability' || activeTab === 'live_facilities' || activeTab === 'cottages') && <AvailabilityTab />}
           {(activeTab === 'daily_sales' || activeTab === 'daily_reports') && <DailySalesTab />}
           {activeTab === 'returns' && <ReturnsTab />}
           {(activeTab === 'cash_closing' || activeTab.startsWith('cash_closing_')) && <CashClosingTab />}

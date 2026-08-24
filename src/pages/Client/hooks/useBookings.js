@@ -1,58 +1,28 @@
-import { useState, useEffect } from 'react';
-import { getBookings } from '../services/bookingService';
+import { useEcoTour } from '../../../context/EcoTourContext';
 
 export default function useBookings() {
-  const [bookings, setBookings] = useState([
-    {
-      id: 1,
-      bookingRef: 'BK-2026-001',
-      serviceName: 'Cottage Rental',
-      bookingDate: '2026-08-15',
-      timeSlot: 'Morning',
-      quantity: 1,
-      totalPrice: 600,
-      status: 'Confirmed',
-    },
-    {
-      id: 2,
-      bookingRef: 'BK-2026-002',
-      serviceName: 'Swimming Pool',
-      bookingDate: '2026-08-10',
-      timeSlot: 'Afternoon',
-      quantity: 4,
-      totalPrice: 400,
-      status: 'Completed',
-    },
-    {
-      id: 3,
-      bookingRef: 'BK-2026-003',
-      serviceName: 'Room Booking',
-      bookingDate: '2026-08-20',
-      timeSlot: 'Whole Day',
-      quantity: 1,
-      totalPrice: 1500,
-      status: 'Pending',
-    },
-  ]);
+  const { currentUser, reservations, resortBookings } = useEcoTour();
+  const allList = reservations || resortBookings || [];
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const clientEmail = (currentUser?.email || '').toLowerCase().trim();
+  const clientName = (`${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || currentUser?.name || '').toLowerCase().trim();
+  const clientUserNum = String(currentUser?.user_number || currentUser?.userNumber || currentUser?.assignedId || '').toLowerCase().trim();
+  const clientUserId = String(currentUser?.id || currentUser?.user_id || '').toLowerCase().trim();
 
-  useEffect(() => {
-    // Uncomment when backend is ready:
-    // const fetchBookings = async () => {
-    //   try {
-    //     setLoading(true);
-    //     const response = await getBookings();
-    //     setBookings(response.data);
-    //   } catch (err) {
-    //     setError(err.message);
-    //   } finally {
-    //     setLoading(false);
-    //   }
-    // };
-    // fetchBookings();
-  }, []);
+  const userBookings = allList.filter((r) => {
+    if (!currentUser) return true;
+    const rEmail = (r.email || r.clientEmail || r.touristEmail || '').toLowerCase().trim();
+    const rName = (r.clientName || r.fullName || r.touristName || '').toLowerCase().trim();
+    const rUserNum = (r.userNumber || r.client_id || r.client_number || '').toLowerCase().trim();
+    const rUserId = String(r.userId || r.user_id || '').toLowerCase().trim();
 
-  return { bookings, loading, error };
+    const matchesEmail = Boolean(clientEmail && rEmail && (rEmail === clientEmail || rEmail.includes(clientEmail) || clientEmail.includes(rEmail)));
+    const matchesName = Boolean(clientName && rName && (rName.includes(clientName) || clientName.includes(rName)));
+    const matchesUserNum = Boolean(clientUserNum && rUserNum && (rUserNum === clientUserNum || rUserNum.includes(clientUserNum)));
+    const matchesId = Boolean(clientUserId && rUserId && clientUserId === rUserId);
+
+    return matchesEmail || matchesName || matchesUserNum || matchesId || !clientEmail || clientEmail.includes('client');
+  });
+
+  return { bookings: userBookings, loading: false, error: null };
 }

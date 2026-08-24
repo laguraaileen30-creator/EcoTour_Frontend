@@ -23,6 +23,11 @@ const MENU_ITEMS = [
     icon: Users,
   },
   {
+    key: 'clients',
+    label: 'Client Management',
+    icon: User,
+  },
+  {
     key: 'staff',
     label: 'Staff Management',
     icon: User,
@@ -31,64 +36,30 @@ const MENU_ITEMS = [
     key: 'reservations',
     label: 'Resort Reservations',
     icon: Calendar,
-    children: [
-      { key: 'reservations', label: 'All Bookings' },
-      { key: 'reservations_pending', label: 'Pending Bookings' },
-      { key: 'reservations_approved', label: 'Approved Bookings' },
-      { key: 'reservations_completed', label: 'Completed Bookings' },
-      { key: 'reservations_cancelled', label: 'Cancelled Bookings' },
-    ],
+
   },
   {
     key: 'walkin',
     label: 'Walk-In Visitors (POS)',
     icon: Footprints,
-    children: [
-      { key: 'walkin', label: 'Order Terminal (POS)' },
-      { key: 'walkin_history', label: 'Walk-In History' },
-    ],
+
   },
   {
     key: 'services',
     label: 'Services & Facilities',
     icon: Trees,
-    children: [
-      { key: 'services', label: 'All Services Catalog' },
-      { key: 'services_cottages', label: 'Cottages Management' },
-      { key: 'services_tables', label: 'Tables & Seating' },
-      { key: 'services_rooms', label: 'Guest Rooms' },
-      { key: 'services_parking', label: 'Parking Slots' },
-    ],
-  },
-  {
-    key: 'pricing',
-    label: 'Pricing Setup',
-    icon: Tag,
+
   },
   {
     key: 'payments',
     label: 'Revenue & Payments',
     icon: Coins,
-    children: [
-      { key: 'payments', label: 'Payment Ledger' },
-      { key: 'payments_commission', label: 'Revenue Share (Barangay/LGU)' },
-    ],
+
   },
   {
     key: 'reports',
     label: 'Reports & Analytics',
     icon: BarChart3,
-  },
-  {
-    key: 'spots',
-    label: 'Tourist Information',
-    icon: MapPin,
-    children: [
-      { key: 'spots', label: 'Duangon Cold Spring' },
-      { key: 'services', label: 'Services Information' },
-      { key: 'gallery', label: 'Gallery' },
-      { key: 'spots_nearby', label: 'Nearby Destinations' },
-    ],
   },
   {
     key: 'announcement',
@@ -174,17 +145,10 @@ export default function Sidebar() {
                     </span>
                   )}
                 </button>
-            
+
               </div>
             );
           })}
-
-          {/* THEME TOGGLE (LIGHT/DARK MODE) */}
-          <div className="w-full mb-2 py-2 px-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-between shadow-md">
-            <span className="text-xs font-extrabold text-emerald-300">Theme Mode</span>
-            <ThemeToggle size="sm" />
-          </div>
-
           <hr className="border-emerald-900/40 my-3" />
           <button
             onClick={() => setShowLogoutModal(true)}

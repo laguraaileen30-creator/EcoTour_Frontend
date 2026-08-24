@@ -2,12 +2,14 @@ import React from "react";
 import "./Hero.css";
 import bgImage from "../assets/home.png";
 import lightImage from "../assets/light.png";
-import gifImage from "../assets/gif.gif";
+import gifDark from "../assets/gif.gif";
+import gifLight from "../assets/giflight.gif";
 import { useEcoTour } from "../context/EcoTourContext";
 
 export default function Hero({ onOpenBooking }) {
   const { theme } = useEcoTour();
-  const currentBg = theme === "light" ? lightImage : bgImage;
+  const currentBg  = theme === "light" ? lightImage : bgImage;
+  const currentGif = theme === "light" ? gifLight : gifDark;
 
   const handleScrollClick = () => {
     document.getElementById("about")?.scrollIntoView({ behavior: "smooth" });
@@ -97,7 +99,7 @@ export default function Hero({ onOpenBooking }) {
         <div className="hero__right">
           <div className="hero__gif-shadow-container">
             <div className="hero__gif-wrapper">
-              <img src={gifImage} alt="Cold Spring Waterfall GIF" className="hero__gif-img" />
+              <img src={currentGif} alt="Cold Spring Waterfall GIF" className="hero__gif-img" />
             </div>
           </div>
         </div>

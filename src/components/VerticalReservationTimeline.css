@@ -1,0 +1,428 @@
+/* =========================================================
+   VERTICAL REAL-TIME RESERVATION STATUS TIMELINE
+   SUPPORTED FOR LIGHT MODE AND DARK MODE
+   ========================================================= */
+
+/* --- DARK MODE (DEFAULT) --- */
+.etv-vertical-timeline-container {
+  background: radial-gradient(circle at top left, rgba(7, 35, 23, 0.9) 0%, rgba(3, 19, 11, 0.97) 100%);
+  border: 1.5px solid rgba(74, 222, 128, 0.25);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  color: #fff;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.etv-vertical-timeline-container.compact {
+  padding: 16px;
+  border-radius: 18px;
+}
+
+/* Header */
+.etv-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(74, 222, 128, 0.18);
+  padding-bottom: 14px;
+  margin-bottom: 20px;
+}
+
+.etv-timeline-tag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #4ade80;
+}
+
+.etv-timeline-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e;
+  animation: livePulse 1.8s infinite;
+}
+
+@keyframes livePulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.35); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+/* Timeline Layout */
+.etv-vertical-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.etv-timeline-node {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  position: relative;
+  padding-bottom: 24px;
+}
+
+.etv-timeline-node:last-child {
+  padding-bottom: 4px;
+}
+
+/* Vertical Line connecting stages */
+.etv-timeline-line {
+  position: absolute;
+  left: 17px;
+  top: 36px;
+  bottom: -4px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: all 0.5s ease;
+  z-index: 1;
+}
+
+.etv-timeline-line.filled {
+  background: linear-gradient(to bottom, #22c55e, #10b981);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+}
+
+/* Node Circle */
+.etv-timeline-circle-wrapper {
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+}
+
+.etv-timeline-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #071f14;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Done Stage */
+.etv-timeline-node.done .etv-timeline-circle {
+  background: #22c55e;
+  border-color: #86efac;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.5);
+}
+
+/* Current Active Stage */
+.etv-timeline-node.current .etv-timeline-circle {
+  background: radial-gradient(circle, #15803d 0%, #064e3b 100%);
+  border-color: #4ade80;
+  box-shadow: 0 0 20px rgba(74, 222, 128, 0.8), inset 0 0 8px rgba(255, 255, 255, 0.4);
+  transform: scale(1.08);
+}
+
+.etv-timeline-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid #4ade80;
+  opacity: 0.6;
+  animation: ringPulse 2s cubic-bezier(0.2, 0.8, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes ringPulse {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+
+/* Future / Disabled Stage */
+.etv-timeline-node.future {
+  opacity: 0.45;
+}
+
+/* Stage Text Content */
+.etv-timeline-content {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 12px 16px;
+  transition: all 0.3s ease;
+}
+
+.etv-timeline-node.current .etv-timeline-content {
+  background: rgba(6, 78, 59, 0.35);
+  border-color: rgba(74, 222, 128, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 12px rgba(74, 222, 128, 0.1);
+}
+
+.etv-timeline-stage-title {
+  font-size: 13px;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.etv-timeline-node.current .etv-timeline-stage-title {
+  color: #86efac;
+  font-weight: 800;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+}
+
+/* Badges */
+.etv-badge-done {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.4);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.etv-badge-current {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: rgba(74, 222, 128, 0.25);
+  color: #86efac;
+  border: 1px solid #4ade80;
+  padding: 2px 8px;
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.4);
+}
+
+.etv-timeline-sublabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #cbd5e1;
+  margin-top: 2px;
+}
+
+.etv-timeline-desc {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.etv-timeline-node.current .etv-timeline-desc {
+  color: #e2e8f0;
+}
+
+/* Action Buttons for Staff / Admin */
+.etv-timeline-action-btn {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.etv-timeline-action-btn.pay {
+  background: #10b981;
+  color: #022c22;
+  border: 1px solid #6ee7b7;
+}
+
+.etv-timeline-action-btn.pay:hover {
+  background: #34d399;
+  transform: translateY(-1px);
+}
+
+.etv-timeline-action-btn.start {
+  background: #0284c7;
+  color: #f0f9ff;
+  border: 1px solid #38bdf8;
+}
+
+.etv-timeline-action-btn.start:hover {
+  background: #0ea5e9;
+  transform: translateY(-1px);
+}
+
+.etv-timeline-action-btn.complete {
+  background: #15803d;
+  color: #f0fdf4;
+  border: 1px solid #4ade80;
+}
+
+.etv-timeline-action-btn.complete:hover {
+  background: #16a34a;
+  transform: translateY(-1px);
+}
+
+/* Celebratory Stay Completed Banner */
+.etv-timeline-completed-banner {
+  margin-top: 18px;
+  background: linear-gradient(135deg, rgba(6, 78, 59, 0.8) 0%, rgba(4, 47, 36, 0.9) 100%);
+  border: 1.5px solid #22c55e;
+  border-radius: 18px;
+  padding: 14px 18px;
+  box-shadow: 0 8px 24px rgba(34, 197, 94, 0.25);
+  animation: slideUp 0.4s ease-out;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+
+/* =========================================================
+   LIGHT MODE COMPATIBILITY STYLES
+   ========================================================= */
+body.light-mode .etv-vertical-timeline-container,
+[data-theme="light"] .etv-vertical-timeline-container,
+.light-mode .etv-vertical-timeline-container,
+.light .etv-vertical-timeline-container {
+  background: radial-gradient(circle at top left, #ffffff 0%, #f0fdf4 100%);
+  border: 1.5px solid #86efac;
+  box-shadow: 0 12px 32px rgba(16, 185, 129, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+  color: #0f172a;
+}
+
+/* Light Mode Header */
+body.light-mode .etv-timeline-header,
+[data-theme="light"] .etv-timeline-header {
+  border-bottom: 1px solid #bbf7d0;
+}
+
+body.light-mode .etv-timeline-tag,
+[data-theme="light"] .etv-timeline-tag {
+  color: #047857;
+}
+
+body.light-mode .etv-timeline-header span.text-emerald-400,
+[data-theme="light"] .etv-timeline-header span.text-emerald-400 {
+  color: #065f46 !important;
+}
+
+/* Light Mode Vertical Lines */
+body.light-mode .etv-timeline-line,
+[data-theme="light"] .etv-timeline-line {
+  background: #cbd5e1;
+}
+
+body.light-mode .etv-timeline-line.filled,
+[data-theme="light"] .etv-timeline-line.filled {
+  background: linear-gradient(to bottom, #10b981, #059669);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.4);
+}
+
+/* Light Mode Circles */
+body.light-mode .etv-timeline-circle,
+[data-theme="light"] .etv-timeline-circle {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .etv-timeline-node.done .etv-timeline-circle,
+[data-theme="light"] .etv-timeline-node.done .etv-timeline-circle {
+  background: #10b981;
+  border-color: #059669;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+}
+
+body.light-mode .etv-timeline-node.done .etv-timeline-circle svg,
+[data-theme="light"] .etv-timeline-node.done .etv-timeline-circle svg {
+  color: #ffffff !important;
+}
+
+body.light-mode .etv-timeline-node.current .etv-timeline-circle,
+[data-theme="light"] .etv-timeline-node.current .etv-timeline-circle {
+  background: radial-gradient(circle, #059669 0%, #047857 100%);
+  border-color: #10b981;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.6);
+}
+
+body.light-mode .etv-timeline-pulse,
+[data-theme="light"] .etv-timeline-pulse {
+  border-color: #10b981;
+}
+
+/* Light Mode Stage Cards */
+body.light-mode .etv-timeline-content,
+[data-theme="light"] .etv-timeline-content {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+body.light-mode .etv-timeline-node.current .etv-timeline-content,
+[data-theme="light"] .etv-timeline-node.current .etv-timeline-content {
+  background: #f0fdf4;
+  border-color: #4ade80;
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.15);
+}
+
+body.light-mode .etv-timeline-stage-title,
+[data-theme="light"] .etv-timeline-stage-title {
+  color: #0f172a;
+}
+
+body.light-mode .etv-timeline-node.current .etv-timeline-stage-title,
+[data-theme="light"] .etv-timeline-node.current .etv-timeline-stage-title {
+  color: #047857;
+  text-shadow: none;
+}
+
+body.light-mode .etv-timeline-sublabel,
+[data-theme="light"] .etv-timeline-sublabel {
+  color: #334155;
+}
+
+body.light-mode .etv-timeline-desc,
+[data-theme="light"] .etv-timeline-desc {
+  color: #475569;
+}
+
+body.light-mode .etv-timeline-node.current .etv-timeline-desc,
+[data-theme="light"] .etv-timeline-node.current .etv-timeline-desc {
+  color: #1e293b;
+}
+
+/* Light Mode Badges */
+body.light-mode .etv-badge-done,
+[data-theme="light"] .etv-badge-done {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+body.light-mode .etv-badge-current,
+[data-theme="light"] .etv-badge-current {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #10b981;
+}
+
+/* Light Mode Completed Banner */
+body.light-mode .etv-timeline-completed-banner,
+[data-theme="light"] .etv-timeline-completed-banner {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1.5px solid #10b981;
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.2);
+}
+
+body.light-mode .etv-timeline-completed-banner strong,
+[data-theme="light"] .etv-timeline-completed-banner strong {
+  color: #064e3b !important;
+}
+
+body.light-mode .etv-timeline-completed-banner p,
+[data-theme="light"] .etv-timeline-completed-banner p {
+  color: #065f46 !important;
+}

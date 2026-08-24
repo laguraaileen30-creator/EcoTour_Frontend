@@ -1,15 +1,118 @@
-/* NearbyDestinations.css */
-/* Background Image Setup */
-.nearby-section {
-  position: relative;
-  background: linear-gradient(180deg, #050e08 0%, #071410 100%);
-  padding: 100px 0 110px;
-  color: #ffffff;
-  font-family: 'Inter', sans-serif;
-  overflow: hidden;
-  /* Prevents bg from spilling out */
+/* ============================================================
+   NearbyDestinations.css
+   Floating Glassmorphism Design — Dark & Light Mode Compatible
+   ============================================================ */
+
+/* ── CSS Custom Properties ─────────────────────────────────── */
+:root {
+  --nd-accent:           #3fbf72;
+  --nd-accent-hover:     #4ade80;
+  --nd-accent-glow:      rgba(63, 191, 114, 0.25);
+
+  /* Dark mode tokens (default) */
+  --nd-section-bg-from:  #050e08;
+  --nd-section-bg-to:    #071410;
+  --nd-card-bg:          rgba(10, 28, 18, 0.72);
+  --nd-glass-bg:         rgba(10, 28, 18, 0.55);
+  --nd-glass-border:     rgba(255, 255, 255, 0.10);
+  --nd-glass-border-hov: rgba(63, 191, 114, 0.35);
+  --nd-text-primary:     #ffffff;
+  --nd-text-secondary:   rgba(255, 255, 255, 0.70);
+  --nd-text-muted:       rgba(255, 255, 255, 0.45);
+  --nd-tag-bg:           rgba(255, 255, 255, 0.10);
+  --nd-tag-text:         rgba(255, 255, 255, 0.82);
+  --nd-overlay-from:     rgba(4, 14, 8, 0.90);
+  --nd-overlay-to:       rgba(4, 14, 8, 0.15);
+  --nd-dot-inactive:     rgba(255, 255, 255, 0.20);
+  --nd-modal-bg:         rgba(7, 18, 12, 0.82);
+  --nd-modal-details-bg: rgba(7, 18, 12, 0.88);
+  --nd-highlight-bg:     rgba(255, 255, 255, 0.04);
+  --nd-highlight-border: rgba(255, 255, 255, 0.08);
+  --nd-topbar-bg:        rgba(0, 0, 0, 0.20);
+  --nd-topbar-border:    rgba(255, 255, 255, 0.08);
+  --nd-arrow-bg:         rgba(10, 30, 16, 0.75);
+  --nd-shadow-card:      0 20px 60px rgba(0, 0, 0, 0.55),
+                         0 4px 20px rgba(63, 191, 114, 0.08);
+  --nd-shadow-modal:     0 30px 80px rgba(0, 0, 0, 0.75),
+                         0 0 60px rgba(63, 191, 114, 0.18);
 }
 
+/* Light Mode token overrides */
+[data-theme="light"] {
+  --nd-section-bg-from:  #e8f5ee;
+  --nd-section-bg-to:    #d4eddf;
+  --nd-card-bg:          rgba(255, 255, 255, 0.62);
+  --nd-glass-bg:         rgba(255, 255, 255, 0.50);
+  --nd-glass-border:     rgba(63, 191, 114, 0.18);
+  --nd-glass-border-hov: rgba(63, 191, 114, 0.50);
+  --nd-text-primary:     #0d2b1a;
+  --nd-text-secondary:   rgba(13, 43, 26, 0.78);
+  --nd-text-muted:       rgba(13, 43, 26, 0.52);
+  --nd-tag-bg:           rgba(63, 191, 114, 0.14);
+  --nd-tag-text:         #145c2f;
+  --nd-overlay-from:     rgba(6, 28, 16, 0.82);
+  --nd-overlay-to:       rgba(6, 28, 16, 0.10);
+  --nd-dot-inactive:     rgba(63, 191, 114, 0.28);
+  --nd-modal-bg:         rgba(240, 252, 245, 0.92);
+  --nd-modal-details-bg: rgba(240, 252, 245, 0.96);
+  --nd-highlight-bg:     rgba(63, 191, 114, 0.07);
+  --nd-highlight-border: rgba(63, 191, 114, 0.18);
+  --nd-topbar-bg:        rgba(255, 255, 255, 0.30);
+  --nd-topbar-border:    rgba(63, 191, 114, 0.14);
+  --nd-arrow-bg:         rgba(255, 255, 255, 0.70);
+  --nd-shadow-card:      0 12px 40px rgba(13, 43, 26, 0.12),
+                         0 4px 16px rgba(63, 191, 114, 0.12);
+  --nd-shadow-modal:     0 24px 60px rgba(13, 43, 26, 0.20),
+                         0 0 40px rgba(63, 191, 114, 0.14);
+}
+
+/* ── Section Shell ─────────────────────────────────────────── */
+.nearby-section {
+  position: relative;
+  background: linear-gradient(180deg, var(--nd-section-bg-from) 0%, var(--nd-section-bg-to) 100%);
+  padding: 100px 0 110px;
+  color: var(--nd-text-primary);
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+  transition: background 0.4s ease, color 0.4s ease;
+}
+
+/* Decorative ambient blobs */
+.nearby-section::before,
+.nearby-section::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+  transition: background 0.4s ease;
+}
+
+.nearby-section::before {
+  width: 520px;
+  height: 520px;
+  background: radial-gradient(circle, rgba(63, 191, 114, 0.15), transparent 70%);
+  top: -120px;
+  left: -80px;
+}
+
+.nearby-section::after {
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(63, 191, 114, 0.10), transparent 70%);
+  bottom: -80px;
+  right: -60px;
+}
+
+[data-theme="light"] .nearby-section::before {
+  background: radial-gradient(circle, rgba(63, 191, 114, 0.22), transparent 70%);
+}
+[data-theme="light"] .nearby-section::after {
+  background: radial-gradient(circle, rgba(63, 191, 114, 0.14), transparent 70%);
+}
+
+/* Background image layer */
 .section__bg {
   position: absolute;
   top: 0;
@@ -20,10 +123,14 @@
   background-position: center;
   opacity: 0.05;
   z-index: 0;
+  transition: opacity 0.4s ease;
 }
 
+[data-theme="light"] .section__bg {
+  opacity: 0.06;
+}
 
-/* Ensure content sits above the background */
+/* ── Container ─────────────────────────────────────────────── */
 .nearby-container {
   position: relative;
   z-index: 1;
@@ -32,21 +139,7 @@
   padding: 0 40px;
 }
 
-/* ... keep all the rest of the CSS from the previous response below this line ... */
-.nearby-section {
-  background: linear-gradient(180deg, #050e08 0%, #071410 100%);
-  padding: 100px 0 110px;
-  color: #ffffff;
-  font-family: 'Inter', sans-serif;
-}
-
-.nearby-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 40px;
-}
-
-/* Header Styles */
+/* ── Section Header ────────────────────────────────────────── */
 .nearby-header {
   text-align: center;
   margin-bottom: 56px;
@@ -57,7 +150,7 @@
   font-weight: 600;
   font-size: 0.75rem;
   letter-spacing: 0.14em;
-  color: #3fbf72;
+  color: var(--nd-accent);
   text-transform: uppercase;
   margin-bottom: 12px;
 }
@@ -66,127 +159,149 @@
   font-family: 'Poppins', sans-serif;
   font-weight: 800;
   font-size: clamp(2rem, 4vw, 3rem);
-  color: #ffffff;
+  color: var(--nd-text-primary);
   line-height: 1.1;
   margin: 0;
+  transition: color 0.4s ease;
 }
 
 .nearby-title .text-primary {
-  color: #3fbf72;
+  color: var(--nd-accent);
 }
 
-/* Carousel Wrapper */
+/* ── Carousel Wrapper ──────────────────────────────────────── */
 .carousel-wrapper {
   position: relative;
   display: flex;
   align-items: center;
 }
 
-/* Arrow Buttons */
+/* ── Arrow Buttons — Floating Glass ────────────────────────── */
 .carousel-arrow {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   z-index: 10;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  background: rgba(10, 30, 16, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  backdrop-filter: blur(12px);
+  background: var(--nd-arrow-bg);
+  border: 1px solid var(--nd-glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: white;
-  transition: opacity 0.2s, background 0.2s, transform 0.2s;
+  color: var(--nd-text-primary);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.20),
+              0 0 0 1px var(--nd-glass-border) inset;
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.carousel-arrow--left {
-  left: -20px;
-}
-
-.carousel-arrow--right {
-  right: -20px;
-}
+.carousel-arrow--left  { left: -24px; }
+.carousel-arrow--right { right: -24px; }
 
 .carousel-arrow.disabled {
-  background: rgba(255, 255, 255, 0.06);
+  opacity: 0.30;
   cursor: default;
-  opacity: 0.3;
+  pointer-events: none;
 }
 
 .carousel-arrow:not(.disabled):hover {
-  background: rgba(63, 191, 114, 0.2);
-  border-color: rgba(63, 191, 114, 0.4);
+  background: var(--nd-accent);
+  border-color: var(--nd-accent-hover);
+  color: #ffffff;
+  transform: translateY(-50%) scale(1.10);
+  box-shadow: 0 12px 32px var(--nd-accent-glow),
+              0 0 0 1px var(--nd-accent-hover) inset;
 }
 
-/* Cards Track */
+/* ── Cards Track ───────────────────────────────────────────── */
 .carousel-track {
   display: flex;
   align-items: center;
   gap: 14px;
   overflow-x: auto;
   overflow-y: hidden;
-  min-height: 380px;
-  padding: 12px 0 24px;
+  min-height: 390px;
+  padding: 18px 4px 28px;
   scrollbar-width: none;
-  /* Firefox */
   -ms-overflow-style: none;
-  /* IE 10+ */
   scroll-behavior: smooth;
 }
 
 .carousel-track::-webkit-scrollbar {
   display: none;
-  /* Chrome, Safari, Opera */
 }
 
-/* Destination Card */
+/* ── Destination Card — Floating Glass ─────────────────────── */
 .dest-card {
   flex-shrink: 0;
-  border-radius: 20px;
+  border-radius: 22px;
   overflow: hidden;
   position: relative;
-  cursor: pointer;
-  background: #0a1e10;
-  transition: box-shadow 0.45s ease, border-color 0.45s ease;
+  cursor: zoom-in !important;
+  background: var(--nd-card-bg);
+  border: 1px solid var(--nd-glass-border);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: var(--nd-shadow-card);
+  transition: box-shadow 0.45s ease,
+              border-color 0.45s ease,
+              transform 0.45s ease,
+              background 0.4s ease;
 }
 
 .dest-card--featured {
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(63, 191, 114, 0.3);
+  border-color: rgba(63, 191, 114, 0.35);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.50),
+              0 0 0 1px rgba(63, 191, 114, 0.20),
+              0 0 40px rgba(63, 191, 114, 0.10);
+}
+
+[data-theme="light"] .dest-card--featured {
+  border-color: rgba(63, 191, 114, 0.45);
+  box-shadow: 0 16px 50px rgba(13, 43, 26, 0.14),
+              0 0 0 1px rgba(63, 191, 114, 0.25),
+              0 0 30px rgba(63, 191, 114, 0.12);
 }
 
 .dest-card:not(.dest-card--featured) {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: var(--nd-shadow-card);
 }
 
 .dest-card-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.5s ease;
+  transition: transform 0.55s ease;
 }
 
 .dest-card:hover .dest-card-image {
-  transform: scale(1.05);
+  transform: scale(1.06);
 }
 
 .dest-card-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(0deg, rgba(4, 14, 8, 0.88) 0%, rgba(4, 14, 8, 0.15) 60%);
+  background: linear-gradient(
+    0deg,
+    var(--nd-overlay-from) 0%,
+    var(--nd-overlay-to) 60%
+  );
   pointer-events: none;
 }
 
-/* Badge */
+/* ── Card Badge (Most Visited) ─────────────────────────────── */
 .dest-card-badge {
   position: absolute;
   top: 14px;
   left: 14px;
-  background: rgba(63, 191, 114, 0.9);
+  background: rgba(63, 191, 114, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 20px;
   padding: 4px 10px;
   display: flex;
@@ -198,13 +313,41 @@
 .dest-card-badge span {
   font-family: 'Inter', sans-serif;
   font-weight: 700;
-  font-size: 0.65rem;
+  font-size: 0.62rem;
   color: #ffffff;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
-/* Card Content */
+/* ── Zoom-In Badge ─────────────────────────────────────────── */
+.dest-card-zoom-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--nd-glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--nd-glass-border);
+  color: var(--nd-text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  transition: all 0.30s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+
+.dest-card:hover .dest-card-zoom-badge {
+  background: var(--nd-accent);
+  border-color: var(--nd-accent-hover);
+  color: #ffffff;
+  transform: scale(1.15) rotate(10deg);
+}
+
+/* ── Card Content ──────────────────────────────────────────── */
 .dest-card-content {
   position: absolute;
   bottom: 0;
@@ -217,12 +360,12 @@
 .dest-card-distance {
   font-family: 'Inter', sans-serif;
   font-size: 0.68rem;
-  color: rgba(63, 191, 114, 0.9);
+  color: var(--nd-accent);
   margin: 0 0 4px 0;
   display: flex;
   align-items: center;
   gap: 3px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .dest-card-name {
@@ -231,8 +374,8 @@
   color: #ffffff;
   line-height: 1.25;
   margin: 0 0 6px 0;
-  /* Default size, overridden by JS for featured */
   font-size: 0.85rem;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.50);
 }
 
 .dest-card--featured .dest-card-name {
@@ -242,12 +385,13 @@
 .dest-card-desc {
   font-family: 'Inter', sans-serif;
   font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.68);
+  color: rgba(255, 255, 255, 0.75);
   line-height: 1.6;
   margin: 0 0 10px 0;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.40);
 }
 
-/* Tags */
+/* ── Card Tags ─────────────────────────────────────────────── */
 .dest-card-tags {
   display: flex;
   gap: 6px;
@@ -257,161 +401,134 @@
 .dest-card-tag {
   font-family: 'Inter', sans-serif;
   font-size: 0.62rem;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--nd-tag-bg);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.88);
   padding: 3px 9px;
   border-radius: 20px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
-/* Dots Pagination */
+/* ── Dots Pagination — Glass Pills ─────────────────────────── */
 .carousel-dots {
   display: flex;
   justify-content: center;
   gap: 7px;
-  margin-top: 28px;
+  margin-top: 32px;
 }
 
 .carousel-dot {
   width: 7px;
   height: 7px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--nd-dot-inactive);
   border: none;
   cursor: pointer;
   padding: 0;
-  transition: all 0.3s ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  transition: all 0.30s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .carousel-dot--active {
-  width: 20px;
-  background: #3fbf72;
+  width: 22px;
+  background: var(--nd-accent);
+  box-shadow: 0 0 10px var(--nd-accent-glow);
 }
 
 .carousel-dot:hover:not(.carousel-dot--active) {
-  background: rgba(255, 255, 255, 0.5);
+  background: var(--nd-accent);
+  opacity: 0.55;
 }
 
-/* Responsive Adjustments */
-@media (max-width: 768px) {
-  .nearby-container {
-    padding: 0 20px;
-  }
-
-  .carousel-arrow {
-    display: none;
-    /* Hide arrows on mobile, rely on swipe/dots */
-  }
-
-  .dest-card--featured {
-    width: 260px !important;
-    height: 340px !important;
-  }
-
-  .dest-card:not(.dest-card--featured) {
-    width: 180px !important;
-    height: 280px !important;
-  }
-}
-
-/* Destination Card Glassmorphism & Zoom Cursor */
-.dest-card {
-  cursor: zoom-in !important;
-}
-
-.dest-card-zoom-badge {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(5, 14, 8, 0.65);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 5;
-  transition: all 0.3s ease;
-  pointer-events: none;
-}
-
-.dest-card:hover .dest-card-zoom-badge {
-  background: #3fbf72;
-  border-color: #3fbf72;
-  color: #ffffff;
-  transform: scale(1.15) rotate(10deg);
-}
-
-/* DESTINATION LIGHTBOX MODAL (DARK MODE DEFAULT) */
+/* ── Destination Lightbox Backdrop ─────────────────────────── */
 .dest-lightbox-backdrop {
   position: fixed;
   inset: 0;
   z-index: 99999;
-  background: rgba(3, 14, 8, 0.92);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  background: rgba(3, 14, 8, 0.88);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  transition: background 0.3s ease;
 }
 
+[data-theme="light"] .dest-lightbox-backdrop {
+  background: rgba(200, 235, 215, 0.70);
+}
+
+/* ── Lightbox Card — Floating Glass ────────────────────────── */
 .dest-lightbox-card {
-  background: #07150e;
-  border: 1px solid rgba(63, 191, 114, 0.3);
+  background: var(--nd-modal-bg);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid var(--nd-glass-border);
   border-radius: 28px;
   max-width: 1100px;
   width: 100%;
   max-height: 90vh;
   overflow: hidden;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.8), 0 0 40px rgba(63, 191, 114, 0.15);
+  box-shadow: var(--nd-shadow-modal);
   display: flex;
   flex-direction: column;
+  transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease;
 }
 
+[data-theme="light"] .dest-lightbox-card {
+  border-color: rgba(63, 191, 114, 0.25);
+}
+
+/* ── Lightbox Top Bar ──────────────────────────────────────── */
 .dest-lightbox-topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--nd-topbar-border);
+  background: var(--nd-topbar-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: background 0.4s ease, border-color 0.4s ease;
 }
 
 .dest-lightbox-counter {
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #3fbf72;
+  color: var(--nd-accent);
   text-transform: uppercase;
 }
 
+/* ── Lightbox Close Button ─────────────────────────────────── */
 .dest-lightbox-close {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #ffffff;
-  width: 36px;
-  height: 36px;
+  background: var(--nd-glass-bg);
+  border: 1px solid var(--nd-glass-border);
+  color: var(--nd-text-primary);
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: all 0.22s ease;
 }
 
 .dest-lightbox-close:hover {
   background: rgba(239, 68, 68, 0.85);
   border-color: #ef4444;
-  transform: rotate(90deg);
+  color: #ffffff;
+  transform: rotate(90deg) scale(1.08);
 }
 
+/* ── Lightbox Main Grid ────────────────────────────────────── */
 .dest-lightbox-main {
   position: relative;
   display: grid;
@@ -427,27 +544,29 @@
   }
 }
 
+/* ── Lightbox Nav Arrows ───────────────────────────────────── */
 .dest-lightbox-arrow {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
   z-index: 30;
-  background: rgba(5, 14, 8, 0.75);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #ffffff;
-  width: 44px;
-  height: 44px;
+  background: var(--nd-arrow-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--nd-glass-border);
+  color: var(--nd-text-primary);
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.25s ease;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.30);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.dest-lightbox-arrow.arrow-left { left: 16px; }
+.dest-lightbox-arrow.arrow-left  { left: 16px; }
 .dest-lightbox-arrow.arrow-right { right: 16px; }
 
 @media (min-width: 850px) {
@@ -457,11 +576,14 @@
 }
 
 .dest-lightbox-arrow:hover {
-  background: #16a34a;
-  border-color: #4ade80;
-  transform: translateY(-50%) scale(1.1);
+  background: var(--nd-accent);
+  border-color: var(--nd-accent-hover);
+  color: #ffffff;
+  transform: translateY(-50%) scale(1.10);
+  box-shadow: 0 12px 32px var(--nd-accent-glow);
 }
 
+/* ── Lightbox Image Box ────────────────────────────────────── */
 .dest-lightbox-image-box {
   position: relative;
   min-height: 320px;
@@ -470,6 +592,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+[data-theme="light"] .dest-lightbox-image-box {
+  background: #c5e8d2;
 }
 
 @media (min-width: 850px) {
@@ -488,59 +614,81 @@
 .dest-lightbox-image-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(7, 21, 14, 0.6) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.08) 0%,
+    rgba(4, 14, 8, 0.55) 100%
+  );
   pointer-events: none;
 }
 
+/* ── Lightbox Floating Badge ───────────────────────────────── */
 .dest-lightbox-badge {
   position: absolute;
   top: 16px;
   left: 16px;
-  background: rgba(5, 14, 8, 0.85);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(63, 191, 114, 0.4);
-  color: #3fbf72;
+  background: var(--nd-glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(63, 191, 114, 0.45);
+  color: var(--nd-accent);
   font-size: 0.75rem;
   font-weight: 700;
   padding: 6px 16px;
   border-radius: 50px;
   z-index: 10;
+  transition: background 0.4s ease;
 }
 
+[data-theme="light"] .dest-lightbox-badge {
+  background: rgba(255, 255, 255, 0.82);
+  color: #145c2f;
+}
+
+/* ── Lightbox Details Panel ────────────────────────────────── */
 .dest-lightbox-details {
   padding: 36px 32px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  background: #07150e;
+  background: var(--nd-modal-details-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   overflow-y: auto;
+  transition: background 0.4s ease;
 }
 
 .dest-lightbox-title {
   font-family: 'Poppins', sans-serif;
   font-size: clamp(1.4rem, 2.5vw, 1.8rem);
   font-weight: 800;
-  color: #ffffff;
+  color: var(--nd-text-primary);
   margin: 0 0 14px 0;
   line-height: 1.25;
+  transition: color 0.4s ease;
 }
 
 .dest-lightbox-desc {
   font-size: 0.92rem;
   line-height: 1.75;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--nd-text-secondary);
   margin: 0 0 24px 0;
+  transition: color 0.4s ease;
 }
 
+/* ── Highlights Box — Glass Inset ──────────────────────────── */
 .dest-lightbox-highlights {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--nd-highlight-bg);
+  border: 1px solid var(--nd-highlight-border);
   border-radius: 16px;
-  padding: 16px 20px;
+  padding: 18px 20px;
   margin-bottom: 28px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: background 0.4s ease, border-color 0.4s ease;
 }
 
 .dest-highlight-item {
@@ -548,10 +696,12 @@
   align-items: center;
   gap: 10px;
   font-size: 0.88rem;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--nd-text-secondary);
   font-weight: 500;
+  transition: color 0.4s ease;
 }
 
+/* ── Close / CTA Button ────────────────────────────────────── */
 .dest-lightbox-footer-actions {
   display: flex;
   justify-content: flex-end;
@@ -566,6 +716,50 @@
   font-size: 0.88rem;
   font-weight: 700;
   cursor: pointer;
+  box-shadow: 0 6px 24px rgba(22, 163, 74, 0.40);
   transition: all 0.25s ease;
-  box-shadow: 0 6px 20px rgba(22, 163, 74, 0.4);
+}
+
+.dest-lightbox-close-btn:hover {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  box-shadow: 0 8px 32px rgba(22, 163, 74, 0.55);
+  transform: translateY(-1px) scale(1.02);
+}
+
+/* ── Location tag (in modal details) ──────────────────────── */
+.dest-lightbox-location-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--nd-accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+
+/* ── Responsive Adjustments ────────────────────────────────── */
+@media (max-width: 768px) {
+  .nearby-container {
+    padding: 0 20px;
+  }
+
+  .carousel-arrow {
+    display: none;
+  }
+
+  .dest-card--featured {
+    width: 260px !important;
+    height: 340px !important;
+  }
+
+  .dest-card:not(.dest-card--featured) {
+    width: 185px !important;
+    height: 285px !important;
+  }
+
+  .dest-lightbox-details {
+    padding: 24px 20px;
+  }
 }

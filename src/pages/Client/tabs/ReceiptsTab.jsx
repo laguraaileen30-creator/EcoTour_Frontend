@@ -16,11 +16,12 @@ export default function ClientReceiptsTab() {
     if (!currentUser) return false;
     const rEmail = (r.touristEmail || r.email || '').toLowerCase();
     const rName = (r.touristName || r.customer || r.fullName || '').toLowerCase();
-    const rUserNum = r.userNumber || r.client_id;
+    const rUserNum = (r.userNumber || r.client_id || '').toLowerCase();
+    const cUserNum = (clientUserNum || '').toLowerCase();
 
     const matchesEmail = clientEmail && rEmail === clientEmail;
-    const matchesName = clientName && rName === clientName;
-    const matchesId = clientUserNum && rUserNum === clientUserNum;
+    const matchesName = clientName && (rName.includes(clientName) || clientName.includes(rName));
+    const matchesId = cUserNum && rUserNum === cUserNum;
 
     // Default fallback demo match if user is standard client test account
     const isDefaultClient = clientEmail === 'client@ecotourvista.com' || clientEmail === 'client@gmail.com';

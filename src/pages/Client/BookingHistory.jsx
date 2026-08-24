@@ -1,34 +1,43 @@
 import React from 'react';
-import { Clock, Download, Printer } from 'lucide-react';
+import { Clock, Download, Printer, CheckCircle2, Sparkles, XCircle, Calendar } from 'lucide-react';
 import ClientNavbar from './components/ClientNavbar';
 import ClientSidebar from './components/ClientSidebar';
 import useBookings from './hooks/useBookings';
+import { getStageIndex } from '../../../components/VerticalReservationTimeline';
 
 export default function BookingHistory() {
   const { bookings } = useBookings();
 
-  const statusColors = {
-    Pending: 'bg-amber-100 text-amber-800',
-    Confirmed: 'bg-blue-100 text-blue-800',
-    Completed: 'bg-emerald-100 text-emerald-800',
-    Cancelled: 'bg-rose-100 text-rose-800',
+  const getStatusBadge = (status) => {
+    const s = String(status || '').toLowerCase();
+    if (s.includes('cancel')) {
+      return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-rose-100 text-rose-800">Cancelled</span>;
+    }
+    const idx = getStageIndex(status);
+    if (idx === 3) return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">04 — Completed</span>;
+    if (idx === 2) return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-sky-100 text-sky-800">03 — In Service</span>;
+    if (idx === 1) return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-emerald-100 text-emerald-800">02 — Paid</span>;
+    return <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-100 text-amber-800">01 — Pending</span>;
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       <ClientNavbar />
       <div className="flex">
         <ClientSidebar />
         <main className="flex-1 p-6">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-6">
+          <div className="max-w-6xl mx-auto space-y-6">
+            <div className="flex items-center justify-between">
               <h1 className="text-2xl font-black text-slate-900 flex items-center gap-2">
                 <Clock className="w-6 h-6 text-emerald-600" />
-                Booking History
+                Client Booking History
               </h1>
+              <span className="text-xs font-mono font-bold bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full">
+                {bookings.length} Total Bookings
+              </span>
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200">
@@ -42,28 +51,45 @@ export default function BookingHistory() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {bookings.map((booking) => (
-                      <tr key={booking.id} className="hover:bg-slate-50">
-                        <td className="p-4 font-mono font-bold text-slate-900">{booking.bookingRef}</td>
-                        <td className="p-4 text-slate-700">{booking.bookingDate}</td>
-                        <td className="p-4 text-slate-700">{booking.serviceName}</td>
-                        <td className="p-4 text-right font-mono font-bold text-emerald-700">
-                          PHP {booking.totalPrice.toLocaleString()}
-                        </td>
-                        <td className="p-4 text-center">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusColors[booking.status]}`}>
-                            {booking.status}
-                          </span>
-                        </td>
-                        <td className="p-4 text-center">
-                          {booking.status === 'Completed' && (
-                            <button className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg cursor-pointer">
-                              <Download className="w-4 h-4" />
-                            </button>
-                          )}
+                    {bookings.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-500">
+                          No booking history found.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      bookings.map((booking) => {
+                        const total = parseFloat(booking.estimatedTotal || booking.grandTotal || booking.totalPrice || 0);
+                        const ref = booking.bookingRef || booking.bookingNumber || `BK-${booking.id}`;
+                        const date = booking.reservationDate || booking.bookingDate || 'N/A';
+                        const svc = booking.specificType || booking.serviceName || booking.packageName || 'Resort Service';
+
+                        return (
+                          <tr key={booking.id || ref} className="hover:bg-slate-50">
+                            <td className="p-4 font-mono font-bold text-emerald-700">{ref}</td>
+                            <td className="p-4 text-slate-700">{date}</td>
+                            <td className="p-4 text-slate-700 font-medium">{svc}</td>
+                            <td className="p-4 text-right font-mono font-bold text-slate-900">
+                              ₱{total.toLocaleString()}.00
+                            </td>
+                            <td className="p-4 text-center">
+                              {getStatusBadge(booking.status)}
+                            </td>
+                            <td className="p-4 text-center">
+                              {getStageIndex(booking.status) >= 1 && (
+                                <button
+                                  onClick={() => window.print()}
+                                  className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg cursor-pointer inline-flex items-center gap-1"
+                                  title="Print Official Receipt"
+                                >
+                                  <Printer className="w-4 h-4" />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>

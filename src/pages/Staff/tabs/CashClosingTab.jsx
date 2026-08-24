@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Coins, Printer, Ticket, Home, Calculator, CheckCircle2 } from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
+import { getPhilippineDateStr } from '../../../utils/phTime';
 
 export default function CashClosingTab() {
   const { receipts, currentUser, submitCashClosing, getDailyTallySummary } = useEcoTour();
-  const today = new Date().toISOString().split('T')[0];
+  const today = getPhilippineDateStr();
 
   const tally = getDailyTallySummary ? getDailyTallySummary(today) : {
     totalCashRevenue: 0,
