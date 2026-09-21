@@ -14,7 +14,9 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
     refreshAllLiveData,
     processPOSTransaction,
     currentUser,
-    theme
+    theme,
+    showAlert,
+    showConfirm
   } = useEcoTour();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,6 +24,12 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
   const [cashReceivedInput, setCashReceivedInput] = useState('');
   const [issuedReceipt, setIssuedReceipt] = useState(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [assignmentBooking, setAssignmentBooking] = useState(null);
+  const [assignmentService, setAssignmentService] = useState(null);
+  const [availableResources, setAvailableResources] = useState([]);
+  const [selectedResourceId, setSelectedResourceId] = useState('');
+  const [isLoadingResources, setIsLoadingResources] = useState(false);
+  const [isAssigningResource, setIsAssigningResource] = useState(false);
   const isLight = theme === 'light';
 
   // Real-time pending client bookings from database
@@ -71,6 +79,72 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
     setCashReceivedInput(grandTotal ? String(grandTotal) : '');
   };
 
+  const openAssignmentModal = async (booking) => {
+    setAssignmentBooking(booking);
+    setAvailableResources([]);
+    setSelectedResourceId('');
+    setIsLoadingResources(true);
+    try {
+      let items = booking.items || [];
+      if (booking.packageId) {
+        const packageResponse = await fetch(`http://localhost:5000/api/v1/packages/${booking.packageId}`);
+        const packageData = await packageResponse.json();
+        if (packageData.success) items = packageData.data.items || items;
+      }
+      const requested = items.find((item) => {
+        const name = (item.serviceName || item.service_name || item.name || '').toLowerCase();
+        return (item.category || '').toLowerCase() === 'cottage' || name.includes('cottage') || name.includes('umbrella');
+      });
+      const requestedServiceId = requested?.serviceId || requested?.service_id;
+      if (!requestedServiceId) {
+        showAlert({ title: 'No Numbered Facility Requirement', message: 'This reservation does not include a numbered cottage or physical resource.', type: 'info' });
+        setAssignmentBooking(null);
+        return;
+      }
+      setAssignmentService(requested);
+      const query = new URLSearchParams({
+        serviceId: requestedServiceId,
+        date: booking.reservationDate || booking.bookingDate,
+        bookingId: String(booking.id),
+      });
+      const resourceResponse = await fetch(`http://localhost:5000/api/v1/availability/resources?${query}`);
+      const resourceData = await resourceResponse.json();
+      if (!resourceData.success) throw new Error(resourceData.message || 'Could not load availability');
+      setAvailableResources(resourceData.data || []);
+    } catch (error) {
+      showAlert({ title: 'Availability Error', message: error.message || 'Could not load facility availability.', type: 'danger' });
+      setAssignmentBooking(null);
+    } finally {
+      setIsLoadingResources(false);
+    }
+  };
+
+  const assignResource = async () => {
+    if (!assignmentBooking || !selectedResourceId || isAssigningResource) return;
+    setIsAssigningResource(true);
+    try {
+      const response = await fetch('http://localhost:5000/api/v1/availability/assign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bookingId: assignmentBooking.id,
+          resourceId: selectedResourceId,
+          date: assignmentBooking.reservationDate || assignmentBooking.bookingDate,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || 'Facility assignment failed');
+      showAlert({ title: 'Facility Assigned', message: `${data.data.resource_name} is reserved for ${assignmentBooking.bookingRef || assignmentBooking.bookingNumber}.`, type: 'success' });
+      setAssignmentBooking(null);
+      if (refreshAllLiveData) await refreshAllLiveData();
+    } catch (error) {
+      showAlert({ title: 'Assignment Conflict', message: error.message || 'The facility is no longer available.', type: 'warning' });
+      setAvailableResources([]);
+    } finally {
+      setIsAssigningResource(false);
+    }
+  };
+
   const handleConfirmCashPayment = async () => {
     if (!selectedBookingForPayment || isProcessingPayment) return;
 
@@ -78,7 +152,11 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
     const cashReceivedNum = parseFloat(cashReceivedInput) || 0;
 
     if (cashReceivedNum < grandTotal) {
-      alert(`⚠️ Cash received (₱${cashReceivedNum}) is less than total amount due (₱${grandTotal}). Please collect the full amount.`);
+      showAlert({
+        title: 'Insufficient Payment',
+        message: `Cash received (₱${cashReceivedNum}) is less than total amount due (₱${grandTotal}). Please collect the full amount.`,
+        type: 'warning'
+      });
       return;
     }
 
@@ -147,11 +225,19 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
     const name = booking.clientName || booking.fullName || 'Client Guest';
     const isDup = isPossibleDuplicate(booking);
 
-    const message = isDup
-      ? `⚠️ DUPLICATE BOOKING DETECTED:\n\nAre you sure you want to CANCEL & VOID reservation ${refCode} for ${name}?\n\nThis will prevent double payment and remove the duplicate entry from pending list.`
-      : `Are you sure you want to cancel / void reservation ${refCode} for ${name}?\n\nThis action will cancel the reservation in the database.`;
+    const confirmed = await showConfirm({
+      title: isDup ? 'Cancel Duplicate Booking' : 'Cancel Reservation',
+      message: isDup
+        ? `Cancel & void duplicate reservation ${refCode} for ${name}?`
+        : `Are you sure you want to cancel / void reservation ${refCode} for ${name}?`,
+      details: isDup
+        ? 'Duplicate booking detected. This will prevent double payment and remove the duplicate entry.'
+        : 'This action will cancel the reservation in the database and release all reserved slots.',
+      type: 'danger',
+      confirmText: 'YES, Cancel & Void'
+    });
 
-    if (!window.confirm(message)) return;
+    if (!confirmed) return;
 
     if (cancelReservationBooking) {
       await cancelReservationBooking(booking.id || refCode);
@@ -369,6 +455,23 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
                       </p>
                     )}
                   </div>
+
+                  <div
+                    className="p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    style={{ background: isLight ? 'rgba(59,130,246,0.06)' : 'rgba(30,64,175,0.12)', borderColor: 'rgba(59,130,246,0.35)' }}
+                  >
+                    <div>
+                      <span className="text-[10px] uppercase font-extrabold block text-blue-500">Facility Assignment</span>
+                      <span className="text-[11px]" style={{ color: 'var(--muted)' }}>Physical cottage is assigned by staff after booking.</span>
+                    </div>
+                    <button
+                      onClick={() => openAssignmentModal(b)}
+                      className="px-3 py-2 rounded-xl text-[11px] font-extrabold inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                      style={{ background: 'rgba(59,130,246,0.18)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.45)' }}
+                    >
+                      <Home className="w-3.5 h-3.5" /> Assign Cottage
+                    </button>
+                  </div>
                 </div>
 
                 {/* CARD FOOTER & ACTION BUTTONS */}
@@ -408,6 +511,43 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
               </div>
             );
           })}
+        </div>
+      )}
+
+      {assignmentBooking && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="border-2 rounded-3xl w-full max-w-lg p-6 space-y-5 shadow-2xl" style={{ background: isLight ? 'var(--bg-1)' : '#071f14', borderColor: 'var(--line)', color: 'var(--text)' }}>
+            <div className="flex justify-between items-center">
+              <div>
+                <span className="text-[10px] uppercase font-extrabold text-blue-400">Physical Facility Assignment</span>
+                <h3 className="text-lg font-extrabold">{assignmentBooking.bookingRef || assignmentBooking.bookingNumber}</h3>
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>{assignmentBooking.reservationDate || assignmentBooking.bookingDate} • {assignmentBooking.clientName}</p>
+              </div>
+              <button onClick={() => setAssignmentBooking(null)} className="p-1 cursor-pointer" style={{ color: 'var(--muted)' }}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-3 rounded-2xl border" style={{ background: isLight ? 'var(--panel)' : 'rgba(0,0,0,0.3)', borderColor: 'var(--line)' }}>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: 'var(--muted)' }}>Required Service</span>
+              <strong style={{ color: 'var(--accent)' }}>{assignmentService?.serviceName || assignmentService?.name || 'Loading package requirements...'}</strong>
+            </div>
+            {isLoadingResources ? (
+              <p className="text-sm text-center py-6" style={{ color: 'var(--muted)' }}>Checking facilities for this date...</p>
+            ) : availableResources.length > 0 ? (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {availableResources.map((resource) => (
+                  <label key={resource.id} className="flex items-center justify-between p-3 rounded-xl border cursor-pointer" style={{ borderColor: String(resource.id) === String(selectedResourceId) ? 'var(--accent)' : 'var(--line)', background: String(resource.id) === String(selectedResourceId) ? 'rgba(74,222,128,0.1)' : 'transparent' }}>
+                    <span className="flex items-center gap-2"><input type="radio" name="resource" value={resource.id} checked={String(resource.id) === String(selectedResourceId)} onChange={(event) => setSelectedResourceId(event.target.value)} /> <strong>{resource.resource_name}</strong></span>
+                    <span className="text-[10px] text-emerald-400 font-bold">AVAILABLE</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-center py-6 text-amber-400">No numbered facility is available for this date.</p>
+            )}
+            <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--line)' }}>
+              <button onClick={() => setAssignmentBooking(null)} className="px-4 py-2 rounded-xl text-xs font-bold cursor-pointer" style={{ color: 'var(--muted)' }}>Cancel</button>
+              <button onClick={assignResource} disabled={!selectedResourceId || isAssigningResource} className="px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer disabled:opacity-40" style={{ background: 'var(--accent)', color: '#052012' }}>{isAssigningResource ? 'Assigning...' : 'Assign Facility'}</button>
+            </div>
+          </div>
         </div>
       )}
 

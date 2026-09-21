@@ -5,7 +5,7 @@ import { useEcoTour } from '../../../context/EcoTourContext';
 import { getStageIndex } from '../../../components/VerticalReservationTimeline';
 
 export default function ServicesTable() {
-  const { resortServices, resortBookings, reservations } = useEcoTour();
+  const { resortServices, resortBookings, reservations, showAlert, showConfirm } = useEcoTour();
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -68,16 +68,32 @@ export default function ServicesTable() {
   };
 
   const handleDelete = async (service) => {
-    if (!confirm(`Are you sure you want to delete ${service.service_name}?`)) return;
+    const confirmed = await showConfirm({
+      title: 'Delete Service',
+      message: `Are you sure you want to delete ${service.service_name}?`,
+      details: 'This will remove the service from available catalog.',
+      type: 'danger',
+      confirmText: 'YES, Delete'
+    });
+    if (!confirmed) return;
+
     try {
       const sId = service.service_id || service.id;
       const res = await fetch(`http://localhost:5000/api/v1/services/${sId}`, { method: 'DELETE' });
       if (res.ok) {
-        alert('Service deleted successfully');
+        showAlert({
+          title: 'Service Deleted',
+          message: `${service.service_name} deleted successfully`,
+          type: 'success'
+        });
         fetchServices();
       }
     } catch (err) {
-      alert('Failed to delete service');
+      showAlert({
+        title: 'Error',
+        message: 'Failed to delete service',
+        type: 'danger'
+      });
     }
   };
 

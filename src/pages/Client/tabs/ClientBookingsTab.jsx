@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   CalendarDays, Calendar, Clock, Package, Users, DollarSign,
   CheckCircle2, XCircle, AlertCircle, QrCode, ArrowRight, RefreshCw, Filter, Camera,
-  Plus, Minus, Ticket, Utensils, Music, Droplets, ShieldCheck, Home, Sparkles, Coffee, Car, Search, X, Check, FileText, History
+  Plus, Minus, Ticket, Utensils, Music, Droplets, ShieldCheck, Home, Sparkles, Coffee, Car, Search, X, Check, FileText, History, Info
 } from 'lucide-react';
+import ServiceDetailsModal from '../../../components/ServiceDetailsModal';
 import { useEcoTour } from '../../../context/EcoTourContext';
 import VerticalReservationTimeline, { getStageIndex } from '../../../components/VerticalReservationTimeline';
 import { getPhilippineDateStr, getPhilippineFormattedDate } from '../../../utils/phTime';
@@ -35,6 +36,8 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
     cancelReservationBooking,
     updateResortBookingStatus,
     refreshAllLiveData,
+    showAlert,
+    showConfirm,
     theme
   } = useEcoTour();
 
@@ -42,6 +45,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
   const [searchQuery, setSearchQuery] = useState('');
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [submittedBooking, setSubmittedBooking] = useState(null);
+  const [modalService, setModalService] = useState(null);
   const isLight = theme === 'light';
 
   // Form State
@@ -52,12 +56,31 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
   const generateUserNumber = () => currentUser?.user_number || `CLT-2026-${Math.floor(100000 + Math.random() * 900000)}`;
 
   const [visitDate, setVisitDate] = useState(getPhilippineDateStr());
-  const [adults, setAdults] = useState(1);
+  const [adults, setAdults] = useState(0);
   const [children, setChildren] = useState(0);
   const [students, setStudents] = useState(0);
   const [seniors, setSeniors] = useState(0);
-  const [selectedCottage, setSelectedCottage] = useState(COTTAGE_OPTIONS[1]);
+  const [selectedCottage, setSelectedCottage] = useState(COTTAGE_OPTIONS[0]);
   const [addonCart, setAddonCart] = useState({});
+  const [packagesList, setPackagesList] = useState([]);
+  const [selectedPackageId, setSelectedPackageId] = useState(null);
+
+  useEffect(() => {
+    if (showBookingModal) {
+      const fetchPackages = async () => {
+        try {
+          const res = await fetch('http://localhost:5000/api/v1/packages');
+          const data = await res.json();
+          if (data.success) {
+            setPackagesList(data.data);
+          }
+        } catch (error) {
+          console.error("Error fetching packages:", error);
+        }
+      };
+      fetchPackages();
+    }
+  }, [showBookingModal]);
 
   const totalVisitors = adults + children + students + seniors;
 
@@ -83,12 +106,22 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
     return sum + (sObj ? sObj.price * qty : 0);
   }, 0);
 
-  const grandTotal = entranceTotal + cottageTotal + addonTotal;
+  const selectedPackageObj = packagesList.find(p => p.id === selectedPackageId);
+  const packageTotal = selectedPackageObj ? parseFloat(selectedPackageObj.regular_value || 0) : 0;
+
+  const grandTotal = entranceTotal + cottageTotal + addonTotal + packageTotal;
 
   // Submit Booking Request
   const handleSubmitBooking = (e) => {
     e.preventDefault();
-    if (totalVisitors <= 0) return alert('Please select at least 1 visitor count.');
+    
+    if (grandTotal === 0) {
+      return showAlert({
+        title: 'Selection Required',
+        message: 'Please select at least one ticket, package, cottage, or add-on to continue.',
+        type: 'warning'
+      });
+    }
 
     const newBookingRef = `REF-2026-${Math.floor(100000 + Math.random() * 900000)}`;
 
@@ -98,6 +131,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
       ...(children > 0 ? [{ name: `Child Entrance (${children}x)`, price: children * 40, quantity: children, unitPrice: 40, category: 'Entrance' }] : []),
       ...(students > 0 ? [{ name: `Student Entrance (${students}x)`, price: students * 70, quantity: students, unitPrice: 70, category: 'Entrance' }] : []),
       ...(seniors > 0 ? [{ name: `Senior/PWD Entrance (${seniors}x)`, price: seniors * 80, quantity: seniors, unitPrice: 80, category: 'Entrance' }] : []),
+      ...(selectedPackageObj ? [{ name: selectedPackageObj.package_name, price: packageTotal, quantity: 1, unitPrice: packageTotal, category: 'Package' }] : []),
       ...(selectedCottage.price > 0 ? [{ name: selectedCottage.name, price: cottageTotal, quantity: 1, unitPrice: cottageTotal, category: 'Cottage' }] : []),
       ...Object.entries(addonCart).map(([sId, qty]) => {
         const sObj = RESORT_SERVICES_CATALOG.find((s) => s.id === sId);
@@ -216,27 +250,42 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
     return true;
   });
 
-  const handleCancel = (bookingRefOrId) => {
-    if (window.confirm(`Are you sure you want to cancel reservation ${bookingRefOrId}?`)) {
-      if (cancelReservationBooking) {
-        cancelReservationBooking(bookingRefOrId);
-      }
+  const handleCancel = async (bookingRefOrId) => {
+    const confirmed = await showConfirm({
+      title: 'Cancel Reservation',
+      message: `Are you sure you want to cancel reservation ${bookingRefOrId}?`,
+      details: 'This will cancel your reservation and release reserved slots.',
+      type: 'danger',
+      confirmText: 'YES, Cancel Reservation'
+    });
+    if (confirmed && cancelReservationBooking) {
+      cancelReservationBooking(bookingRefOrId);
     }
   };
 
-  const handleTimelineAction = (actionType, booking) => {
+  const handleTimelineAction = async (actionType, booking) => {
     const ref = booking.bookingRef || booking.bookingNumber || booking.id;
     if (actionType === 'start_service') {
-      if (window.confirm(`🌿 Start using your reserved services now for booking ${ref}? Enjoy your stay at Duangon Cold Spring Resort!`)) {
-        if (updateResortBookingStatus) {
-          updateResortBookingStatus(ref, 'Using Services');
-        }
+      const confirmed = await showConfirm({
+        title: 'Check-In & Start Using Services',
+        message: `🌿 Start using your reserved services now for booking ${ref}?`,
+        details: 'Enjoy your stay at Duangon Cold Spring Resort!',
+        type: 'success',
+        confirmText: 'YES, Start Service'
+      });
+      if (confirmed && updateResortBookingStatus) {
+        updateResortBookingStatus(ref, 'Using Services');
       }
     } else if (actionType === 'mark_completed') {
-      if (window.confirm(`Conclude and finish your stay for booking ${ref}? This will archive your trip into Booking History.`)) {
-        if (updateResortBookingStatus) {
-          updateResortBookingStatus(ref, 'Completed');
-        }
+      const confirmed = await showConfirm({
+        title: 'Conclude & Finish Stay',
+        message: `Conclude and finish your stay for booking ${ref}?`,
+        details: 'This will complete your visit and archive your trip into Booking History.',
+        type: 'complete',
+        confirmText: 'YES, Finish Stay'
+      });
+      if (confirmed && updateResortBookingStatus) {
+        updateResortBookingStatus(ref, 'Completed');
       }
     }
   };
@@ -1029,10 +1078,77 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
                 </div>
               </div>
 
-              {/* SECTION 2: COTTAGE RENTAL SELECTION */}
+              {/* SECTION 2: PACKAGES & DEALS */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-extrabold uppercase tracking-wider text-xs flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
+                    <Package className="w-4 h-4" /> 2. Packages &amp; Deals
+                  </h4>
+                  <span className="text-[10px] font-mono" style={{ color: 'var(--muted)' }}>Select special offers</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div
+                    onClick={() => setSelectedPackageId(null)}
+                    className="p-3 rounded-xl border cursor-pointer transition-all flex justify-between items-center"
+                    style={
+                      selectedPackageId === null
+                        ? {
+                            background: isLight ? 'rgba(74,222,128,0.15)' : 'rgba(6,60,30,0.8)',
+                            borderColor: 'var(--accent)',
+                            boxShadow: '0 0 10px rgba(74,222,128,0.2)',
+                          }
+                        : {
+                            background: isLight ? 'var(--panel)' : '#04150e',
+                            borderColor: 'var(--line)',
+                          }
+                    }
+                  >
+                    <strong className="block text-xs" style={{ color: 'var(--text)' }}>No Package</strong>
+                    <strong className="font-mono text-xs" style={{ color: 'var(--accent)' }}>Free</strong>
+                  </div>
+                  {packagesList.map((pkg) => (
+                    <div
+                      key={pkg.id}
+                      onClick={() => setSelectedPackageId(pkg.id)}
+                      className="p-3 rounded-xl border cursor-pointer transition-all flex justify-between items-center"
+                      style={
+                        selectedPackageId === pkg.id
+                          ? {
+                              background: isLight ? 'rgba(74,222,128,0.15)' : 'rgba(6,60,30,0.8)',
+                              borderColor: 'var(--accent)',
+                              boxShadow: '0 0 10px rgba(74,222,128,0.2)',
+                            }
+                          : {
+                              background: isLight ? 'var(--panel)' : '#04150e',
+                              borderColor: 'var(--line)',
+                            }
+                      }
+                    >
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setModalService(pkg); }}
+                          className="text-emerald-500 hover:bg-emerald-500/10 p-1.5 rounded-full transition-colors"
+                        >
+                          <Info className="w-4 h-4" />
+                        </button>
+                        <div>
+                          <strong className="block text-xs" style={{ color: 'var(--text)' }}>{pkg.package_name}</strong>
+                          <span className="text-[10px] font-mono" style={{ color: 'var(--muted)' }}>{pkg.included_guests} Guests</span>
+                        </div>
+                      </div>
+                      <strong className="font-mono text-xs" style={{ color: 'var(--accent)' }}>
+                        ₱{pkg.regular_value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* SECTION 3: COTTAGE RENTAL SELECTION */}
               <div className="space-y-3">
                 <h4 className="font-extrabold uppercase tracking-wider text-xs flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
-                  <Home className="w-4 h-4" /> 2. Cottage Rental Selection
+                  <Home className="w-4 h-4" /> 3. Cottage Rental Selection
                 </h4>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1054,9 +1170,20 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
                             }
                       }
                     >
-                      <div>
-                        <strong className="block text-xs" style={{ color: 'var(--text)' }}>{c.name}</strong>
-                        <span className="text-[10px] font-mono" style={{ color: 'var(--muted)' }}>{c.code}</span>
+                      <div className="flex items-center gap-2">
+                        {c.price > 0 && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setModalService(c); }}
+                            className="text-emerald-500 hover:bg-emerald-500/10 p-1.5 rounded-full transition-colors"
+                          >
+                            <Info className="w-4 h-4" />
+                          </button>
+                        )}
+                        <div>
+                          <strong className="block text-xs" style={{ color: 'var(--text)' }}>{c.name}</strong>
+                          <span className="text-[10px] font-mono" style={{ color: 'var(--muted)' }}>{c.code}</span>
+                        </div>
                       </div>
                       <strong className="font-mono text-xs" style={{ color: 'var(--accent)' }}>
                         {c.price === 0 ? 'Free' : `₱${c.price}/day`}
@@ -1066,11 +1193,11 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
                 </div>
               </div>
 
-              {/* SECTION 3: RESORT ADD-ON SERVICES */}
+              {/* SECTION 4: RESORT ADD-ONS */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <h4 className="font-extrabold uppercase tracking-wider text-xs flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
-                    <Sparkles className="w-4 h-4" /> 3. Resort Services &amp; Facilities Add-Ons
+                    <Sparkles className="w-4 h-4" /> 4. Add-Ons
                   </h4>
                   <span className="text-[10px] font-mono" style={{ color: 'var(--muted)' }}>{RESORT_SERVICES_CATALOG.length} Items Available</span>
                 </div>
@@ -1099,6 +1226,13 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
                             <h5 className="font-bold text-xs leading-tight" style={{ color: 'var(--text)' }}>{s.name}</h5>
                             <span className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>₱{s.price} / {s.unit}</span>
                           </div>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setModalService(s); }}
+                            className="ml-1 text-emerald-500 hover:bg-emerald-500/10 p-1 rounded-full transition-colors"
+                          >
+                            <Info className="w-3.5 h-3.5" />
+                          </button>
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -1136,7 +1270,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
                     ₱{grandTotal.toLocaleString()}.00
                   </div>
                   <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                    Includes Entrance (₱{entranceTotal}), Cottage (₱{cottageTotal}), Add-ons (₱{addonTotal})
+                    Includes Entrance (₱{entranceTotal}), Package (₱{packageTotal}), Cottage (₱{cottageTotal}), Add-ons (₱{addonTotal})
                   </span>
                 </div>
 
@@ -1170,6 +1304,11 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
         </div>
       )}
 
+      <ServiceDetailsModal 
+        isOpen={!!modalService}
+        onClose={() => setModalService(null)}
+        service={modalService}
+      />
     </div>
   );
 }

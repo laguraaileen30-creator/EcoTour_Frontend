@@ -44,6 +44,7 @@ export default function Navbar({ onOpenBooking }) {
         <nav className="nav__links">
           <a href="#home" onClick={(e) => handleNavClick(e, "#home")} className="nav__link">Home</a>
           <a href="#about" onClick={(e) => handleNavClick(e, "#about")} className="nav__link">About Us</a>
+          <a href="#packages" onClick={(e) => handleNavClick(e, "#packages")} className="nav__link font-bold text-emerald-400">Packages & Deals</a>
           <a href="#services" onClick={(e) => handleNavClick(e, "#services")} className="nav__link">Services</a>
           <a href="#contact" onClick={(e) => handleNavClick(e, "#contact")} className="nav__link">Contact</a>
           <a href="#nearby" onClick={(e) => handleNavClick(e, "#nearby")} className="nav__link">Nearby Destinations</a>

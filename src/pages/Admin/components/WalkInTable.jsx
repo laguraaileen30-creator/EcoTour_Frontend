@@ -15,7 +15,9 @@ export default function WalkInTable() {
     currentUser,
     completeWalkInTransaction,
     autoCompleteDailyWalkIns,
-    refreshAllLiveData
+    refreshAllLiveData,
+    showConfirm,
+    showAlert
   } = useEcoTour();
 
   const [viewMode, setViewMode] = useState('today'); // 'today' | 'history'
@@ -118,9 +120,21 @@ export default function WalkInTable() {
     URL.revokeObjectURL(url);
   };
 
-  const handleManualComplete = (walkIn) => {
-    if (confirm(`Complete Walk-In #${walkIn.walk_in_id} for ${walkIn.customer_name}?\nAll occupied cottages and rented equipment will be released back to available inventory.`)) {
+  const handleManualComplete = async (walkIn) => {
+    const confirmed = await showConfirm({
+      title: 'Complete Walk-In Stay',
+      message: `Complete Walk-In #${walkIn.walk_in_id} for ${walkIn.customer_name}?`,
+      details: 'All occupied cottages and rented equipment will be released back to available inventory.',
+      type: 'success',
+      confirmText: 'YES, Complete Walk-In'
+    });
+    if (confirmed) {
       completeWalkInTransaction(walkIn.id || walkIn.walk_in_id, currentUser?.name || 'Admin');
+      showAlert({
+        title: 'Walk-In Completed',
+        message: `Walk-In #${walkIn.walk_in_id} has been marked Completed.`,
+        type: 'success'
+      });
     }
   };
 

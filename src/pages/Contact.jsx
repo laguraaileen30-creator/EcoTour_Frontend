@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { Phone, Mail, MapPin, Clock, ArrowRight, ExternalLink, Layers, Plus, Minus } from "lucide-react";
 import "./Contact.css";
-import homeImage from "../assets/home.png";
-import lightImage from "../assets/light.png";
+import homeImage from "../assets/home2.png";
+import lightImage from "../assets/home1.png";
 import Manmade from "../assets/images/attractions/Manmade.png"; // Used for satellite preview
 import { useEcoTour } from "../context/EcoTourContext";
 

@@ -138,10 +138,19 @@ export default function LiveAvailabilitySection({ onOpenBooking }) {
     const sCode = (serviceCode || '').toLowerCase().trim();
     let count = 0;
 
+    const trackedKeys = new Set();
+
     // 1. In-service / Active Reservations
     allBookings.forEach(b => {
       const status = (b.status || '').toLowerCase();
-      const isConcluded = status.includes('completed') || status.includes('cancel') || status.includes('void') || status.includes('checkout') || status.includes('checked out') || status.includes('done');
+      const isConcluded = (
+        status.includes('completed') ||
+        status.includes('cancel') ||
+        status.includes('void') ||
+        status.includes('checkout') ||
+        status.includes('checked out') ||
+        status.includes('done')
+      );
       const isPaidOrInService = (
         status.includes('paid') ||
         status.includes('using') ||
@@ -151,32 +160,67 @@ export default function LiveAvailabilitySection({ onOpenBooking }) {
         status.includes('confirmed')
       );
 
-      if (isPaidOrInService && !isConcluded) {
-        if (Array.isArray(b.items) && b.items.length > 0) {
-          b.items.forEach(it => {
-            const itName = (it.name || it.serviceName || '').toLowerCase();
-            if (itName.includes(sName) || sName.includes(itName) || (it.service_code && it.service_code.toLowerCase() === sCode)) {
-              count += parseInt(it.quantity || 1, 10);
-            }
-          });
-        } else {
-          const bSvc = (b.specificType || b.serviceName || b.packageName || '').toLowerCase();
-          if (bSvc.includes(sName) || sName.includes(bSvc)) {
-            count += 1;
+      // Track references to prevent duplicate counting
+      if (b.walk_in_id) trackedKeys.add(String(b.walk_in_id).toLowerCase());
+      if (b.bookingRef) trackedKeys.add(String(b.bookingRef).toLowerCase());
+      if (b.bookingNumber) trackedKeys.add(String(b.bookingNumber).toLowerCase());
+      if (b.id) trackedKeys.add(String(b.id).toLowerCase());
+
+      // If client completed their stay, items are returned! DO NOT count as in use!
+      if (!isPaidOrInService || isConcluded) {
+        return;
+      }
+
+      if (Array.isArray(b.items) && b.items.length > 0) {
+        b.items.forEach(it => {
+          const itName = (it.name || it.serviceName || '').toLowerCase();
+          const itCode = (it.service_code || '').toLowerCase();
+          if (itName.includes(sName) || sName.includes(itName) || (sCode && itCode === sCode)) {
+            count += parseInt(it.quantity || 1, 10);
           }
+        });
+      } else {
+        const bSvc = (b.specificType || b.serviceName || b.packageName || '').toLowerCase();
+        if (bSvc.includes(sName) || sName.includes(bSvc)) {
+          count += parseInt(b.quantity || b.totalVisitors || 1, 10);
         }
       }
     });
 
-    // 2. Active Walk-Ins
+    // 2. Active Walk-Ins (avoiding double-counting with allBookings)
     (walkIns || []).forEach(w => {
-      const isConcluded = w.walk_in_status === 'COMPLETED' || (w.status || '').toLowerCase().includes('completed') || (w.payment_status || '').toLowerCase().includes('cancel');
+      const wIdStr = String(w.id || '').toLowerCase();
+      const wWalkInId = String(w.walk_in_id || '').toLowerCase();
+      const wBookingRef = String(w.bookingRef || '').toLowerCase();
+      const wReceiptNo = String(w.receiptNo || '').toLowerCase();
+
+      // If already recorded and tracked in allBookings, skip to avoid double-counting
+      if (
+        (wWalkInId && trackedKeys.has(wWalkInId)) ||
+        (wBookingRef && trackedKeys.has(wBookingRef)) ||
+        (wReceiptNo && trackedKeys.has(wReceiptNo)) ||
+        (wIdStr && trackedKeys.has(wIdStr))
+      ) {
+        return;
+      }
+
+      const isConcluded = (
+        w.walk_in_status === 'COMPLETED' ||
+        w.walk_in_status === 'VOIDED' ||
+        (w.status || '').toLowerCase().includes('completed') ||
+        (w.status || '').toLowerCase().includes('cancel') ||
+        (w.status || '').toLowerCase().includes('void') ||
+        (w.payment_status || '').toLowerCase().includes('cancel') ||
+        (w.payment_status || '').toLowerCase().includes('void')
+      );
       const isWalkInActive = (w.walk_in_status === 'ACTIVE' || w.payment_status === 'PAID') && !isConcluded;
 
+      // If completed or voided, services are returned! DO NOT count as in use!
       if (isWalkInActive && Array.isArray(w.items) && w.items.length > 0) {
         w.items.forEach(it => {
           const itName = (it.name || it.serviceName || '').toLowerCase();
-          if (itName.includes(sName) || sName.includes(itName) || (it.service_code && it.service_code.toLowerCase() === sCode)) {
+          const itCode = (it.service_code || '').toLowerCase();
+          if (itName.includes(sName) || sName.includes(itName) || (sCode && itCode === sCode)) {
             count += parseInt(it.quantity || 1, 10);
           }
         });

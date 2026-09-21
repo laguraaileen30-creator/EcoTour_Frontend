@@ -4,7 +4,7 @@ import { useEcoTour } from '../../../context/EcoTourContext';
 import { getPhilippineDateStr } from '../../../utils/phTime';
 
 export default function CashClosingTab() {
-  const { receipts, currentUser, submitCashClosing, getDailyTallySummary } = useEcoTour();
+  const { receipts, currentUser, submitCashClosing, getDailyTallySummary, showAlert } = useEcoTour();
   const today = getPhilippineDateStr();
 
   const tally = getDailyTallySummary ? getDailyTallySummary(today) : {
@@ -91,7 +91,11 @@ export default function CashClosingTab() {
         <button 
           onClick={() => {
             if (submitCashClosing) submitCashClosing({ totalCashCollected: tally.totalCashRevenue, actualCashInput });
-            else alert(`Shift Closing Submitted successfully! Total Cash: ₱${tally.totalCashRevenue.toLocaleString()}`);
+            else showAlert({
+              title: 'Shift Closing Submitted',
+              message: `Shift Closing Submitted successfully! Total Cash: ₱${tally.totalCashRevenue.toLocaleString()}`,
+              type: 'success'
+            });
           }} 
           className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg transition-all border border-emerald-400 uppercase tracking-wider"
         >

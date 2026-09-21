@@ -1,0 +1,269 @@
+﻿/* =========================================
+   HOW IT WORKS SECTION
+   ========================================= */
+.hiw-section {
+  position: relative;
+  padding: 90px 0 80px;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+}
+
+/* Background image overlay */
+.hiw-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  opacity: 0.08;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* Decorative blobs */
+.hiw-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+.hiw-blob--1 {
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(16,185,129,0.13) 0%, transparent 70%);
+  top: -80px;
+  left: -120px;
+}
+.hiw-blob--2 {
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(59,130,246,0.10) 0%, transparent 70%);
+  bottom: -60px;
+  right: -80px;
+}
+
+/* Container */
+.hiw-container {
+  position: relative;
+  z-index: 1;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 56px;
+}
+
+/* =========================================
+   HEADER
+   ========================================= */
+.hiw-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.hiw-eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+}
+
+.hiw-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: clamp(1.9rem, 4vw, 2.8rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.hiw-title-accent {
+  position: relative;
+  display: inline-block;
+}
+.hiw-title-accent::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: currentColor;
+  border-radius: 2px;
+  opacity: 0.4;
+}
+
+.hiw-subtitle {
+  font-size: 15px;
+  max-width: 520px;
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* =========================================
+   STEPS GRID
+   ========================================= */
+.hiw-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  position: relative;
+}
+
+@media (min-width: 1024px) {
+  .hiw-steps {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* =========================================
+   CARD
+   ========================================= */
+.hiw-card {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid transparent;
+  padding: 32px 24px 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  overflow: visible;
+}
+
+.hiw-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 24px 60px rgba(0,0,0,0.2), 0 4px 20px rgba(16,185,129,0.12);
+}
+
+/* Step badge */
+.hiw-step-badge {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  padding: 4px 12px;
+  border-radius: 100px;
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+}
+
+/* Icon wrapper */
+.hiw-icon-wrap {
+  width: 58px;
+  height: 58px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Card text */
+.hiw-card-title {
+  font-family: 'Poppins', sans-serif;
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.hiw-card-desc {
+  font-size: 13.5px;
+  line-height: 1.65;
+  margin: 0;
+  flex: 1;
+}
+
+/* Emoji tag */
+.hiw-emoji-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 100px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  margin-top: auto;
+}
+
+/* Arrow connector — positioned absolutely to right edge */
+.hiw-connector {
+  position: absolute;
+  right: -32px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .hiw-connector {
+    display: block;
+  }
+}
+
+/* =========================================
+   CTA STRIP
+   ========================================= */
+.hiw-cta {
+  display: flex;
+  justify-content: center;
+}
+
+.hiw-cta-inner {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px 32px;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.hiw-cta-text {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hiw-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  transition: filter 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+}
+.hiw-cta-btn:hover {
+  filter: brightness(1.12);
+  transform: translateY(-2px);
+}
+
+/* =========================================
+   RESPONSIVE
+   ========================================= */
+@media (max-width: 768px) {
+  .hiw-container {
+    padding: 0 20px;
+    gap: 40px;
+  }
+  .hiw-section {
+    padding: 64px 0 60px;
+  }
+  .hiw-cta-inner {
+    padding: 16px 20px;
+  }
+}

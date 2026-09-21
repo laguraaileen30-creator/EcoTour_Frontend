@@ -9,6 +9,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import PendingApproval from "./pages/PendingApproval";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
+import PackagesDeals from "./pages/PackagesDeals";
 
 // --- Admin Pages ---
 import AdminLayout from "./components/AdminLayout";
@@ -44,6 +45,7 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
+          <Route path="/packages" element={<PackagesDeals />} />
 
           {/* Authentication */}
           <Route

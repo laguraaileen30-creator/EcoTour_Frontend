@@ -32,9 +32,15 @@ export default function POSTab() {
     updateResortBookingStatus,
     walkIns = [],
     createWalkInTransaction,
+    payWalkInTransaction,
+    voidWalkInTransaction,
     completeWalkInTransaction,
-    autoCompleteDailyWalkIns
+    autoCompleteDailyWalkIns,
+    showAlert,
+    showConfirm,
+    theme
   } = useEcoTour();
+  const isLight = theme === 'light';
 
   // Maps booking status string to a stage index (0=pending,1=confirmed,2=in-service,3=done)
   const getStageIndex = (status) => {
@@ -63,6 +69,10 @@ export default function POSTab() {
 
   // Receipt Preview state
   const [previewReceipt, setPreviewReceipt] = useState(null);
+  // Modal for paying a previously saved pending walk-in order
+  const [selectedPendingWalkInForPayment, setSelectedPendingWalkInForPayment] = useState(null);
+  const [pendingPayCashInput, setPendingPayCashInput] = useState('');
+  const [walkInFilterTab, setWalkInFilterTab] = useState('all'); // 'all' | 'active' | 'pending' | 'completed' | 'voided'
 
   const totalVisitors = adults + children + students + seniors;
 
@@ -175,6 +185,10 @@ export default function POSTab() {
       available_qty: available,
       total_capacity: totalCap,
     };
+  }).sort((a, b) => {
+    const rankA = a.category === 'Package' ? 0 : (a.category === 'Promotion' ? 1 : 2);
+    const rankB = b.category === 'Package' ? 0 : (b.category === 'Promotion' ? 1 : 2);
+    return rankA - rankB;
   });
 
   // Filtered Cottage Options & Addon Services based on Search Query
@@ -262,10 +276,44 @@ export default function POSTab() {
   const changeAmount = Math.max(0, parsedCash - grandTotal);
   const isCashSufficient = parsedCash >= grandTotal && grandTotal > 0;
 
-  const handlePreviewReceipt = () => {
-    if (!touristName.trim()) return alert('Please enter Tourist / Client Full Name.');
-    if (totalVisitors <= 0) return alert('Please enter at least 1 visitor count.');
-    if (!isCashSufficient) return alert(`Insufficient Cash! Total is ₱${grandTotal.toLocaleString()}. Cash given: ₱${parsedCash.toLocaleString()}`);
+  const handlePayNow = async (explicitCash = null) => {
+    if (!touristName.trim()) {
+      return showAlert({
+        title: 'Missing Tourist Name',
+        message: 'Please enter Tourist / Client Full Name before proceeding.',
+        type: 'warning'
+      });
+    }
+    if (totalVisitors <= 0) {
+      return showAlert({
+        title: 'Missing Visitor Count',
+        message: 'Please enter at least 1 visitor count.',
+        type: 'warning'
+      });
+    }
+    if (currentCartItems.length === 0) {
+      return showAlert({
+        title: 'Empty Order',
+        message: 'Please select services, tickets, or cottage to calculate the total.',
+        type: 'warning'
+      });
+    }
+
+    // Determine cash to use: explicit cash > parsedCash > fallback to exact grandTotal
+    let effectiveCash = explicitCash !== null ? parseFloat(explicitCash) : parsedCash;
+    if (effectiveCash === 0 || isNaN(effectiveCash)) {
+      effectiveCash = grandTotal;
+      setCashReceived(String(grandTotal));
+    }
+
+    if (effectiveCash < grandTotal) {
+      return showAlert({
+        title: 'Insufficient Cash Given',
+        message: `Total amount due is ₱${grandTotal.toLocaleString()}. Cash given: ₱${effectiveCash.toLocaleString()}.`,
+        details: `Need ₱${(grandTotal - effectiveCash).toLocaleString()} more, or click "Hold / Store as Pending" if client is not paying yet.`,
+        type: 'warning'
+      });
+    }
 
     const dObj = new Date();
     const localDate = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
@@ -279,15 +327,67 @@ export default function POSTab() {
       time: dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       items: currentCartItems,
       grandTotal,
-      cashReceived: parsedCash,
-      change: Math.max(0, parsedCash - grandTotal),
+      cashReceived: effectiveCash,
+      change: Math.max(0, effectiveCash - grandTotal),
       staffName: activeStaff?.name || 'Staff Member',
     };
 
     setPreviewReceipt(draftReceipt);
   };
 
-  const handleSaveTransaction = (shouldPrint = false) => {
+  const handlePreviewReceipt = () => handlePayNow();
+
+  // Option 1: Store order as Pending (Unpaid) so client has the option to void or pay later
+  const handleSaveAsPending = async () => {
+    if (!touristName.trim()) {
+      return showAlert({
+        title: 'Missing Tourist Name',
+        message: 'Please enter Tourist / Client Full Name before saving as pending.',
+        type: 'warning'
+      });
+    }
+    if (totalVisitors <= 0) {
+      return showAlert({
+        title: 'Missing Visitor Count',
+        message: 'Please enter at least 1 visitor count.',
+        type: 'warning'
+      });
+    }
+    if (currentCartItems.length === 0) {
+      return showAlert({
+        title: 'Empty Order',
+        message: 'Please select services, tickets, or cottage to create an order.',
+        type: 'warning'
+      });
+    }
+
+    const createdWalkIn = createWalkInTransaction({
+      userNumber: userNumber.trim() || generateUserNumber(),
+      touristName: touristName.trim(),
+      touristContact: touristContact.trim(),
+      touristEmail: touristEmail.trim(),
+      totalVisitors,
+      items: currentCartItems,
+      grandTotal,
+      staffName: activeStaff?.name || 'Staff Member',
+      visitorType: 'Local',
+      isPending: true,
+      payment_status: 'PENDING',
+      walk_in_status: 'PENDING'
+    });
+
+    await showAlert({
+      title: 'Stored in Pending Client Bookings',
+      message: `Walk-In Order #${createdWalkIn.walk_in_id} for ${createdWalkIn.customer_name} has been stored in Pending Client Bookings!`,
+      details: `Total Amount Due: ₱${grandTotal.toLocaleString()}. It is now visible in the "Pending Bookings" tab. Once payment is confirmed, it will automatically advance to Service Orders.`,
+      type: 'info'
+    });
+
+    resetForm();
+  };
+
+  // Option 2: Finalize and Save Paid Walk-In Transaction
+  const handleSaveTransaction = async (shouldPrint = false) => {
     if (!previewReceipt) return;
 
     const createdWalkIn = createWalkInTransaction({
@@ -299,7 +399,10 @@ export default function POSTab() {
       cashReceived: previewReceipt.cashReceived,
       grandTotal: previewReceipt.grandTotal,
       staffName: activeStaff?.name || previewReceipt.staffName,
-      visitorType: 'Local'
+      visitorType: 'Local',
+      isPending: false,
+      payment_status: 'PAID',
+      walk_in_status: 'ACTIVE'
     });
 
     // Also update any matching pending client reservation to Paid
@@ -319,8 +422,83 @@ export default function POSTab() {
       window.print();
     }
 
-    alert(`✅ Walk-In #${createdWalkIn.walk_in_id} (${createdWalkIn.receiptNo}) successfully saved!\n- Status: ACTIVE\n- Payment: PAID (Cash)\n- Services are now In-Use in real time.`);
     resetForm();
+
+    await showAlert({
+      title: 'Payment Confirmed & Saved',
+      message: `Walk-In #${createdWalkIn.walk_in_id} (${createdWalkIn.receiptNo}) successfully paid!`,
+      details: 'Client booking is now active in "Service Orders" under Paid, ready for Check-In & using services.',
+      type: 'success'
+    });
+  };
+
+  // Open Pay Modal for a stored Pending Walk-In
+  const handleOpenPayPendingModal = (walkIn) => {
+    setSelectedPendingWalkInForPayment(walkIn);
+    setPendingPayCashInput(String(walkIn.grandTotal || walkIn.total_amount || 0));
+  };
+
+  // Confirm payment for a stored Pending Walk-In
+  const handleConfirmPayPendingWalkIn = async (shouldPrint = false) => {
+    if (!selectedPendingWalkInForPayment) return;
+    const w = selectedPendingWalkInForPayment;
+    const grandTotal = parseFloat(w.grandTotal || w.total_amount || 0);
+    const cashRec = parseFloat(pendingPayCashInput) || 0;
+
+    if (cashRec < grandTotal) {
+      return showAlert({
+        title: 'Insufficient Cash',
+        message: `Cash given (₱${cashRec.toLocaleString()}) is less than total due (₱${grandTotal.toLocaleString()}).`,
+        details: `Please collect full amount of ₱${grandTotal.toLocaleString()}.`,
+        type: 'warning'
+      });
+    }
+
+    const { walkIn: updatedW, receipt } = payWalkInTransaction(w.id || w.walk_in_id, cashRec, activeStaff?.name);
+
+    setSelectedPendingWalkInForPayment(null);
+    setPendingPayCashInput('');
+
+    if (shouldPrint) {
+      window.print();
+    }
+
+    // Open Official Receipt Preview for this completed payment!
+    if (receipt) {
+      setPreviewReceipt(receipt);
+    }
+
+    await showAlert({
+      title: 'Payment Recorded Successfully',
+      message: `Walk-In Order #${w.walk_in_id} for ${w.customer_name} is now PAID!`,
+      details: `Total: ₱${grandTotal.toLocaleString()} • Cash Received: ₱${cashRec.toLocaleString()} • Change: ₱${Math.max(0, cashRec - grandTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}. This booking has advanced to Service Orders ready for Check-In!`,
+      type: 'success'
+    });
+  };
+
+  // Void a Walk-In (Pending or Active) so client does not continue purchase
+  const handleVoidWalkIn = async (walkIn) => {
+    const isPending = walkIn.walk_in_status === 'PENDING';
+    const confirmed = await showConfirm({
+      title: isPending ? 'Void Pending Walk-In Order' : 'Void Walk-In Transaction',
+      message: `Are you sure you want to VOID order #${walkIn.walk_in_id} for ${walkIn.customer_name || walkIn.touristName}?`,
+      details: isPending 
+        ? 'The client will not continue the purchase. This order will be officially voided with no charge.' 
+        : 'This walk-in will be cancelled and any occupied cottages/services will be released back to available inventory.',
+      type: 'danger',
+      confirmText: 'YES, Void Order',
+      cancelText: 'Keep Order'
+    });
+
+    if (!confirmed) return;
+
+    voidWalkInTransaction(walkIn.id || walkIn.walk_in_id, activeStaff?.name, 'Client opted not to continue purchase');
+
+    await showAlert({
+      title: 'Walk-In Order Voided',
+      message: `Order #${walkIn.walk_in_id} has been voided. Purchase was not completed.`,
+      type: 'info'
+    });
   };
 
   const resetForm = () => {
@@ -339,10 +517,14 @@ export default function POSTab() {
     setPreviewReceipt(null);
   };
 
-  // Pending Walk-In Self-Service Client Bookings
-  const pendingClientBookings = (reservations || []).filter(r => 
-    (r.status || '').toLowerCase().includes('pending') || (r.status || '').toLowerCase().includes('counter')
-  );
+  // Active and Pending Client Bookings (for Add-ons / Payments)
+  const pendingClientBookings = (reservations || []).concat(resortBookings || []).filter(r => {
+    const s = (r.status || '').toLowerCase();
+    return !s.includes('void') && !s.includes('cancel') && !s.includes('completed') && !s.includes('checkout') && !s.includes('done');
+  }).reduce((unique, r) => {
+    if (!unique.find(u => (u.bookingRef || u.id) === (r.bookingRef || r.id))) unique.push(r);
+    return unique;
+  }, []);
 
   const handleLoadPendingBooking = (bookingRef) => {
     if (!bookingRef) return;
@@ -424,7 +606,12 @@ export default function POSTab() {
 
     setLoadedBookingRef(found.bookingRef || found.id);
 
-    alert(`✅ Loaded pending booking (${found.bookingRef}) for ${found.clientName || found.touristName || 'Client'}!\n- Visitors: ${found.totalVisitors || found.numberOfGuests || 1}\n- Cottage & Addons restored.\nProceed with cash collection & receipt printing.`);
+    showAlert({
+      title: 'Pending Booking Loaded',
+      message: `Loaded pending booking (${found.bookingRef}) for ${found.clientName || found.touristName || 'Client'}!`,
+      details: `Visitors: ${found.totalVisitors || found.numberOfGuests || 1} • Services restored to cart. Proceed with cash payment or hold order.`,
+      type: 'info'
+    });
   };
 
   const dNow = new Date();
@@ -452,17 +639,17 @@ export default function POSTab() {
           </div>
         </div>
 
-        {/* PENDING CLIENT BOOKINGS LOADER DROPDOWN */}
+        {/* CLIENT BOOKINGS LOADER DROPDOWN */}
         {pendingClientBookings.length > 0 && (
           <div className="bg-emerald-950/90 p-3 rounded-xl border border-emerald-500/40 space-y-1 w-full sm:w-80 shrink-0">
             <label className="text-[10px] font-extrabold text-emerald-300 uppercase tracking-wider block">
-              📥 Load Pending Client Self-Service Booking ({pendingClientBookings.length} Ready):
+              📥 Load Client Profile (For Add-ons / Payment):
             </label>
             <select
               onChange={(e) => handleLoadPendingBooking(e.target.value)}
               className="w-full bg-[#04150e] border border-emerald-700/60 rounded-lg px-2.5 py-1.5 text-xs text-emerald-200 outline-none cursor-pointer font-medium"
             >
-              <option value="">-- Select Pending Client Booking --</option>
+              <option value="">-- Select Active Client --</option>
               {pendingClientBookings.map((b) => (
                 <option key={b.bookingRef || b.id} value={b.bookingRef || b.id}>
                   {b.bookingRef} - {b.clientName || b.touristName || 'Client'} (₱{(b.estimatedTotal || 0).toLocaleString()})
@@ -830,50 +1017,94 @@ export default function POSTab() {
                 </span>
               </div>
 
-              {/* CASH GIVEN */}
+              {/* CASH GIVEN WITH QUICK CASH CHIPS */}
               <div>
-                <label className="text-[11px] font-semibold text-slate-300 block mb-1">Cash Received (₱):</label>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300">Cash Received (₱):</label>
+                  {grandTotal > 0 && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setCashReceived(String(grandTotal))}
+                        className="text-[10px] bg-emerald-950 hover:bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded border border-emerald-700/60 font-mono font-bold cursor-pointer transition-all shadow-sm"
+                        title="Set cash to exact grand total"
+                      >
+                        Exact
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCashReceived(String(Math.ceil(grandTotal / 500) * 500 || 500))}
+                        className="text-[10px] bg-black/40 hover:bg-black/60 text-slate-300 px-1.5 py-0.5 rounded border border-white/10 font-mono cursor-pointer transition-all"
+                      >
+                        ₱{(Math.ceil(grandTotal / 500) * 500 || 500).toLocaleString()}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCashReceived(String(Math.ceil(grandTotal / 1000) * 1000 || 1000))}
+                        className="text-[10px] bg-black/40 hover:bg-black/60 text-slate-300 px-1.5 py-0.5 rounded border border-white/10 font-mono cursor-pointer transition-all"
+                      >
+                        ₱{(Math.ceil(grandTotal / 1000) * 1000 || 1000).toLocaleString()}
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-400 font-mono font-extrabold text-sm select-none">₱</span>
                   <input
                     type="number"
-                    placeholder="Enter cash given by client"
+                    placeholder={`Enter cash or click "Pay Now" for exact ₱${grandTotal.toLocaleString()}`}
                     value={cashReceived}
                     onChange={(e) => setCashReceived(e.target.value)}
-                    className="w-full bg-black/50 border border-emerald-500/40 rounded-xl pl-9 pr-4 py-2.5 font-mono font-extrabold text-base text-white outline-none focus:border-emerald-400 transition-all placeholder:text-slate-600"
+                    className="w-full bg-black/50 border border-emerald-500/40 rounded-xl pl-9 pr-4 py-2.5 font-mono font-extrabold text-base text-white outline-none focus:border-emerald-400 transition-all placeholder:text-slate-600 placeholder:text-xs"
                   />
                 </div>
               </div>
 
               {/* CHANGE DUE READOUT */}
               <div className={`p-3 rounded-xl border flex justify-between items-center text-xs ${
-                isCashSufficient 
+                parsedCash >= grandTotal && grandTotal > 0
                   ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300' 
-                  : 'bg-black/30 border-rose-900/40 text-rose-300'
+                  : 'bg-black/30 border-white/10 text-slate-300'
               }`}>
                 <span className="font-bold">
-                  {isCashSufficient ? 'Change Due:' : 'Status:'}
+                  {parsedCash >= grandTotal && grandTotal > 0 ? 'Change Due:' : 'Status:'}
                 </span>
                 <span className="font-mono font-extrabold text-sm">
-                  {isCashSufficient 
+                  {parsedCash >= grandTotal && grandTotal > 0
                     ? `₱ ${changeAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}` 
-                    : grandTotal > 0 ? `Need ₱ ${(grandTotal - parsedCash).toLocaleString()} more` : 'Awaiting Entry'}
+                    : grandTotal > 0 && parsedCash > 0 ? `Need ₱ ${(grandTotal - parsedCash).toLocaleString()} more` : `Total Due: ₱ ${grandTotal.toLocaleString()}`}
                 </span>
               </div>
             </div>
 
-            {/* SUBMIT BUTTON */}
-            <button
-              onClick={handlePreviewReceipt}
-              disabled={!isCashSufficient}
-              className={`w-full py-3.5 rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xl ${
-                isCashSufficient
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400'
-                  : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
-              }`}
-            >
-              <Eye className="w-4 h-4" /> Preview Official Receipt
-            </button>
+            {/* ACTION DECISION BUTTONS: PAY NOW OR STORE AS PENDING */}
+            <div className="space-y-2.5 pt-1">
+              {/* BUTTON 1: PAY NOW & ISSUE OFFICIAL RECEIPT */}
+              <button
+                type="button"
+                onClick={() => handlePayNow()}
+                disabled={currentCartItems.length === 0 || !touristName.trim()}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-extrabold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xl border border-emerald-400"
+                title="Pay now with entered cash or exact amount and view official receipt"
+              >
+                <Coins className="w-4 h-4" /> Pay Now &amp; Issue Receipt
+              </button>
+
+              {/* BUTTON 2: STORE AS PENDING (UNPAID) */}
+              <button
+                type="button"
+                onClick={handleSaveAsPending}
+                disabled={currentCartItems.length === 0 || !touristName.trim()}
+                className="w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="Save order as Pending / Unpaid without collecting cash now. Client can void or pay at any time."
+              >
+                <Save className="w-4 h-4 text-amber-400" /> Hold / Store as Pending (Unpaid Order)
+              </button>
+
+              <p className="text-[10px] text-slate-400 text-center leading-tight">
+                💡 <em>Click &quot;Pay Now&quot; to pay with entered cash (or exact total). Client not paying yet? Click &quot;Hold / Store as Pending&quot; to void or pay later.</em>
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -939,15 +1170,15 @@ export default function POSTab() {
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   onClick={() => handleSaveTransaction(false)}
-                  className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all border border-emerald-400"
+                  className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all border border-emerald-400 uppercase tracking-wider"
                 >
-                  <Save className="w-4 h-4" /> Save Record to DB
+                  <CheckCircle2 className="w-4 h-4" /> Pay Now &amp; Confirm
                 </button>
                 <button
                   onClick={() => handleSaveTransaction(true)}
-                  className="py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all border border-emerald-600"
+                  className="py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all border border-emerald-600 uppercase tracking-wider"
                 >
-                  <Printer className="w-4 h-4" /> Print & Save Record
+                  <Printer className="w-4 h-4" /> Pay Now &amp; Print
                 </button>
               </div>
 
@@ -962,22 +1193,45 @@ export default function POSTab() {
         </div>
       )}
 
-      {/* ── REAL-TIME ACTIVE WALK-IN VISITORS (CURRENTLY USING SERVICES) ── */}
+      {/* ── REAL-TIME WALK-IN VISITORS & ORDERS (ACTIVE, PENDING & HISTORY) ── */}
       <div className="bg-[#0c1f16] p-5 rounded-2xl border border-emerald-500/20 shadow-xl space-y-4">
         <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-emerald-900/60 pb-3">
           <div>
             <h3 className="font-extrabold text-white text-base flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-              🟢 Real-Time Active Walk-In Visitors &amp; Service Occupancy
+              🟢 Real-Time Walk-In Visitors &amp; Order Terminal Management
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">
-              Guests who have paid in cash and are currently occupying cottages &amp; enjoying resort amenities. Click <strong>Complete Walk-In</strong> when guests leave to instantly release cottages/services.
+              Manage paid active guests, pending unpaid walk-in orders, and completed transactions. Pending orders can be <strong>paid &amp; receipted</strong> or <strong>voided</strong> if the client chooses not to continue purchase.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono font-bold text-emerald-300 bg-emerald-950 px-3 py-1 rounded-full border border-emerald-800">
-              {activeWalkIns.length} Active in Resort
-            </span>
+
+          {/* FILTER PILLS */}
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-black/40 rounded-xl border border-emerald-900/60 text-xs">
+            {[
+              { key: 'all', label: 'All Walk-Ins', count: todayWalkIns.length },
+              { key: 'active', label: '🟢 Active (Paid)', count: activeWalkIns.length },
+              { key: 'pending', label: '⏳ Pending (Unpaid)', count: todayWalkIns.filter(w => w.walk_in_status === 'PENDING').length },
+              { key: 'completed', label: '✓ Completed', count: completedTodayWalkIns.length },
+              { key: 'voided', label: '✕ Voided', count: todayWalkIns.filter(w => w.walk_in_status === 'VOIDED').length },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setWalkInFilterTab(tab.key)}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  walkInFilterTab === tab.key
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  walkInFilterTab === tab.key ? 'bg-black/30 text-white' : 'bg-white/10 text-slate-400'
+                }`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -994,87 +1248,250 @@ export default function POSTab() {
                   <th className="p-3">Tourist / Client</th>
                   <th className="p-3 text-center">Guests</th>
                   <th className="p-3">Availed Cottages &amp; Services</th>
-                  <th className="p-3 text-right">Cash Paid (₱)</th>
+                  <th className="p-3 text-right">Amount / Paid</th>
                   <th className="p-3 text-center">Status</th>
                   <th className="p-3">Staff / Time</th>
-                  <th className="p-3 text-center">Action</th>
+                  <th className="p-3 text-center">Order Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-emerald-900/40 font-medium">
-                {todayWalkIns.map(w => {
-                  const isActive = w.walk_in_status === 'ACTIVE';
-                  const isAutoClosed = w.completion_type === 'AUTO_DAILY_CLOSURE';
+                {todayWalkIns
+                  .filter(w => {
+                    if (walkInFilterTab === 'active') return w.walk_in_status === 'ACTIVE';
+                    if (walkInFilterTab === 'pending') return w.walk_in_status === 'PENDING';
+                    if (walkInFilterTab === 'completed') return w.walk_in_status === 'COMPLETED';
+                    if (walkInFilterTab === 'voided') return w.walk_in_status === 'VOIDED';
+                    return true;
+                  })
+                  .map(w => {
+                    const isActive = w.walk_in_status === 'ACTIVE';
+                    const isPending = w.walk_in_status === 'PENDING';
+                    const isVoided = w.walk_in_status === 'VOIDED';
+                    const isCompleted = w.walk_in_status === 'COMPLETED';
+                    const isAutoClosed = w.completion_type === 'AUTO_DAILY_CLOSURE';
 
-                  return (
-                    <tr key={w.id || w.walk_in_id} className="hover:bg-white/5 transition-all">
-                      <td className="p-3 font-mono font-bold text-emerald-400">
-                        {w.walk_in_id || `WI-${w.id}`}
-                      </td>
-                      <td className="p-3 font-extrabold text-white">
-                        <div>{w.customer_name || w.touristName}</div>
-                        <span className="text-[10px] font-mono text-slate-400">{w.userNumber}</span>
-                      </td>
-                      <td className="p-3 text-center font-bold text-slate-200">
-                        {w.guest_count || w.totalVisitors || 1} Pax
-                      </td>
-                      <td className="p-3 text-slate-300">
-                        <div className="space-y-0.5 max-w-xs">
-                          {w.items?.map((item, idx) => (
-                            <div key={idx} className="text-[11px] text-emerald-300/90 font-medium">
-                              • {item.name} <span className="font-bold text-white">(x{item.quantity})</span>
+                    return (
+                      <tr key={w.id || w.walk_in_id} className="hover:bg-white/5 transition-all">
+                        <td className="p-3 font-mono font-bold text-emerald-400">
+                          {w.walk_in_id || `WI-${w.id}`}
+                        </td>
+                        <td className="p-3 font-extrabold text-white">
+                          <div>{w.customer_name || w.touristName}</div>
+                          <span className="text-[10px] font-mono text-slate-400">{w.userNumber}</span>
+                        </td>
+                        <td className="p-3 text-center font-bold text-slate-200">
+                          {w.guest_count || w.totalVisitors || 1} Pax
+                        </td>
+                        <td className="p-3 text-slate-300">
+                          <div className="space-y-0.5 max-w-xs">
+                            {w.items?.map((item, idx) => (
+                              <div key={idx} className="text-[11px] text-emerald-300/90 font-medium">
+                                • {item.name} <span className="font-bold text-white">(x{item.quantity})</span>
+                              </div>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right font-mono font-black text-emerald-400">
+                          <div>₱{parseFloat(w.total_amount || w.grandTotal || 0).toLocaleString()}</div>
+                          {isPending && (
+                            <span className="text-[9px] font-bold uppercase text-amber-400 block">UNPAID</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-center">
+                          {isPending && (
+                            <span className="bg-amber-950/80 text-amber-300 border border-amber-500/60 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 shadow-sm">
+                              ⏳ PENDING PAYMENT
+                            </span>
+                          )}
+                          {isActive && (
+                            <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/50 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 shadow-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> ACTIVE (IN USE)
+                            </span>
+                          )}
+                          {isVoided && (
+                            <span className="bg-rose-950/80 text-rose-300 border border-rose-500/50 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 shadow-sm">
+                              ✕ VOIDED / CANCELLED
+                            </span>
+                          )}
+                          {isCompleted && (
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 ${
+                              isAutoClosed
+                                ? 'bg-amber-950/70 text-amber-300 border border-amber-600/50'
+                                : 'bg-slate-800 text-slate-300 border border-slate-700'
+                            }`}>
+                              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                              {isAutoClosed ? 'AUTO-COMPLETED' : 'COMPLETED'}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-slate-400 text-[11px]">
+                          <div>{w.created_by || 'Staff'}</div>
+                          <span className="font-mono text-[10px] text-slate-500">{w.time || 'Today'}</span>
+                        </td>
+                        <td className="p-3 text-center">
+                          {/* ACTIONS FOR PENDING UNPAID ORDERS */}
+                          {isPending && (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => handleOpenPayPendingModal(w)}
+                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl cursor-pointer shadow transition-all uppercase tracking-wider flex items-center gap-1"
+                                title="Collect cash, preview official receipt and mark as paid"
+                              >
+                                <Coins className="w-3.5 h-3.5" /> Pay Now
+                              </button>
+                              <button
+                                onClick={() => handleVoidWalkIn(w)}
+                                className="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-700/60 font-bold text-xs rounded-xl cursor-pointer shadow transition-all flex items-center gap-1"
+                                title="Void this pending order if client decided not to continue purchase"
+                              >
+                                <X className="w-3.5 h-3.5 text-rose-400" /> Void
+                              </button>
                             </div>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="p-3 text-right font-mono font-black text-emerald-400">
-                        ₱{parseFloat(w.total_amount || w.grandTotal || 0).toLocaleString()}
-                      </td>
-                      <td className="p-3 text-center">
-                        {isActive ? (
-                          <span className="bg-emerald-950 text-emerald-300 border border-emerald-500/50 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 shadow-sm">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> ACTIVE (IN USE)
-                          </span>
-                        ) : (
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 ${
-                            isAutoClosed
-                              ? 'bg-amber-950/70 text-amber-300 border border-amber-600/50'
-                              : 'bg-slate-800 text-slate-300 border border-slate-700'
-                          }`}>
-                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                            {isAutoClosed ? 'AUTO-COMPLETED' : 'COMPLETED'}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 text-slate-400 text-[11px]">
-                        <div>{w.created_by || 'Staff'}</div>
-                        <span className="font-mono text-[10px] text-slate-500">{w.time || 'Today'}</span>
-                      </td>
-                      <td className="p-3 text-center">
-                        {isActive ? (
-                          <button
-                            onClick={() => {
-                              if (confirm(`Complete Walk-In #${w.walk_in_id} for ${w.customer_name}?\nThis will release all rented cottages/services back into available inventory.`)) {
-                                completeWalkInTransaction(w.id || w.walk_in_id, activeStaff?.name);
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs rounded-xl cursor-pointer shadow-md transition-all uppercase tracking-wider flex items-center justify-center gap-1 mx-auto"
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Complete Walk-In
-                          </button>
-                        ) : (
-                          <span className="text-[11px] text-slate-500 font-medium">
-                            {w.completed_by ? `By ${w.completed_by}` : 'Closed'}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                          )}
+
+                          {/* ACTIONS FOR ACTIVE PAID ORDERS */}
+                          {isActive && (
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={async () => {
+                                  const confirmed = await showConfirm({
+                                    title: 'Complete Walk-In Stay',
+                                    message: `Complete Walk-In #${w.walk_in_id} for ${w.customer_name}?`,
+                                    details: 'This will vacate rented cottages and release all services back into available inventory.',
+                                    type: 'success',
+                                    confirmText: 'YES, Complete Stay'
+                                  });
+                                  if (confirmed) {
+                                    completeWalkInTransaction(w.id || w.walk_in_id, activeStaff?.name);
+                                    showAlert({
+                                      title: 'Walk-In Completed',
+                                      message: `Walk-In #${w.walk_in_id} marked Completed. Facilities released.`,
+                                      type: 'success'
+                                    });
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-black text-xs rounded-xl cursor-pointer shadow-md transition-all uppercase tracking-wider flex items-center justify-center gap-1"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Complete
+                              </button>
+                              <button
+                                onClick={() => handleVoidWalkIn(w)}
+                                className="px-2 py-1.5 bg-rose-950/60 hover:bg-rose-900/80 text-rose-300 border border-rose-800/50 font-bold text-xs rounded-xl cursor-pointer transition-all"
+                                title="Void transaction"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          {/* FOR VOIDED OR COMPLETED */}
+                          {(isVoided || isCompleted) && (
+                            <span className="text-[11px] text-slate-500 font-medium">
+                              {w.completed_by ? `By ${w.completed_by}` : (isVoided ? 'Voided' : 'Closed')}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* ── MODAL: PAY PENDING WALK-IN ORDER ── */}
+      {selectedPendingWalkInForPayment && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-[#05180f] border border-emerald-500/40 rounded-3xl max-w-md w-full p-6 text-white space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setSelectedPendingWalkInForPayment(null)}
+              className="absolute top-4 right-4 p-1.5 bg-black/40 hover:bg-black/60 rounded-full text-slate-400 hover:text-white border border-white/10"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="text-center border-b border-emerald-900/60 pb-3 space-y-1">
+              <span className="text-[10px] font-bold tracking-widest text-amber-400 uppercase">COLLECT PAYMENT FOR PENDING ORDER</span>
+              <h3 className="text-xl font-bold text-white">Order #{selectedPendingWalkInForPayment.walk_in_id}</h3>
+              <p className="text-xs text-slate-400">
+                Client: <strong className="text-emerald-300">{selectedPendingWalkInForPayment.customer_name}</strong> • Guests: {selectedPendingWalkInForPayment.guest_count} Pax
+              </p>
+            </div>
+
+            {/* ORDER ITEMS SUMMARY */}
+            <div className="bg-black/40 p-3.5 rounded-2xl border border-emerald-900/60 text-xs space-y-1.5 max-h-36 overflow-y-auto">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">Items in this order:</span>
+              {selectedPendingWalkInForPayment.items?.map((it, idx) => (
+                <div key={idx} className="flex justify-between text-slate-200">
+                  <span>{it.name} (x{it.quantity})</span>
+                  <span className="font-mono text-emerald-400">₱{(it.quantity * it.unitPrice).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* AMOUNT DUE & CASH GIVEN */}
+            <div className="space-y-3 bg-emerald-950/70 p-4 rounded-2xl border border-emerald-700/60">
+              <div className="flex justify-between items-center text-sm font-bold">
+                <span className="text-slate-300">Total Amount Due:</span>
+                <span className="font-mono text-2xl text-emerald-300 font-black">
+                  ₱{parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0).toLocaleString()}
+                </span>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-300 block mb-1">Cash Received (₱):</label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-emerald-400 font-mono font-extrabold text-sm select-none">₱</span>
+                  <input
+                    type="number"
+                    value={pendingPayCashInput}
+                    onChange={(e) => setPendingPayCashInput(e.target.value)}
+                    className="w-full bg-black/60 border border-emerald-500/50 rounded-xl pl-9 pr-4 py-2.5 font-mono font-extrabold text-base text-white outline-none focus:border-emerald-400"
+                    placeholder="Enter cash given"
+                  />
+                </div>
+              </div>
+
+              {/* CHANGE CALCULATION */}
+              {(() => {
+                const total = parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0);
+                const cash = parseFloat(pendingPayCashInput) || 0;
+                const change = cash - total;
+                return (
+                  <div className="flex justify-between items-center text-xs font-bold pt-2 border-t border-emerald-800/60">
+                    <span className="text-slate-300">Change Return:</span>
+                    <span className={`font-mono text-base ${change >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {change >= 0 ? `₱ ${change.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `Need ₱ ${Math.abs(change).toLocaleString()} more`}
+                    </span>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* CONFIRM PAYMENT BUTTONS */}
+            <div className="grid grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => handleConfirmPayPendingWalkIn(false)}
+                disabled={(parseFloat(pendingPayCashInput) || 0) < parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0)}
+                className="py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all uppercase tracking-wider"
+              >
+                <Coins className="w-4 h-4" /> Pay Now &amp; Confirm
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmPayPendingWalkIn(true)}
+                disabled={(parseFloat(pendingPayCashInput) || 0) < parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0)}
+                className="py-3 bg-emerald-800 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all uppercase tracking-wider"
+              >
+                <Printer className="w-4 h-4" /> Pay Now &amp; Print
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

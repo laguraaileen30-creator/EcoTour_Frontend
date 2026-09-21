@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   Package, Calendar, CheckCircle2, Clock, RefreshCw,
-  Home, Users, Droplets, Utensils, Trees, Search, ShieldCheck, Plus, Minus, Sparkles, User, AlertCircle, RotateCw, Image as ImageIcon, X
+  Home, Users, Droplets, Utensils, Trees, Search, ShieldCheck, Plus, Minus, Sparkles, User, AlertCircle, RotateCw, Image as ImageIcon, X, Info
 } from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
 import { getStageIndex } from '../../../components/VerticalReservationTimeline';
+import ServiceDetailsModal from '../../../components/ServiceDetailsModal';
 
 import swimmingImg from '../../../assets/images/services/swimming.png';
 import cottageImg from '../../../assets/images/services/cottage.png';
@@ -57,6 +58,7 @@ export default function AvailabilityTab() {
   const [viewMode, setViewMode] = useState('tracker'); // 'tracker' | 'gallery'
   const [flippedCards, setFlippedCards] = useState({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [modalService, setModalService] = useState(null);
   const isLight = theme === 'light';
 
   const handleManualRefresh = async () => {
@@ -83,11 +85,19 @@ export default function AvailabilityTab() {
     const sCode = (serviceCode || '').toLowerCase().trim();
     let count = 0;
     const activeGuests = [];
+    const trackedKeys = new Set();
 
     // 1. In-service / Active Reservations
     allBookings.forEach(b => {
       const status = (b.status || '').toLowerCase();
-      const isConcluded = status.includes('completed') || status.includes('cancel') || status.includes('void') || status.includes('checkout') || status.includes('checked out') || status.includes('done');
+      const isConcluded = (
+        status.includes('completed') ||
+        status.includes('cancel') ||
+        status.includes('void') ||
+        status.includes('checkout') ||
+        status.includes('checked out') ||
+        status.includes('done')
+      );
       const isPaidOrInService = (
         status.includes('paid') ||
         status.includes('using') ||
@@ -97,41 +107,77 @@ export default function AvailabilityTab() {
         status.includes('confirmed')
       );
 
-      if (isPaidOrInService && !isConcluded) {
-        const ref = b.bookingRef || b.bookingNumber || `BK-${b.id}`;
-        const guestName = b.clientName || b.fullName || b.touristName || 'Guest';
+      // Track references to prevent duplicate counting
+      if (b.walk_in_id) trackedKeys.add(String(b.walk_in_id).toLowerCase());
+      if (b.bookingRef) trackedKeys.add(String(b.bookingRef).toLowerCase());
+      if (b.bookingNumber) trackedKeys.add(String(b.bookingNumber).toLowerCase());
+      if (b.id) trackedKeys.add(String(b.id).toLowerCase());
 
-        if (Array.isArray(b.items) && b.items.length > 0) {
-          b.items.forEach(it => {
-            const itName = (it.name || it.serviceName || '').toLowerCase();
-            if (itName.includes(sName) || sName.includes(itName)) {
-              const qty = parseInt(it.quantity || 1, 10);
-              count += qty;
-              activeGuests.push({ ref, guestName, qty, time: b.arrivalTime || '09:00 AM' });
-            }
-          });
-        } else {
-          const bSvc = (b.specificType || b.serviceName || b.packageName || '').toLowerCase();
-          if (bSvc.includes(sName) || sName.includes(bSvc)) {
-            count += 1;
-            activeGuests.push({ ref, guestName, qty: 1, time: b.arrivalTime || '09:00 AM' });
+      // If client completed stay or cancelled, items are returned! DO NOT count as in-use!
+      if (!isPaidOrInService || isConcluded) {
+        return;
+      }
+
+      const ref = b.bookingRef || b.bookingNumber || `BK-${b.id}`;
+      const guestName = b.clientName || b.fullName || b.touristName || 'Guest';
+
+      if (Array.isArray(b.items) && b.items.length > 0) {
+        b.items.forEach(it => {
+          const itName = (it.name || it.serviceName || '').toLowerCase();
+          const itCode = (it.service_code || '').toLowerCase();
+          if (itName.includes(sName) || sName.includes(itName) || (sCode && itCode === sCode)) {
+            const qty = parseInt(it.quantity || 1, 10);
+            count += qty;
+            activeGuests.push({ ref, guestName, qty, time: b.arrivalTime || '09:00 AM' });
           }
+        });
+      } else {
+        const bSvc = (b.specificType || b.serviceName || b.packageName || '').toLowerCase();
+        if (bSvc.includes(sName) || sName.includes(bSvc)) {
+          const qty = parseInt(b.quantity || b.totalVisitors || 1, 10);
+          count += qty;
+          activeGuests.push({ ref, guestName, qty, time: b.arrivalTime || '09:00 AM' });
         }
       }
     });
 
-    // 2. Active Walk-Ins
+    // 2. Active Walk-Ins (avoiding double-counting with allBookings)
     (walkIns || []).forEach(w => {
-      const isConcluded = w.walk_in_status === 'COMPLETED' || (w.status || '').toLowerCase().includes('completed') || (w.payment_status || '').toLowerCase().includes('cancel');
+      const wIdStr = String(w.id || '').toLowerCase();
+      const wWalkInId = String(w.walk_in_id || '').toLowerCase();
+      const wBookingRef = String(w.bookingRef || '').toLowerCase();
+      const wReceiptNo = String(w.receiptNo || '').toLowerCase();
+
+      // If already recorded in allBookings, skip to avoid double counting
+      if (
+        (wWalkInId && trackedKeys.has(wWalkInId)) ||
+        (wBookingRef && trackedKeys.has(wBookingRef)) ||
+        (wReceiptNo && trackedKeys.has(wReceiptNo)) ||
+        (wIdStr && trackedKeys.has(wIdStr))
+      ) {
+        return;
+      }
+
+      const isConcluded = (
+        w.walk_in_status === 'COMPLETED' ||
+        w.walk_in_status === 'VOIDED' ||
+        (w.status || '').toLowerCase().includes('completed') ||
+        (w.status || '').toLowerCase().includes('cancel') ||
+        (w.status || '').toLowerCase().includes('void') ||
+        (w.payment_status || '').toLowerCase().includes('cancel') ||
+        (w.payment_status || '').toLowerCase().includes('void')
+      );
       const isWalkInActive = (w.walk_in_status === 'ACTIVE' || w.payment_status === 'PAID') && !isConcluded;
 
+      // If completed or voided, services are returned! DO NOT count as in use!
       if (isWalkInActive && Array.isArray(w.items) && w.items.length > 0) {
         const ref = w.receiptNo || w.walk_in_id || `WI-${w.id}`;
         const guestName = w.customer_name || w.touristName || 'Walk-In Guest';
 
         w.items.forEach(it => {
           const itName = (it.name || it.serviceName || '').toLowerCase();
-          if (itName.includes(sName) || sName.includes(itName)) {
+          const itCode = (it.service_code || '').toLowerCase();
+          if (itName.includes(sName) || sName.includes(itName) || (sCode && itCode === sCode)) {
             const qty = parseInt(it.quantity || 1, 10);
             count += qty;
             activeGuests.push({ ref, guestName, qty, time: w.time || '10:00 AM' });
@@ -154,7 +200,7 @@ export default function AvailabilityTab() {
         total: parseInt(s.total_capacity || 10, 10),
         unit: s.unit || 'day',
         description: s.description || 'Full resort amenity available for visitors and booking.',
-        img: (s.image_url && s.image_url.startsWith('http')) ? s.image_url : resolveFacilityImage(s.service_name || s.name, s.category || ''),
+        img: s.image_url ? s.image_url : resolveFacilityImage(s.service_name || s.name, s.category || ''),
         icon: (s.category || '').toLowerCase().includes('safety') ? ShieldCheck : (s.category || '').toLowerCase().includes('table') ? Utensils : (s.category || '').toLowerCase().includes('water') ? Droplets : Home,
       }))
     : DEFAULT_UNITS;
@@ -466,12 +512,13 @@ export default function AvailabilityTab() {
                     <img
                       src={defaultImg}
                       alt={fac.name}
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                      onClick={() => setModalService(fac)}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 cursor-pointer"
                       onError={(e) => { e.target.src = '/src/assets/images/services/cottage.png'; }}
                     />
-                    <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, rgba(2,10,6,0.92) 0%, rgba(2,10,6,0.45) 50%, rgba(0,0,0,0.2) 100%)' }} />
+                    <div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(to top, rgba(2,10,6,0.92) 0%, rgba(2,10,6,0.45) 50%, rgba(0,0,0,0.2) 100%)' }} />
 
-                    <div className="absolute top-3 left-3 right-3 flex justify-between items-center z-10">
+                    <div className="absolute top-3 left-3 right-3 flex justify-between items-center z-10 pointer-events-none">
                       <span className="font-mono text-[11px] font-bold px-3 py-1 rounded-full border shadow-md" style={{ background: 'rgba(2,5,3,0.82)', color: 'var(--accent)', borderColor: 'rgba(74,222,128,0.4)' }}>
                         {fac.id}
                       </span>
@@ -628,9 +675,10 @@ export default function AvailabilityTab() {
                     )}
                   </div>
 
-                  <div className="flex items-start gap-3 pt-1">
+                  <div className="flex items-start gap-3 pt-1 relative">
                     <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 cursor-pointer hover:scale-105 transition-transform"
+                      onClick={() => setModalService(unit)}
                       style={{
                         background: isLight ? 'rgba(74,222,128,0.1)' : '#052e1a',
                         border: '1px solid var(--line)',
@@ -640,7 +688,17 @@ export default function AvailabilityTab() {
                       <IconComponent className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold leading-snug" style={{ color: 'var(--text)' }}>{unit.name}</h4>
+                      <h4 className="text-sm font-bold leading-snug flex items-center gap-2" style={{ color: 'var(--text)' }}>
+                        {unit.name}
+                        <button
+                          type="button"
+                          onClick={() => setModalService(unit)}
+                          className="text-emerald-500 hover:bg-emerald-500/10 p-1 rounded-full transition-colors"
+                          title="View Details"
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                      </h4>
                       <p className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>{unit.category} • Capacity: {unit.capacity}</p>
                     </div>
                   </div>
@@ -673,7 +731,7 @@ export default function AvailabilityTab() {
                       borderColor: 'rgba(56,189,248,0.3)',
                     }}
                   >
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider block text-sky-400 flex items-center gap-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-400 flex items-center gap-1">
                       <Users className="w-3 h-3" /> Active Guests Using this Facility ({unit.activeGuests.length}):
                     </span>
                     <div className="max-h-24 overflow-y-auto space-y-1 pr-1">
@@ -730,6 +788,12 @@ export default function AvailabilityTab() {
           })}
         </div>
       )}
+
+      <ServiceDetailsModal 
+        isOpen={!!modalService}
+        onClose={() => setModalService(null)}
+        service={modalService}
+      />
     </div>
   );
 }

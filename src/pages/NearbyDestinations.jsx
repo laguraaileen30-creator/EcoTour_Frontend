@@ -5,8 +5,8 @@ import "./NearbyDestinations.css";
 import { useEcoTour } from "../context/EcoTourContext";
 
 // Import background image and attraction images
-import homeImage from "../assets/home.png";
-import lightImage from "../assets/light.png";
+import homeImage from "../assets/home2.png";
+import lightImage from "../assets/home1.png";
 import Manmade from "../assets/images/attractions/Manmade.png";
 import Tarsier from "../assets/images/attractions/Tarsier.png";
 import Guwaon from "../assets/images/attractions/Cave.png";

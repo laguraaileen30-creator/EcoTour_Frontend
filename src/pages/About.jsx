@@ -9,8 +9,8 @@ import { useEcoTour } from "../context/EcoTourContext";
 import { getStageIndex } from "../components/VerticalReservationTimeline";
 
 // Images
-import homeImage from "../assets/home.png";
-import lightImage from "../assets/light.png";
+import homeImage from "../assets/home2.png";
+import lightImage from "../assets/home1.png";
 import springImage from "../assets/spring.png";
 import cottageImage from "../assets/water.png";
 import overviewImage from "../assets/overview.png";
@@ -319,7 +319,7 @@ export default function About({ onOpenBooking }) {
   return (
     <>
       {/* ABOUT SECTION */}
-      <section id="about" className="about-section" style={{ background: isLight ? 'var(--bg-1, #f8fbf9)' : 'linear-gradient(180deg, #071410 0%, #050e08 100%)', color: 'var(--text)' }}>
+      <section id="about" className="about-section" style={{ background: 'var(--bg-1)', color: 'var(--text)' }}>
         <div className="section__bg" style={{ backgroundImage: `url(${currentBg})` }} aria-hidden="true" />
 
         <div className="about-container">
@@ -437,7 +437,7 @@ export default function About({ onOpenBooking }) {
             exit={{ opacity: 0, height: 0, y: 50 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             style={{
-              background: isLight ? 'var(--bg-1, #f4fbf7)' : '#020e07',
+              background: 'var(--bg-0)',
               color: 'var(--text)',
             }}
           >

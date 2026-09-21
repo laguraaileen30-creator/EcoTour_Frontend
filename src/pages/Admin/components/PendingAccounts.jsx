@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Check, X, Mail, ShieldCheck, AlertCircle } from 'lucide-react';
+import { useEcoTour } from '../../../context/EcoTourContext';
 
 export default function PendingAccounts() {
+  const { showAlert } = useEcoTour();
   const [pendingList, setPendingList] = useState([]);
 
   const [approvalModal, setApprovalModal] = useState(null);
@@ -83,7 +85,11 @@ export default function PendingAccounts() {
   const confirmDecline = async () => {
     if (!declineTarget) return;
     if (!declineReason.trim()) {
-      alert("Please provide a reason for declining the account application.");
+      showAlert({
+        title: 'Decline Reason Required',
+        message: 'Please provide a reason for declining the account application.',
+        type: 'warning'
+      });
       return;
     }
 
@@ -97,9 +103,17 @@ export default function PendingAccounts() {
         body: JSON.stringify({ status: 'Rejected', reason: declineReason }),
       });
 
-      alert(`Account declined. Rejection reason email sent to ${declineTarget.email}.`);
+      showAlert({
+        title: 'Account Declined',
+        message: `Account application declined. Rejection reason sent to ${declineTarget.email}.`,
+        type: 'info'
+      });
     } catch (err) {
-      alert(`Account declined. Email notification queued for ${declineTarget.email}.`);
+      showAlert({
+        title: 'Account Declined',
+        message: `Account declined. Email notification queued for ${declineTarget.email}.`,
+        type: 'info'
+      });
     } finally {
       setPendingList((prev) => prev.filter((u) => (u.user_id || u.id) !== targetId));
       setDeclineTarget(null);

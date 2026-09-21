@@ -52,7 +52,7 @@ const MENU_ITEMS = [
   },
   {
     key: 'payments',
-    label: 'Revenue & Payments',
+    label: 'Payments History',
     icon: Coins,
 
   },

@@ -1,21 +1,40 @@
-// @refresh reset
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { getPhilippineDateStr, getPhilippineTimeStr } from '../utils/phTime';
+import GlobalModal from '../components/GlobalModal';
 
 const EcoTourContext = createContext(null);
 
+import swimmingImg from '../assets/images/services/swimming.png';
+import cottageImg from '../assets/images/services/cottage.png';
+import tableImg from '../assets/images/services/table.png';
+import vestImg from '../assets/images/services/lifevest.png';
+import videokeImg from '../assets/images/services/videoke.png';
+import floatingImg from '../assets/images/services/floating.png';
+import tentImg from '../assets/images/services/tent.png';
+import roomImg from '../assets/images/services/room.png';
+import eventImg from '../assets/images/services/event.png';
+import buffetImg from '../assets/images/services/buffet.png';
+import parkingImg from '../assets/images/services/parking.png';
+
+import familyGatewayImg from '../assets/images/services/family gateway deal.png';
+import barkadaDealImg from '../assets/images/services/barkada deal.png';
+import premiumFamilyImg from '../assets/images/services/premium family.png';
+import quickEscapeImg from '../assets/images/services/quick escape.png';
+import quickDipImg from '../assets/images/services/quick dip.png';
+import flashDealImg from '../assets/images/services/flash deal.png';
+import celebrationImg from '../assets/images/services/celebration.png';
 const OFFICIAL_DB_SERVICES = [
-  { service_id: 1, service_code: 'DSVC-001', service_name: 'Cold Spring Pool Entrance Ticket', category: 'Entrance', description: 'Day pass access to natural cold spring pool & resort grounds', price: 100, unit: 'head', total_capacity: 300, available_qty: 300, available_quantity: 300, image_url: '/src/assets/images/services/swimming.png', status: 'Active' },
-  { service_id: 2, service_code: 'DSVC-002', service_name: 'Standard Open Cottage', category: 'Cottage', description: 'Shaded native open cottage near natural pool area', price: 600, unit: 'day', total_capacity: 10, available_qty: 10, available_quantity: 10, image_url: '/src/assets/images/services/cottage.png', status: 'Active' },
-  { service_id: 3, service_code: 'DSVC-003', service_name: 'Resort Table & Chairs Set', category: 'Rental', description: '1 Durable outdoor table + 4 monoblock chairs', price: 250, unit: 'day', total_capacity: 15, available_qty: 15, available_quantity: 15, image_url: '/src/assets/images/services/table.png', status: 'Active' },
-  { service_id: 4, service_code: 'DSVC-004', service_name: 'Life Vest / Safety Gear', category: 'Safety', description: 'Adult & Kid safety flotation vest for swimming and kayak activities', price: 50, unit: 'head', total_capacity: 30, available_qty: 30, available_quantity: 30, image_url: '/src/assets/images/services/lifevest.png', status: 'Active' },
-  { service_id: 5, service_code: 'DSVC-005', service_name: 'Videoke Karaoke System', category: 'Entertainment', description: 'Heavy-duty Videoke sound system for family gatherings', price: 500, unit: 'day', total_capacity: 4, available_qty: 4, available_quantity: 4, image_url: '/src/assets/images/services/videoke.png', status: 'Active' },
-  { service_id: 6, service_code: 'DSVC-006', service_name: 'Kayak / Floating Pad Rental', category: 'Water Activity', description: '1-hour kayak & water pad rental on the river stream', price: 300, unit: 'hour', total_capacity: 5, available_qty: 5, available_quantity: 5, image_url: '/src/assets/images/services/floating.png', status: 'Active' },
-  { service_id: 7, service_code: 'DSVC-007', service_name: 'Camping Pitch & Tent', category: 'Accommodation', description: 'Overnight camping pitch slot & waterproof tent', price: 450, unit: 'night', total_capacity: 8, available_qty: 8, available_quantity: 8, image_url: '/src/assets/images/services/tent.png', status: 'Active' },
-  { service_id: 8, service_code: 'DSVC-008', service_name: 'Aircon Kubo Guest Room', category: 'Accommodation', description: 'Private aircon native kubo with comfortable bed & bathroom', price: 1500, unit: 'night', total_capacity: 4, available_qty: 4, available_quantity: 4, image_url: '/src/assets/images/services/room.png', status: 'Active' },
-  { service_id: 9, service_code: 'DSVC-009', service_name: 'Private Event Pavilion', category: 'Event', description: 'Private pavilion for celebrations, reunions and events', price: 3500, unit: 'event', total_capacity: 2, available_qty: 2, available_quantity: 2, image_url: '/src/assets/images/services/event.png', status: 'Active' },
-  { service_id: 10, service_code: 'DSVC-010', service_name: 'Buffet & Catering Station', category: 'Food', description: 'Native buffet catering package for groups', price: 450, unit: 'head', total_capacity: 50, available_qty: 50, available_quantity: 50, image_url: '/src/assets/images/services/buffet.png', status: 'Active' },
-  { service_id: 11, service_code: 'DSVC-011', service_name: 'Secured Resort Parking Slot', category: 'Parking', description: 'Safe vehicle parking for cars & vans', price: 50, unit: 'vehicle', total_capacity: 40, available_qty: 40, available_quantity: 40, image_url: '/src/assets/images/services/parking.png', status: 'Active' },
+  { service_id: 1, service_code: 'DSVC-001', service_name: 'Cold Spring Pool Entrance Ticket', category: 'Entrance', description: 'Day pass access to natural cold spring pool & resort grounds', price: 100, unit: 'head', total_capacity: 300, available_qty: 300, available_quantity: 300, image_url: swimmingImg, status: 'Active' },
+  { service_id: 2, service_code: 'DSVC-002', service_name: 'Standard Open Cottage', category: 'Cottage', description: 'Shaded native open cottage near natural pool area', price: 600, unit: 'day', total_capacity: 10, available_qty: 10, available_quantity: 10, image_url: cottageImg, status: 'Active' },
+  { service_id: 3, service_code: 'DSVC-003', service_name: 'Resort Table & Chairs Set', category: 'Rental', description: '1 Durable outdoor table + 4 monoblock chairs', price: 250, unit: 'day', total_capacity: 15, available_qty: 15, available_quantity: 15, image_url: tableImg, status: 'Active' },
+  { service_id: 4, service_code: 'DSVC-004', service_name: 'Life Vest / Safety Gear', category: 'Safety', description: 'Adult & Kid safety flotation vest for swimming and kayak activities', price: 50, unit: 'head', total_capacity: 30, available_qty: 30, available_quantity: 30, image_url: vestImg, status: 'Active' },
+  { service_id: 5, service_code: 'DSVC-005', service_name: 'Videoke Karaoke System', category: 'Entertainment', description: 'Heavy-duty Videoke sound system for family gatherings', price: 500, unit: 'day', total_capacity: 4, available_qty: 4, available_quantity: 4, image_url: videokeImg, status: 'Active' },
+  { service_id: 6, service_code: 'DSVC-006', service_name: 'Kayak / Floating Pad Rental', category: 'Water Activity', description: '1-hour kayak & water pad rental on the river stream', price: 300, unit: 'hour', total_capacity: 5, available_qty: 5, available_quantity: 5, image_url: floatingImg, status: 'Active' },
+  { service_id: 7, service_code: 'DSVC-007', service_name: 'Camping Pitch & Tent', category: 'Accommodation', description: 'Overnight camping pitch slot & waterproof tent', price: 450, unit: 'night', total_capacity: 8, available_qty: 8, available_quantity: 8, image_url: tentImg, status: 'Active' },
+  { service_id: 8, service_code: 'DSVC-008', service_name: 'Aircon Kubo Guest Room', category: 'Accommodation', description: 'Private aircon native kubo with comfortable bed & bathroom', price: 1500, unit: 'night', total_capacity: 4, available_qty: 4, available_quantity: 4, image_url: roomImg, status: 'Active' },
+  { service_id: 9, service_code: 'DSVC-009', service_name: 'Private Event Pavilion', category: 'Event', description: 'Private pavilion for celebrations, reunions and events', price: 3500, unit: 'event', total_capacity: 2, available_qty: 2, available_quantity: 2, image_url: eventImg, status: 'Active' },
+  { service_id: 10, service_code: 'DSVC-010', service_name: 'Buffet & Catering Station', category: 'Food', description: 'Native buffet catering package for groups', price: 450, unit: 'head', total_capacity: 50, available_qty: 50, available_quantity: 50, image_url: buffetImg, status: 'Active' },
+  { service_id: 11, service_code: 'DSVC-011', service_name: 'Secured Resort Parking Slot', category: 'Parking', description: 'Safe vehicle parking for cars & vans', price: 50, unit: 'vehicle', total_capacity: 40, available_qty: 40, available_quantity: 40, image_url: parkingImg, status: 'Active' },
 ];
 
 const INITIAL_RESERVATIONS = [];
@@ -48,6 +67,93 @@ export const EcoTourProvider = ({ children }) => {
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   };
+
+  // --- Global Custom Alert / Confirm Modal State (Replaces "localhost says" dialogs) ---
+  const [modalState, setModalState] = useState({
+    isOpen: false,
+    title: 'Notification',
+    message: '',
+    details: '',
+    type: 'info',
+    isConfirm: false,
+    confirmText: 'OK',
+    cancelText: 'Cancel',
+    theme: 'dark'
+  });
+
+  const modalResolverRef = useRef(null);
+
+  const showAlert = ({ title = 'Notice', message = '', details = '', type = 'info' }) => {
+    return new Promise((resolve) => {
+      modalResolverRef.current = () => resolve(true);
+      setModalState({
+        isOpen: true,
+        title,
+        message,
+        details,
+        type,
+        isConfirm: false,
+        confirmText: 'OK',
+        cancelText: '',
+        theme
+      });
+    });
+  };
+
+  const showConfirm = ({
+    title = 'Confirmation Required',
+    message = '',
+    details = '',
+    type = 'warning',
+    confirmText = 'Yes, Proceed',
+    cancelText = 'Cancel'
+  }) => {
+    return new Promise((resolve) => {
+      modalResolverRef.current = (result) => resolve(!!result);
+      setModalState({
+        isOpen: true,
+        title,
+        message,
+        details,
+        type,
+        isConfirm: true,
+        confirmText,
+        cancelText,
+        theme
+      });
+    });
+  };
+
+  const handleModalClose = () => {
+    if (modalResolverRef.current) {
+      modalResolverRef.current(false);
+      modalResolverRef.current = null;
+    }
+    setModalState(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const handleModalConfirm = () => {
+    if (modalResolverRef.current) {
+      modalResolverRef.current(true);
+      modalResolverRef.current = null;
+    }
+    setModalState(prev => ({ ...prev, isOpen: false }));
+  };
+
+  // Auto-intercept any window.alert and window.confirm to eliminate "localhost says" popups
+  useEffect(() => {
+    const origAlert = window.alert;
+    window.alert = (msg) => {
+      showAlert({
+        title: 'System Notification',
+        message: String(msg || ''),
+        type: 'info'
+      });
+    };
+    return () => {
+      window.alert = origAlert;
+    };
+  }, [theme]);
 
   // --- Current User State ---
   const [currentUser, setCurrentUser] = useState(() => {
@@ -284,12 +390,88 @@ export const EcoTourProvider = ({ children }) => {
         setStaffList(staffMembers);
       }
 
-      // 2. Fetch Services
-      const resServices = await fetch('http://localhost:5000/api/v1/services');
-      const dataServices = await resServices.json();
-      if (dataServices.success && Array.isArray(dataServices.services) && dataServices.services.length > 0) {
-        setResortServices(dataServices.services);
-        setFacilities(dataServices.services);
+      // 2. Fetch Services, Packages, and Promos
+      const [resServices, resPackages, resPromos] = await Promise.all([
+        fetch('http://localhost:5000/api/v1/services').catch(() => null),
+        fetch('http://localhost:5000/api/v1/packages').catch(() => null),
+        fetch('http://localhost:5000/api/v1/promotions').catch(() => null)
+      ]);
+
+      let combinedServices = [];
+
+      if (resServices) {
+        const dataServices = await resServices.json();
+        if (dataServices.success && Array.isArray(dataServices.services)) {
+          combinedServices = [...dataServices.services];
+        }
+      }
+
+      if (resPackages) {
+        const dataPackages = await resPackages.json();
+        if (dataPackages.success && Array.isArray(dataPackages.data)) {
+          const formattedPackages = dataPackages.data.map(p => {
+            const pName = (p.package_name || '').toLowerCase();
+            let img = familyGatewayImg;
+            if (pName.includes('barkada')) img = barkadaDealImg;
+            else if (pName.includes('premium')) img = premiumFamilyImg;
+            else if (pName.includes('quick escape')) img = quickEscapeImg;
+            else if (pName.includes('quick dip')) img = quickDipImg;
+
+            return {
+              service_id: `PKG-${p.id}`,
+              service_code: `PKG-${p.id}`,
+              service_name: p.package_name,
+              category: 'Package',
+              description: `Package includes ${p.included_guests} guests.`,
+              price: p.regular_value,
+              unit: 'package',
+              total_capacity: 100,
+              available_qty: 100,
+              available_quantity: 100,
+              status: 'Active',
+              image_url: img
+            };
+          });
+          combinedServices = [...combinedServices, ...formattedPackages];
+        }
+      }
+
+      if (resPromos) {
+        const dataPromos = await resPromos.json();
+        if (dataPromos.success && Array.isArray(dataPromos.data)) {
+          const formattedPromos = dataPromos.data.map(p => {
+            const pName = (p.promo_name || '').toLowerCase();
+            let img = flashDealImg;
+            if (pName.includes('celebration') || pName.includes('event')) img = celebrationImg;
+
+            return {
+              service_id: `PRM-${p.id}`,
+              service_code: `PRM-${p.id}`,
+              service_name: p.promo_name,
+              category: 'Promotion',
+              description: `${p.discount_type} discount of ₱${p.discount_value}`,
+              price: 0,
+              unit: 'promo',
+              total_capacity: 100,
+              available_qty: 100,
+              available_quantity: 100,
+              status: 'Active',
+              image_url: img
+            };
+          });
+          combinedServices = [...combinedServices, ...formattedPromos];
+        }
+      }
+
+      if (combinedServices.length > 0) {
+        combinedServices.sort((a, b) => {
+          const rankA = a.category === 'Package' ? 0 : (a.category === 'Promotion' ? 1 : 2);
+          const rankB = b.category === 'Package' ? 0 : (b.category === 'Promotion' ? 1 : 2);
+          return rankA - rankB;
+        });
+
+        setResortServices(combinedServices);
+        setFacilities(combinedServices);
       }
 
       // 3. Fetch Reservations directly from MySQL Database
@@ -543,8 +725,15 @@ export const EcoTourProvider = ({ children }) => {
     return JSON.stringify({ userAccounts, resortServices, staffList, resortBookings, receipts, pricingList }, null, 2);
   };
 
-  const resetToDefaults = () => {
-    if (confirm('Are you sure you want to perform a factory reset? This will reset local storage data.')) {
+  const resetToDefaults = async () => {
+    const ok = await showConfirm({
+      title: 'Factory Reset',
+      message: 'Are you sure you want to perform a factory reset?',
+      details: 'This will reset all local storage data and restore default resort settings.',
+      type: 'danger',
+      confirmText: 'YES, Factory Reset'
+    });
+    if (ok) {
       localStorage.clear();
       window.location.reload();
     }
@@ -741,7 +930,7 @@ export const EcoTourProvider = ({ children }) => {
   };
 
   // Bookings (Landing Page, Client, Staff, Admin)
-  const createResortBooking = (bookingData) => {
+  const createResortBooking = (bookingData, options = {}) => {
     const userNum = bookingData.userNumber || `CLT-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
     const bookingRef = bookingData.bookingRef || `BK-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
     const cName = bookingData.clientName || bookingData.fullName || bookingData.touristName || currentUser?.name || 'Guest User';
@@ -779,19 +968,21 @@ export const EcoTourProvider = ({ children }) => {
     };
     setResortBookings(prev => [newBooking, ...prev]);
 
-    // Save to server database
-    fetch('http://localhost:5000/api/v1/reservations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newBooking),
-    })
-      .then(res => res.json())
-      .then(resData => {
-        if (resData.success && resData.data) {
-          setResortBookings(prev => prev.map(b => b.bookingRef === bookingRef ? { ...b, id: resData.data.id } : b));
-        }
+    // Skip this sync when the caller already submitted and received the server response.
+    if (!options.skipServerSync) {
+      fetch('http://localhost:5000/api/v1/reservations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBooking),
       })
-      .catch(err => console.warn('Saved locally, server offline:', err.message));
+        .then(res => res.json())
+        .then(resData => {
+          if (resData.success && resData.data) {
+            setResortBookings(prev => prev.map(b => b.bookingRef === bookingRef ? { ...b, id: resData.data.id } : b));
+          }
+        })
+        .catch(err => console.warn('Saved locally, server offline:', err.message));
+    }
 
     // Send confirmation email to outbox
     setOutboxEmails(prev => [
@@ -822,11 +1013,13 @@ export const EcoTourProvider = ({ children }) => {
       const bId = String(b.id || '').toLowerCase().trim();
       const bRef = String(b.bookingRef || '').toLowerCase().trim();
       const bNum = String(b.bookingNumber || '').toLowerCase().trim();
+      const bWalkIn = String(b.walk_in_id || '').toLowerCase().trim();
 
       return (
         bId === targetStr ||
         bRef === targetStr ||
         bNum === targetStr ||
+        bWalkIn === targetStr ||
         (bRef && targetStr && bRef.replace(/[^a-z0-9]/g, '') === targetStr.replace(/[^a-z0-9]/g, '')) ||
         (bNum && targetStr && bNum.replace(/[^a-z0-9]/g, '') === targetStr.replace(/[^a-z0-9]/g, ''))
       );
@@ -846,16 +1039,40 @@ export const EcoTourProvider = ({ children }) => {
 
     setResortBookings(prev => {
       const match = prev.find(matchesBooking);
-      if (match && isConcludedOrCancelled && match.items) {
+      if (match && isConcludedOrCancelled) {
+        const releaseItems = (Array.isArray(match.items) && match.items.length > 0)
+          ? match.items
+          : [{
+              name: match.specificType || match.serviceName || match.packageName || '',
+              quantity: match.quantity || match.totalVisitors || 1
+            }];
+
         // Free up facility & services availability
-        match.items.forEach(item => {
-          const qty = item.quantity || 1;
+        releaseItems.forEach(item => {
+          const qty = parseInt(item.quantity || 1, 10);
+          const iName = (item.name || '').toLowerCase().trim();
+          if (!iName) return;
+
+          // 1. Release in facilities state
+          setFacilities(fList => fList.map(f => {
+            const fName = (f.name || '').toLowerCase();
+            if (fName.includes(iName) || iName.includes(fName)) {
+              const newRented = Math.max(0, (f.rentedQuantity || 0) - qty);
+              return {
+                ...f,
+                rentedQuantity: newRented,
+                status: newRented >= (f.totalQuantity || 10) ? 'Fully Booked' : 'Available'
+              };
+            }
+            return f;
+          }));
+
+          // 2. Release in resortServices state
           setResortServices(sList => sList.map(s => {
             const sName = (s.service_name || s.name || '').toLowerCase();
-            const iName = (item.name || '').toLowerCase();
             if (sName.includes(iName) || iName.includes(sName)) {
               const totalCap = parseInt(s.total_capacity || 10, 10);
-              const currentAvail = s.available_qty !== undefined ? parseInt(s.available_qty, 10) : totalCap;
+              const currentAvail = s.available_qty !== undefined ? parseInt(s.available_qty, 10) : (s.available_quantity !== undefined ? parseInt(s.available_quantity, 10) : totalCap);
               const restored = Math.min(totalCap, currentAvail + qty);
               return { ...s, available_qty: restored, available_quantity: restored };
             }
@@ -863,7 +1080,42 @@ export const EcoTourProvider = ({ children }) => {
           }));
         });
       }
-      return prev.map(b => matchesBooking(b) ? { ...b, status } : b);
+
+      const next = prev.map(b => matchesBooking(b) ? { ...b, status } : b);
+      localStorage.setItem('resortBookings', JSON.stringify(next));
+      return next;
+    });
+
+    // Synchronize matching walk-in in walkIns state & localStorage
+    setWalkIns(prev => {
+      const next = prev.map(w => {
+        if (
+          String(w.id) === targetStr ||
+          String(w.walk_in_id || '').toLowerCase().trim() === targetStr ||
+          String(w.bookingRef || '').toLowerCase().trim() === targetStr ||
+          String(w.receiptNo || '').toLowerCase().trim() === targetStr ||
+          (target && (
+            String(w.id) === String(target.id) ||
+            w.walk_in_id === target.walk_in_id ||
+            w.bookingRef === target.bookingRef ||
+            w.receiptNo === target.receiptNo ||
+            (w.userNumber === target.userNumber && w.operating_date === target.bookingDate)
+          ))
+        ) {
+          if (status === 'Paid' || status.includes('Paid')) {
+            return { ...w, payment_status: 'PAID', walk_in_status: 'ACTIVE' };
+          } else if (status === 'Using Services' || status.includes('Using')) {
+            return { ...w, walk_in_status: 'ACTIVE' };
+          } else if (status === 'Completed' || status.includes('Completed')) {
+            return { ...w, walk_in_status: 'COMPLETED', completed_at: new Date().toISOString() };
+          } else if (status === 'Cancelled' || status === 'Voided') {
+            return { ...w, payment_status: 'VOIDED', walk_in_status: 'VOIDED' };
+          }
+        }
+        return w;
+      });
+      localStorage.setItem('walkInTransactions', JSON.stringify(next));
+      return next;
     });
 
     try {
@@ -901,9 +1153,17 @@ export const EcoTourProvider = ({ children }) => {
     const walkInId = `WI-${today.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
     const staffName = currentUser?.name || data.staffName || 'Staff Cashier';
 
+    const isPendingOrder = data.isPending === true || data.payment_status === 'PENDING' || data.walk_in_status === 'PENDING';
+    const paymentStatus = isPendingOrder ? 'PENDING' : (data.payment_status || 'PAID');
+    const walkInStatus = isPendingOrder ? 'PENDING' : (data.walk_in_status || 'ACTIVE');
+    const amountReceived = isPendingOrder ? 0 : parseFloat(data.cashReceived || grandTotal);
+    const changeAmount = isPendingOrder ? 0 : Math.max(0, amountReceived - grandTotal);
+
     const newWalkIn = {
       id: Date.now(),
       walk_in_id: walkInId,
+      booking_id: data.booking_id || null,
+      bookingRef: data.bookingRef || null,
       customer_name: data.touristName || 'Walk-In Tourist',
       touristName: data.touristName || 'Walk-In Tourist',
       userNumber: userNum,
@@ -915,17 +1175,17 @@ export const EcoTourProvider = ({ children }) => {
       subtotal: grandTotal,
       total_amount: grandTotal,
       grandTotal,
-      amount_received: parseFloat(data.cashReceived || grandTotal),
-      change_amount: Math.max(0, parseFloat(data.cashReceived || grandTotal) - grandTotal),
+      amount_received: amountReceived,
+      change_amount: changeAmount,
       payment_method: 'Cash',
-      payment_status: 'PAID',
-      walk_in_status: 'ACTIVE',
+      payment_status: paymentStatus,
+      walk_in_status: walkInStatus,
       completion_type: null,
       created_by: staffName,
-      paid_by: staffName,
+      paid_by: isPendingOrder ? null : staffName,
       completed_by: null,
       created_at: new Date().toISOString(),
-      paid_at: new Date().toISOString(),
+      paid_at: isPendingOrder ? null : new Date().toISOString(),
       completed_at: null,
       transaction_date: today,
       operating_date: today,
@@ -933,8 +1193,8 @@ export const EcoTourProvider = ({ children }) => {
       receiptNo: `OR-${today.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`
     };
 
-    // Update real-time availability for availed services & facilities
-    if (data.items && Array.isArray(data.items)) {
+    // Update real-time availability ONLY if paid/active (pending does not block full usage)
+    if (!isPendingOrder && data.items && Array.isArray(data.items)) {
       data.items.forEach(item => {
         const qty = item.quantity || 1;
         setFacilities(prev => prev.map(f => {
@@ -971,42 +1231,269 @@ export const EcoTourProvider = ({ children }) => {
 
     setWalkIns(prev => [newWalkIn, ...prev]);
 
-    // Also record receipt
-    const createdReceipt = {
+    // Create and store in resortBookings (Pending Bookings & Service Orders)
+    const bookingRef = data.bookingRef || `BK-${today.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+    const primaryService = data.items?.find(i => i.category === 'Cottage')?.name || data.items?.[0]?.name || 'Walk-In Day Pass & Cottage';
+
+    const correspondingBooking = {
       id: newWalkIn.id,
-      receiptNo: newWalkIn.receiptNo,
+      walk_in_id: walkInId,
+      bookingRef,
+      bookingNumber: bookingRef,
       userNumber: userNum,
+      client_id: userNum,
+      clientName: newWalkIn.customer_name,
+      fullName: newWalkIn.customer_name,
       touristName: newWalkIn.customer_name,
+      clientEmail: data.touristEmail || 'client@ecotourvista.com',
+      email: data.touristEmail || 'client@ecotourvista.com',
       touristEmail: data.touristEmail || 'client@ecotourvista.com',
-      touristContact: newWalkIn.contact_number,
+      contactNumber: newWalkIn.contact_number,
+      clientPhone: newWalkIn.contact_number,
+      serviceName: primaryService,
+      packageName: primaryService,
+      specificType: primaryService,
+      quantity: newWalkIn.guest_count,
       totalVisitors: newWalkIn.guest_count,
+      numberOfGuests: newWalkIn.guest_count,
+      totalPrice: grandTotal,
+      grandTotal,
+      estimatedTotal: grandTotal,
+      bookingDate: today,
+      reservationDate: today,
+      arrivalTime: timeNow,
+      timeSlot: timeNow,
+      status: isPendingOrder ? 'Pending Payment at Counter' : 'Paid',
+      paymentMethod: 'Cash',
+      payment_status: isPendingOrder ? 'Unpaid' : 'Paid',
+      source: 'Walk-In POS',
+      items: data.items || []
+    };
+
+    setResortBookings(prev => {
+      const filtered = prev.filter(b => b.walk_in_id !== walkInId && b.id !== newWalkIn.id);
+      const next = [correspondingBooking, ...filtered];
+      localStorage.setItem('resortBookings', JSON.stringify(next));
+      return next;
+    });
+
+    fetch('http://localhost:5000/api/v1/reservations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(correspondingBooking)
+    }).catch(() => {});
+
+    // If paid right away, record receipt and persist payment
+    if (!isPendingOrder) {
+      const createdReceipt = {
+        id: newWalkIn.id,
+        receiptNo: newWalkIn.receiptNo,
+        userNumber: userNum,
+        booking_id: data.booking_id || null,
+        touristName: newWalkIn.customer_name,
+        touristEmail: data.touristEmail || 'client@ecotourvista.com',
+        touristContact: newWalkIn.contact_number,
+        totalVisitors: newWalkIn.guest_count,
+        date: today,
+        time: timeNow,
+        grandTotal,
+        cashReceived: newWalkIn.amount_received,
+        change: newWalkIn.change_amount,
+        status: 'Paid',
+        staffName,
+        items: data.items || [],
+        barangayShare: Math.round(grandTotal * (revenueShare.barangayPercent / 100)),
+        municipalShare: Math.round(grandTotal * (revenueShare.municipalPercent / 100)),
+        ownerShare: grandTotal - Math.round(grandTotal * (revenueShare.barangayPercent / 100)) - Math.round(grandTotal * (revenueShare.municipalPercent / 100))
+      };
+
+      setReceipts(prev => [createdReceipt, ...prev]);
+
+      // Persist payment receipt to MySQL database
+      fetch('http://localhost:5000/api/v1/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_id: data.booking_id || null,
+          client_name: newWalkIn.customer_name,
+          staff_name: staffName,
+          total_amount: grandTotal,
+          cash_received: newWalkIn.amount_received,
+          payment_method: 'Cash',
+          items: data.items || []
+        })
+      }).then(r => r.json()).then(d => {
+        if (d.success) {
+          setTimeout(() => refreshAllLiveData(), 300);
+        }
+      }).catch(e => console.warn('Payment DB sync note:', e.message));
+
+      // Audit log
+      fetch('http://localhost:5000/api/v1/audit_logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'WALK_IN_CREATED',
+          description: `${staffName} created Walk-In #${newWalkIn.walk_in_id} for ${newWalkIn.customer_name} (${newWalkIn.guest_count} guests) — Amount: ₱${grandTotal}. Status: ACTIVE`
+        })
+      }).catch(() => {});
+    } else {
+      // Audit log for pending walk-in
+      fetch('http://localhost:5000/api/v1/audit_logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'WALK_IN_PENDING_STORED',
+          description: `${staffName} held Walk-In Order #${newWalkIn.walk_in_id} for ${newWalkIn.customer_name} (${newWalkIn.guest_count} guests) as PENDING/UNPAID (₱${grandTotal}).`
+        })
+      }).catch(() => {});
+    }
+
+    return newWalkIn;
+  };
+
+  // Pay and activate a previously pending Walk-In
+  const payWalkInTransaction = (idOrRef, cashGiven, staffName = null) => {
+    const sName = staffName || currentUser?.name || 'Staff Cashier';
+    const paidAt = new Date().toISOString();
+    const dObj = new Date();
+    const today = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
+    const timeNow = dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    // Look up target in current state or localStorage fallback
+    const saved = localStorage.getItem('walkInTransactions');
+    const localList = saved ? (() => { try { return JSON.parse(saved); } catch(e) { return []; } })() : [];
+    const sourceList = (walkIns && walkIns.length > 0) ? walkIns : localList;
+    const target = sourceList.find(w => w.id === idOrRef || w.walk_in_id === idOrRef || w.receiptNo === idOrRef);
+
+    if (!target) {
+      console.warn('payWalkInTransaction: target walk-in not found for', idOrRef);
+      return { walkIn: null, receipt: null };
+    }
+
+    const grandTotal = parseFloat(target.grandTotal || target.total_amount || 0);
+    const cashRec = parseFloat(cashGiven !== undefined && cashGiven !== null ? cashGiven : grandTotal);
+    const changeAmt = Math.max(0, cashRec - grandTotal);
+    const receiptNo = target.receiptNo || `OR-${today.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+
+    const updatedWalkIn = {
+      ...target,
+      payment_status: 'PAID',
+      walk_in_status: 'ACTIVE',
+      paid_by: sName,
+      paid_at: paidAt,
+      amount_received: cashRec,
+      change_amount: changeAmt,
+      receiptNo
+    };
+
+    const createdReceipt = {
+      id: target.id,
+      receiptNo,
+      userNumber: target.userNumber,
+      booking_id: target.booking_id || null,
+      touristName: target.customer_name || target.touristName,
+      touristEmail: target.touristEmail || 'client@ecotourvista.com',
+      touristContact: target.contact_number,
+      totalVisitors: target.guest_count || target.totalVisitors || 1,
       date: today,
       time: timeNow,
       grandTotal,
-      cashReceived: newWalkIn.amount_received,
-      change: newWalkIn.change_amount,
+      cashReceived: cashRec,
+      change: changeAmt,
       status: 'Paid',
-      staffName,
-      items: data.items || [],
+      staffName: sName,
+      items: target.items || [],
       barangayShare: Math.round(grandTotal * (revenueShare.barangayPercent / 100)),
       municipalShare: Math.round(grandTotal * (revenueShare.municipalPercent / 100)),
       ownerShare: grandTotal - Math.round(grandTotal * (revenueShare.barangayPercent / 100)) - Math.round(grandTotal * (revenueShare.municipalPercent / 100))
     };
 
-    setReceipts(prev => [createdReceipt, ...prev]);
+    // 1. Update walkIns state & localStorage
+    setWalkIns(prev => {
+      const next = prev.map(w => (w.id === idOrRef || w.walk_in_id === idOrRef || w.receiptNo === idOrRef) ? updatedWalkIn : w);
+      localStorage.setItem('walkInTransactions', JSON.stringify(next));
+      return next;
+    });
 
-    // Persist payment receipt to MySQL database
+    // 2. Update resortBookings state & localStorage so it moves to Paid in Service Orders!
+    setResortBookings(prev => {
+      const next = prev.map(b => {
+        if (
+          b.id === target.id ||
+          b.walk_in_id === target.walk_in_id ||
+          b.bookingRef === target.bookingRef ||
+          (b.userNumber === target.userNumber && b.bookingDate === today)
+        ) {
+          return {
+            ...b,
+            status: 'Paid',
+            payment_status: 'Paid',
+            paid_at: paidAt,
+            paid_by: sName
+          };
+        }
+        return b;
+      });
+      localStorage.setItem('resortBookings', JSON.stringify(next));
+      return next;
+    });
+
+    // 3. Add receipt to state & localStorage
+    setReceipts(prev => {
+      const next = [createdReceipt, ...prev];
+      localStorage.setItem('receipts', JSON.stringify(next));
+      return next;
+    });
+
+    // 4. Deduct facility & services availability
+    if (target.items && Array.isArray(target.items)) {
+      target.items.forEach(item => {
+        const qty = item.quantity || 1;
+        setFacilities(fList => fList.map(f => {
+          const fName = (f.name || '').toLowerCase();
+          const iName = (item.name || '').toLowerCase();
+          if (fName.includes(iName) || iName.includes(fName)) {
+            const newRented = (f.rentedQuantity || 0) + qty;
+            return {
+              ...f,
+              rentedQuantity: newRented,
+              status: newRented >= (f.totalQuantity || 10) ? 'Fully Booked' : 'Available'
+            };
+          }
+          return f;
+        }));
+
+        setResortServices(sList => sList.map(s => {
+          const sName = (s.service_name || s.name || '').toLowerCase();
+          const iName = (item.name || '').toLowerCase();
+          if (sName.includes(iName) || iName.includes(sName)) {
+            const totalCap = parseInt(s.total_capacity || 10, 10);
+            const currentAvail = s.available_qty !== undefined ? parseInt(s.available_qty, 10) : (s.available_quantity !== undefined ? parseInt(s.available_quantity, 10) : totalCap);
+            const updatedAvail = Math.max(0, currentAvail - qty);
+            return {
+              ...s,
+              available_qty: updatedAvail,
+              available_quantity: updatedAvail
+            };
+          }
+          return s;
+        }));
+      });
+    }
+
+    // 5. Persist to backend payments API
     fetch('http://localhost:5000/api/v1/payments', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        booking_id: null,
-        client_name: newWalkIn.customer_name,
-        staff_name: staffName,
+        booking_id: updatedWalkIn.booking_id || null,
+        client_name: updatedWalkIn.customer_name,
+        staff_name: sName,
         total_amount: grandTotal,
-        cash_received: newWalkIn.amount_received,
+        cash_received: cashRec,
         payment_method: 'Cash',
-        items: data.items || []
+        items: updatedWalkIn.items || []
       })
     }).then(r => r.json()).then(d => {
       if (d.success) {
@@ -1014,17 +1501,97 @@ export const EcoTourProvider = ({ children }) => {
       }
     }).catch(e => console.warn('Payment DB sync note:', e.message));
 
-    // Audit log
-    fetch('http://localhost:5000/api/v1/audit_logs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'WALK_IN_CREATED',
-        description: `${staffName} created Walk-In #${newWalkIn.walk_in_id} for ${newWalkIn.customer_name} (${newWalkIn.guest_count} guests) — Amount: ₱${grandTotal}. Status: ACTIVE`
-      })
-    }).catch(() => {});
+    return { walkIn: updatedWalkIn, receipt: createdReceipt };
+  };
 
-    return newWalkIn;
+  // Void a Walk-In (pending or active) so client does not continue purchase
+  const voidWalkInTransaction = (idOrRef, staffName = null, reason = 'Client decided not to continue purchase') => {
+    const sName = staffName || currentUser?.name || 'Staff Member';
+    const voidTime = new Date().toISOString();
+
+    setWalkIns(prev => {
+      return prev.map(w => {
+        if (w.id === idOrRef || w.walk_in_id === idOrRef || w.receiptNo === idOrRef) {
+          // If was ACTIVE and occupied facilities, release them back
+          if (w.walk_in_status === 'ACTIVE' && w.items && Array.isArray(w.items)) {
+            w.items.forEach(item => {
+              const qty = item.quantity || 1;
+              setFacilities(fList => fList.map(f => {
+                const fName = (f.name || '').toLowerCase();
+                const iName = (item.name || '').toLowerCase();
+                if (fName.includes(iName) || iName.includes(fName)) {
+                  const newRented = Math.max(0, (f.rentedQuantity || 0) - qty);
+                  return {
+                    ...f,
+                    rentedQuantity: newRented,
+                    status: newRented >= (f.totalQuantity || 10) ? 'Fully Booked' : 'Available'
+                  };
+                }
+                return f;
+              }));
+
+              setResortServices(sList => sList.map(s => {
+                const sName = (s.service_name || s.name || '').toLowerCase();
+                const iName = (item.name || '').toLowerCase();
+                if (sName.includes(iName) || iName.includes(sName)) {
+                  const totalCap = parseInt(s.total_capacity || 10, 10);
+                  const currentAvail = s.available_qty !== undefined ? parseInt(s.available_qty, 10) : (s.available_quantity !== undefined ? parseInt(s.available_quantity, 10) : totalCap);
+                  const restored = Math.min(totalCap, currentAvail + qty);
+                  return {
+                    ...s,
+                    available_qty: restored,
+                    available_quantity: restored
+                  };
+                }
+                return s;
+              }));
+            });
+          }
+
+          // Audit log
+          fetch('http://localhost:5000/api/v1/audit_logs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'WALK_IN_VOIDED',
+              description: `Staff ${sName} voided Walk-In #${w.walk_in_id} for ${w.customer_name}. Reason: ${reason}`
+            })
+          }).catch(() => {});
+
+          return {
+            ...w,
+            walk_in_status: 'VOIDED',
+            payment_status: 'VOIDED',
+            completion_type: 'VOIDED',
+            completed_by: sName,
+            completed_at: voidTime,
+            void_reason: reason
+          };
+        }
+        return w;
+      });
+    });
+
+    // Also cancel matching booking in resortBookings
+    setResortBookings(prev => {
+      const next = prev.map(b => {
+        if (
+          b.id === idOrRef ||
+          b.walk_in_id === idOrRef ||
+          b.bookingRef === idOrRef ||
+          b.receiptNo === idOrRef
+        ) {
+          return {
+            ...b,
+            status: 'Cancelled',
+            payment_status: 'Voided'
+          };
+        }
+        return b;
+      });
+      localStorage.setItem('resortBookings', JSON.stringify(next));
+      return next;
+    });
   };
 
   // Staff Manually Completes Walk-In -> Releases Services & Updates Status
@@ -1033,20 +1600,34 @@ export const EcoTourProvider = ({ children }) => {
     const timeCompleted = new Date().toISOString();
 
     setWalkIns(prev => {
-      return prev.map(w => {
+      const next = prev.map(w => {
         if (w.id === idOrRef || w.walk_in_id === idOrRef || w.receiptNo === idOrRef) {
           if (w.walk_in_status === 'COMPLETED') return w; // Already completed
 
-          // Release services back into inventory
+          // Release facilities & services back into inventory
           if (w.items && Array.isArray(w.items)) {
             w.items.forEach(item => {
               const qty = item.quantity || 1;
+              const itName = (item.name || '').toLowerCase();
+
+              setFacilities(fList => fList.map(f => {
+                const fName = (f.name || '').toLowerCase();
+                if (fName.includes(itName) || itName.includes(fName)) {
+                  const newRented = Math.max(0, (f.rentedQuantity || 0) - qty);
+                  return {
+                    ...f,
+                    rentedQuantity: newRented,
+                    status: newRented >= (f.totalQuantity || 10) ? 'Fully Booked' : 'Available'
+                  };
+                }
+                return f;
+              }));
+
               setResortServices(sList => sList.map(s => {
                 const servName = (s.service_name || s.name || '').toLowerCase();
-                const itName = (item.name || '').toLowerCase();
                 if (servName.includes(itName) || itName.includes(servName)) {
                   const totalCap = parseInt(s.total_capacity || 10, 10);
-                  const currentAvail = s.available_qty !== undefined ? parseInt(s.available_qty, 10) : totalCap;
+                  const currentAvail = s.available_qty !== undefined ? parseInt(s.available_qty, 10) : (s.available_quantity !== undefined ? parseInt(s.available_quantity, 10) : totalCap);
                   const restored = Math.min(totalCap, currentAvail + qty);
                   return { ...s, available_qty: restored, available_quantity: restored };
                 }
@@ -1075,6 +1656,25 @@ export const EcoTourProvider = ({ children }) => {
         }
         return w;
       });
+      localStorage.setItem('walkInTransactions', JSON.stringify(next));
+      return next;
+    });
+
+    // Also mark matching booking in resortBookings as Completed
+    setResortBookings(prev => {
+      const next = prev.map(b => {
+        if (
+          b.id === idOrRef ||
+          b.walk_in_id === idOrRef ||
+          b.bookingRef === idOrRef ||
+          b.receiptNo === idOrRef
+        ) {
+          return { ...b, status: 'Completed' };
+        }
+        return b;
+      });
+      localStorage.setItem('resortBookings', JSON.stringify(next));
+      return next;
     });
   };
 
@@ -1205,6 +1805,7 @@ export const EcoTourProvider = ({ children }) => {
   return (
     <EcoTourContext.Provider
       value={{
+        showAlert, showConfirm,
         currentUser, setCurrentUser, login, logout, updateCurrentUserProfile,
         userAccounts, approveUserAccount, rejectUserAccount,
         resortServices, addResortService, updateResortService, deleteResortService,
@@ -1212,7 +1813,7 @@ export const EcoTourProvider = ({ children }) => {
         facilities, setFacilities, returnFacilityItem,
         resortBookings, reservations: resortBookings, createResortBooking, addReservation, cancelReservationBooking, updateResortBookingStatus, checkInBookingGuest, checkOutBookingGuest, getServiceAvailabilityForDate,
         receipts, processPOSTransaction, submitCashClosing, getDailyTallySummary,
-        walkIns, createWalkInTransaction, completeWalkInTransaction, autoCompleteDailyWalkIns,
+        walkIns, createWalkInTransaction, payWalkInTransaction, voidWalkInTransaction, completeWalkInTransaction, autoCompleteDailyWalkIns,
         announcements, setAnnouncements, addAnnouncement, deleteAnnouncement, galleryItems, touristSpots,
         outboxEmails, markEmailAsRead, clearOutbox,
         auditLogs, tourists, pricingList, deletePriceItem, exportBackupJSON, resetToDefaults,
@@ -1220,6 +1821,11 @@ export const EcoTourProvider = ({ children }) => {
       }}
     >
       {children}
+      <GlobalModal
+        modalState={{ ...modalState, theme }}
+        onClose={handleModalClose}
+        onConfirm={handleModalConfirm}
+      />
     </EcoTourContext.Provider>
   );
 };

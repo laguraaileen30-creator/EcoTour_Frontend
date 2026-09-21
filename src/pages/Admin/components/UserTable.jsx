@@ -6,7 +6,7 @@ import {
 import { useEcoTour } from '../../../context/EcoTourContext';
 
 export default function UserTable({ onOpenAddUser }) {
-  const { approveUserAccount, rejectUserAccount } = useEcoTour();
+  const { approveUserAccount, rejectUserAccount, showAlert } = useEcoTour();
   const [dbUsers, setDbUsers] = useState([]);
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -115,7 +115,11 @@ export default function UserTable({ onOpenAddUser }) {
   const confirmDeclineUser = async () => {
     if (!declinePrompt) return;
     if (!declineReasonText.trim()) {
-      alert("Please enter a reason for declining the account application.");
+      showAlert({
+        title: 'Decline Reason Required',
+        message: 'Please enter a reason for declining the account application.',
+        type: 'warning'
+      });
       return;
     }
 
@@ -133,7 +137,11 @@ export default function UserTable({ onOpenAddUser }) {
       if (selectedUserModal && (selectedUserModal.id === userId || selectedUserModal.user_id === userId)) {
         setSelectedUserModal(prev => ({ ...prev, status: 'Rejected' }));
       }
-      alert(`Account declined. Rejection reason email sent to ${declinePrompt.email || 'user'}.`);
+      showAlert({
+        title: 'Account Declined',
+        message: `Account declined. Rejection reason email sent to ${declinePrompt.email || 'user'}.`,
+        type: 'info'
+      });
     } catch (err) {
       console.error("Reject error:", err);
     } finally {
@@ -204,12 +212,24 @@ export default function UserTable({ onOpenAddUser }) {
         }));
 
         setIsEditingUser(false);
-        alert("✅ User profile & email updated successfully in database!");
+        showAlert({
+          title: 'Profile Updated',
+          message: 'User profile & email updated successfully in database!',
+          type: 'success'
+        });
       } else {
-        alert(data.message || "Failed to update user profile");
+        showAlert({
+          title: 'Update Failed',
+          message: data.message || 'Failed to update user profile',
+          type: 'danger'
+        });
       }
     } catch (err) {
-      alert("Error saving profile: " + err.message);
+      showAlert({
+        title: 'Error',
+        message: 'Error saving profile: ' + err.message,
+        type: 'danger'
+      });
     } finally {
       setSavingEdit(false);
     }
@@ -247,9 +267,17 @@ export default function UserTable({ onOpenAddUser }) {
         })
       }).catch(e => console.warn("Browser FormSubmit notice:", e.message));
 
-      alert(`✅ Login credentials successfully sent to ${user.email} via Gmail / FormSubmit!`);
+      showAlert({
+        title: 'Credentials Sent',
+        message: `Login credentials successfully sent to ${user.email}!`,
+        type: 'success'
+      });
     } catch (err) {
-      alert(`⚠️ Sent credentials notification to ${user.email}.`);
+      showAlert({
+        title: 'Notification Queued',
+        message: `Sent credentials notification to ${user.email}.`,
+        type: 'info'
+      });
     } finally {
       setSendingCredentials(prev => ({ ...prev, [userId]: false }));
     }

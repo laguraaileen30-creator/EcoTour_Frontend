@@ -7,8 +7,8 @@ import {
 } from "lucide-react";
 import EcoTourLogo from "../components/EcoTourLogo";
 import "./Footer.css";
-import homeImage from "../assets/home.png";
-import lightImage from "../assets/light.png";
+import homeImage from "../assets/home2.png";
+import lightImage from "../assets/home1.png";
 import { useEcoTour } from "../context/EcoTourContext";
 
 const FOOTER_LINKS = {

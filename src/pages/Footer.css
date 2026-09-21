@@ -4,12 +4,12 @@
 .site-footer {
   position: relative;
   margin-top: 0 !important;
-  background: linear-gradient(180deg, #050e08 0%, #020604 100%);
+  background: var(--bg-2);
   padding: 50px 0 28px;
-  color: #ffffff;
+  color: var(--text);
   font-family: 'Inter', sans-serif;
   overflow: hidden;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid var(--line);
 }
 
 .site-footer .section__bg {
@@ -27,7 +27,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(3, 10, 7, 0.88) 0%, rgba(2, 5, 3, 0.95) 100%);
+  background: transparent;
   z-index: 0;
   pointer-events: none;
 }
@@ -48,7 +48,7 @@
   grid-template-columns: 1fr;
   gap: 36px;
   padding-bottom: 32px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--line);
 }
 
 @media (min-width: 992px) {
@@ -74,7 +74,7 @@
   font-family: 'Poppins', sans-serif;
   font-weight: 700;
   font-size: 1.25rem;
-  color: #ffffff;
+  color: var(--text);
   margin-bottom: 14px;
   white-space: nowrap;
 }
@@ -93,7 +93,7 @@
 .brand-desc {
   font-size: 0.85rem;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
   margin: 0 0 20px 0;
   word-break: normal;
 }
@@ -102,8 +102,8 @@
 .newsletter-form {
   display: flex;
   align-items: center;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--panel);
+  border: 1px solid var(--line);
   border-radius: 50px;
   padding: 4px 6px;
   width: 100%;
@@ -122,14 +122,14 @@
   background: transparent;
   border: none;
   padding: 8px 12px;
-  color: #ffffff;
+  color: var(--text);
   font-size: 0.82rem;
   outline: none;
   font-family: 'Inter', sans-serif;
 }
 
 .newsletter-form input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--muted);
 }
 
 .newsletter-form button {
@@ -177,7 +177,7 @@
   font-family: 'Poppins', sans-serif;
   font-weight: 600;
   font-size: 0.95rem;
-  color: #ffffff;
+  color: var(--text);
   margin: 0 0 16px 0;
   letter-spacing: 0.02em;
 }
@@ -195,7 +195,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
   text-decoration: none;
   font-size: 0.85rem;
   transition: all 0.2s ease;
@@ -225,7 +225,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
   font-size: 0.83rem;
   line-height: 1.45;
 }
@@ -237,7 +237,7 @@
 }
 
 .contact-list li a {
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--muted);
   text-decoration: none;
   transition: color 0.2s ease;
   word-break: break-all;
@@ -258,12 +258,12 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--panel);
+  border: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
   text-decoration: none;
   transition: all 0.3s ease;
 }
@@ -297,7 +297,7 @@
 
 .copyright {
   font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--muted);
   margin: 0;
   display: flex;
   align-items: center;
@@ -322,7 +322,7 @@
 .legal-links li a,
 .legal-link-btn {
   font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--muted);
   background: transparent;
   border: none;
   padding: 0;
@@ -362,13 +362,13 @@
 }
 
 .legal-modal-card {
-  background: #0f1912;
-  border: 1px solid rgba(63, 191, 114, 0.3);
+  background: var(--bg-1);
+  border: 1px solid var(--line);
   border-radius: 16px;
   max-width: 540px;
   width: 100%;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-  color: #ffffff;
+  color: var(--text);
   overflow: hidden;
 }
 
@@ -377,8 +377,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 18px 24px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
 }
 
 .legal-modal-title {
@@ -395,14 +395,14 @@
   margin: 0;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--text);
   font-family: 'Poppins', sans-serif;
 }
 
 .legal-modal-close {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--panel);
   border: none;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--muted);
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -414,8 +414,8 @@
 }
 
 .legal-modal-close:hover {
-  background: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+  background: var(--panel-hover);
+  color: var(--text);
 }
 
 .legal-modal-body {
@@ -424,7 +424,7 @@
   overflow-y: auto;
   font-size: 0.88rem;
   line-height: 1.6;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--text);
 }
 
 .legal-doc-content h4 {

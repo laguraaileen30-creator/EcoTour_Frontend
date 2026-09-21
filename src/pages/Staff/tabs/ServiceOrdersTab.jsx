@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import {
   FileText, Search, CheckCircle2, Clock, XCircle, ArrowRight,
-  Ticket, DollarSign, Printer, Coins, X, Check, Sparkles, Eye, UserCheck, RefreshCw
+  Ticket, DollarSign, Printer, Coins, X, Check, Sparkles, Eye, UserCheck, RefreshCw, Calendar, Plus
 } from 'lucide-react';
 import { useStaff } from '../hooks/useStaff';
 import { useEcoTour } from '../../../context/EcoTourContext';
 import VerticalReservationTimeline, { getStageIndex } from '../../../components/VerticalReservationTimeline';
-import { getPhilippineDateStr, getPhilippineTimeStr } from '../../../utils/phTime';
+import { getPhilippineDateStr, getPhilippineTimeStr, getPhilippineFormattedDate } from '../../../utils/phTime';
 
 export default function ServiceOrdersTab() {
   const { resortBookings, updateResortBookingStatus, setActiveTab } = useStaff();
-  const { receipts, processPOSTransaction, currentUser, theme, refreshAllLiveData, cancelReservationBooking } = useEcoTour();
+  const { receipts, processPOSTransaction, currentUser, theme, refreshAllLiveData, cancelReservationBooking, showAlert, showConfirm } = useEcoTour();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBookingForPayment, setSelectedBookingForPayment] = useState(null);
   const [cashReceivedInput, setCashReceivedInput] = useState('');
@@ -19,6 +19,11 @@ export default function ServiceOrdersTab() {
   const [stageFilter, setStageFilter] = useState('all');
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const isLight = theme === 'light';
+
+  const todayStr = getPhilippineDateStr();
+  const formattedToday = getPhilippineFormattedDate();
+  const [dateFilterMode, setDateFilterMode] = useState('today'); // 'today' | 'all' | 'custom'
+  const [selectedDate, setSelectedDate] = useState(todayStr);
 
   const bookingsList = resortBookings || [];
 
@@ -35,6 +40,15 @@ export default function ServiceOrdersTab() {
 
   const filteredBookings = bookingsList.filter((b) => {
     const query = searchQuery.toLowerCase();
+    const bDate = (b.reservationDate || b.bookingDate || '').trim();
+
+    let matchesDate = true;
+    if (dateFilterMode === 'today') {
+      matchesDate = bDate === todayStr || !bDate;
+    } else if (dateFilterMode === 'custom') {
+      matchesDate = bDate === selectedDate;
+    }
+
     const matchesSearch = (
       (b.clientName && b.clientName.toLowerCase().includes(query)) ||
       (b.fullName && b.fullName.toLowerCase().includes(query)) ||
@@ -42,7 +56,8 @@ export default function ServiceOrdersTab() {
       (b.bookingRef && b.bookingRef.toLowerCase().includes(query)) ||
       (b.bookingNumber && b.bookingNumber.toLowerCase().includes(query)) ||
       (b.serviceName && b.serviceName.toLowerCase().includes(query)) ||
-      (b.specificType && b.specificType.toLowerCase().includes(query))
+      (b.specificType && b.specificType.toLowerCase().includes(query)) ||
+      bDate.toLowerCase().includes(query)
     );
 
     const stageIdx = getStageIndex(b.status);
@@ -54,7 +69,7 @@ export default function ServiceOrdersTab() {
     else if (stageFilter === 'completed') matchesStage = stageIdx === 3;
     else if (stageFilter === 'voided') matchesStage = isVoid;
 
-    return matchesSearch && matchesStage;
+    return matchesDate && matchesSearch && matchesStage;
   });
 
   const openPaymentModal = (booking) => {
@@ -66,7 +81,14 @@ export default function ServiceOrdersTab() {
   const handleCancelBooking = async (booking) => {
     const refCode = booking.bookingRef || booking.bookingNumber || `BK-${booking.id}`;
     const name = booking.clientName || booking.fullName || 'Client Guest';
-    if (!window.confirm(`Are you sure you want to CANCEL & VOID reservation ${refCode} for ${name}?\n\nThis will mark the reservation as Voided/Cancelled in the database and release all reserved slots.`)) return;
+    const confirmed = await showConfirm({
+      title: 'Cancel Reservation',
+      message: `Are you sure you want to CANCEL & VOID reservation ${refCode} for ${name}?`,
+      details: 'This will mark the reservation as Voided/Cancelled in the database and release all reserved slots.',
+      type: 'danger',
+      confirmText: 'YES, Cancel & Void'
+    });
+    if (!confirmed) return;
 
     if (cancelReservationBooking) {
       await cancelReservationBooking(booking.id || refCode);
@@ -83,86 +105,105 @@ export default function ServiceOrdersTab() {
   };
 
   const handleConfirmCashPayment = async () => {
-    if (!selectedBookingForPayment || isSubmittingPayment) return;
+    if (!selectedBookingForPayment) return;
+    const totalDue = parseFloat(selectedBookingForPayment.estimatedTotal || selectedBookingForPayment.grandTotal || selectedBookingForPayment.totalPrice || 0);
+    const cashRec = parseFloat(cashReceivedInput) || 0;
 
-    const grandTotal = parseFloat(selectedBookingForPayment.estimatedTotal || selectedBookingForPayment.grandTotal || selectedBookingForPayment.totalPrice || 0);
-    const cashReceivedNum = parseFloat(cashReceivedInput) || 0;
-
-    if (cashReceivedNum < grandTotal) {
-      alert(`⚠️ Cash received (₱${cashReceivedNum}) is less than total amount due (₱${grandTotal}). Please collect the full amount.`);
-      return;
+    if (cashRec < totalDue) {
+      return showAlert({
+        title: 'Insufficient Cash',
+        message: `Please collect at least ₱${totalDue.toLocaleString()} (entered: ₱${cashRec.toLocaleString()}).`,
+        type: 'warning'
+      });
     }
 
+    setIsSubmittingPayment(true);
     try {
-      setIsSubmittingPayment(true);
-
       const refCode = selectedBookingForPayment.bookingRef || selectedBookingForPayment.bookingNumber || `BK-${selectedBookingForPayment.id}`;
-      const userNum = selectedBookingForPayment.userNumber || selectedBookingForPayment.client_id || `CLT-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+      const changeAmt = Math.max(0, cashRec - totalDue);
 
-      const items = Array.isArray(selectedBookingForPayment.items) && selectedBookingForPayment.items.length > 0
-        ? selectedBookingForPayment.items
-        : [{
-            name: selectedBookingForPayment.specificType || selectedBookingForPayment.serviceName || 'Duangon Day Pass & Reservation',
-            quantity: selectedBookingForPayment.numberOfGuests || selectedBookingForPayment.totalVisitors || 1,
-            unitPrice: grandTotal,
-            category: 'Cottage'
-          }];
-
-      const receiptData = {
-        booking_id: selectedBookingForPayment.id,
-        userNumber: userNum,
-        bookingRef: refCode,
-        touristName: selectedBookingForPayment.clientName || selectedBookingForPayment.fullName || selectedBookingForPayment.touristName || 'Client Visitor',
-        touristEmail: selectedBookingForPayment.clientEmail || selectedBookingForPayment.email || selectedBookingForPayment.touristEmail || 'client@ecotourvista.com',
-        touristContact: selectedBookingForPayment.clientPhone || selectedBookingForPayment.contactNumber || '',
-        items,
-        grandTotal,
-        cashReceived: cashReceivedNum,
-        date: selectedBookingForPayment.reservationDate || selectedBookingForPayment.bookingDate || getPhilippineDateStr()
+      const paymentRecord = {
+        booking_id: selectedBookingForPayment.id || null,
+        client_name: selectedBookingForPayment.clientName || selectedBookingForPayment.fullName || 'Guest',
+        staff_name: currentUser?.name || 'Staff Member',
+        total_amount: totalDue,
+        cash_received: cashRec,
+        payment_method: 'Cash',
+        items: selectedBookingForPayment.items || [{
+          name: selectedBookingForPayment.specificType || selectedBookingForPayment.serviceName || 'Resort Reservation',
+          quantity: selectedBookingForPayment.quantity || selectedBookingForPayment.totalVisitors || 1,
+          price: totalDue
+        }]
       };
 
       if (processPOSTransaction) {
-        processPOSTransaction(receiptData);
+        await processPOSTransaction(paymentRecord);
       }
 
-      if (updateResortBookingStatus) {
-        await updateResortBookingStatus(selectedBookingForPayment.id || refCode, 'Paid');
-      }
+      await updateResortBookingStatus(selectedBookingForPayment.id || refCode, 'Paid (Cash - Gate Verified)');
 
-      const createdReceipt = {
-        receiptNo: `OR-${getPhilippineDateStr().replace(/-/g,'')}-${Math.floor(100 + Math.random() * 900)}`,
+      const receipt = {
+        receiptNo: `OR-${Date.now()}`,
+        booking_id: selectedBookingForPayment.id,
+        userNumber: selectedBookingForPayment.userNumber || 'CLT-2026-901',
+        touristName: selectedBookingForPayment.clientName || selectedBookingForPayment.fullName || 'Guest',
+        touristContact: selectedBookingForPayment.contactNumber || '',
+        touristEmail: selectedBookingForPayment.clientEmail || '',
         date: getPhilippineDateStr(),
         time: getPhilippineTimeStr(),
-        touristName: receiptData.touristName,
-        userNumber: userNum,
-        bookingRef: refCode,
-        items,
-        grandTotal,
-        cashReceived: cashReceivedNum,
-        change: Math.max(0, cashReceivedNum - grandTotal),
-        staffName: currentUser?.name || 'Staff Cashier'
+        grandTotal: totalDue,
+        cashReceived: cashRec,
+        change: changeAmt,
+        staffName: currentUser?.name || 'Staff Member',
+        items: paymentRecord.items
       };
+      setIssuedReceipt(receipt);
 
-      setIssuedReceipt(createdReceipt);
       if (selectedTimelineBooking && (selectedTimelineBooking.id === selectedBookingForPayment.id || selectedTimelineBooking.bookingRef === refCode)) {
         setSelectedTimelineBooking(prev => prev ? { ...prev, status: 'Paid' } : null);
       }
+
       setSelectedBookingForPayment(null);
+      setCashReceivedInput('');
+      if (refreshAllLiveData) {
+        refreshAllLiveData();
+      }
+    } catch (err) {
+      console.error('Payment confirmation error:', err);
+      showAlert({
+        title: 'Payment Error',
+        message: 'Could not complete payment: ' + (err.message || 'Unknown error'),
+        type: 'danger'
+      });
     } finally {
       setIsSubmittingPayment(false);
     }
   };
 
-  const handleTimelineAction = (actionType, booking) => {
-    const targetId = booking.id || booking.bookingRef || booking.bookingNumber;
+  const handleTimelineAction = async (actionType, booking) => {
+    const targetId = booking.bookingRef || booking.bookingNumber || booking.id;
     if (actionType === 'confirm_payment') {
       openPaymentModal(booking);
     } else if (actionType === 'start_service') {
-      if (!window.confirm(`Start service & check in ${booking.clientName || 'guest'} for ${booking.bookingRef || targetId}?`)) return;
+      const confirmed = await showConfirm({
+        title: 'Check-In & Start Service',
+        message: `Confirm Check-In and Start Services for ${booking.clientName || 'guest'} (${booking.bookingRef || targetId})?`,
+        details: 'The guest is physically at the resort and is now actively using availed services.',
+        type: 'complete',
+        confirmText: 'YES, Check-In Guest'
+      });
+      if (!confirmed) return;
       updateResortBookingStatus(targetId, 'Using Services');
       setSelectedTimelineBooking(prev => prev ? { ...prev, status: 'Using Services' } : null);
     } else if (actionType === 'mark_completed') {
-      if (!window.confirm(`Mark stay as COMPLETED for ${booking.clientName || 'guest'} (${booking.bookingRef || targetId})? This will vacate rented cottages/amenities.`)) return;
+      const confirmed = await showConfirm({
+        title: 'Complete Stay',
+        message: `Mark stay as COMPLETED for ${booking.clientName || 'guest'} (${booking.bookingRef || targetId})?`,
+        details: 'This will vacate rented cottages and release all amenities back to available inventory.',
+        type: 'complete',
+        confirmText: 'YES, Complete Stay'
+      });
+      if (!confirmed) return;
       updateResortBookingStatus(targetId, 'Completed');
       setSelectedTimelineBooking(prev => prev ? { ...prev, status: 'Completed' } : null);
     }
@@ -262,7 +303,12 @@ export default function ServiceOrdersTab() {
             <FileText className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-extrabold text-lg" style={{ color: 'var(--text)' }}>Real-Time Client Bookings &amp; Service Status</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="font-extrabold text-lg" style={{ color: 'var(--text)' }}>Real-Time Client Bookings &amp; Service Status</h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 inline-flex items-center gap-1.5 shadow-sm">
+                <Calendar className="w-3.5 h-3.5" /> Operating Date: {formattedToday}
+              </span>
+            </div>
             <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
               Manage client progression across the 4 stages: Pending Payment → Paid → Using Services → Completed.
             </p>
@@ -340,21 +386,81 @@ export default function ServiceOrdersTab() {
         </div>
       </div>
 
-      {/* Search Input */}
-      <div className="relative">
-        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
-        <input
-          type="text"
-          placeholder="Search by client name, Client ID / User #, or booking ref (e.g. BK-2026-XXXX)..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full rounded-2xl pl-10 pr-4 py-3 text-xs outline-none shadow-md font-medium transition-all"
+      {/* Date Filter & Search Row */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+        {/* Date Filter Switcher */}
+        <div
+          className="flex items-center gap-1.5 p-1.5 rounded-2xl border text-xs shadow-sm flex-wrap"
           style={{
             background: isLight ? 'var(--panel)' : '#0c1f16',
-            border: '1px solid var(--line)',
-            color: 'var(--text)',
+            borderColor: 'var(--line)',
           }}
-        />
+        >
+          <span className="text-[11px] font-bold text-slate-400 pl-1 flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-emerald-400" /> Date:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setDateFilterMode('today')}
+            className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 text-xs ${
+              dateFilterMode === 'today'
+                ? 'bg-emerald-600 text-white shadow-md border border-emerald-400'
+                : 'text-slate-400 hover:text-white bg-black/20'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
+            <span>Today ({todayStr})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDateFilterMode('all')}
+            className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer transition-all flex items-center gap-1.5 text-xs ${
+              dateFilterMode === 'all'
+                ? 'bg-emerald-600 text-white shadow-md border border-emerald-400'
+                : 'text-slate-400 hover:text-white bg-black/20'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>All Dates</span>
+          </button>
+
+          <div className="flex items-center gap-1.5 pl-1.5 border-l border-white/10">
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                setSelectedDate(e.target.value);
+                setDateFilterMode('custom');
+              }}
+              className="px-2.5 py-1 rounded-xl text-xs font-mono bg-black/50 border border-emerald-500/40 text-white outline-none cursor-pointer focus:border-emerald-400"
+              title="Pick a specific visit date"
+            />
+            {dateFilterMode === 'custom' && (
+              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                Custom
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Search Input */}
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'var(--muted)' }} />
+          <input
+            type="text"
+            placeholder="Search by client name, Client ID / User #, booking ref, or date..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-2xl pl-10 pr-4 py-3 text-xs outline-none shadow-md font-medium transition-all"
+            style={{
+              background: isLight ? 'var(--panel)' : '#0c1f16',
+              border: '1px solid var(--line)',
+              color: 'var(--text)',
+            }}
+          />
+        </div>
       </div>
 
       {/* Bookings Table */}
@@ -378,6 +484,7 @@ export default function ServiceOrdersTab() {
               <tr>
                 <th className="p-3.5">Booking Ref</th>
                 <th className="p-3.5">Client ID / Name</th>
+                <th className="p-3.5">📅 Visit Date &amp; Time</th>
                 <th className="p-3.5">Availed Services / Cottage</th>
                 <th className="p-3.5 text-right">Total Amount</th>
                 <th className="p-3.5 text-center">Live Status</th>
@@ -387,8 +494,8 @@ export default function ServiceOrdersTab() {
             <tbody className="divide-y font-medium" style={{ borderColor: 'var(--line)' }}>
               {filteredBookings.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-xs" style={{ color: 'var(--muted)' }}>
-                    No client reservations found matching filter criteria.
+                  <td colSpan={7} className="p-8 text-center text-xs" style={{ color: 'var(--muted)' }}>
+                    No client reservations found matching {dateFilterMode === 'today' ? `today (${todayStr})` : 'filter criteria'}. Click "All Dates" to view bookings from other dates.
                   </td>
                 </tr>
               ) : (
@@ -396,11 +503,13 @@ export default function ServiceOrdersTab() {
                   const stageIdx = getStageIndex(b.status);
                   const isVoid = isVoidedOrCancelled(b.status);
                   const refCode = b.bookingRef || b.bookingNumber || `REF-${b.id}`;
+                  const bookingDateVal = b.reservationDate || b.bookingDate || todayStr;
+                  const isTodayBooking = bookingDateVal === todayStr;
 
                   return (
                     <tr
                       key={b.id || refCode}
-                      className="transition-all"
+                      className="transition-all hover:bg-white/[0.02]"
                       style={{
                         borderBottom: '1px solid var(--line)',
                       }}
@@ -414,11 +523,28 @@ export default function ServiceOrdersTab() {
                           {b.userNumber || b.client_id || 'CLT-2026-901'}
                         </span>
                       </td>
-                      <td className="p-3.5 max-w-xs truncate" style={{ color: 'var(--text)' }}>
-                        {b.specificType || b.serviceName || b.packageName || 'Resort Amenities'}
-                        <span className="block text-[10px] font-mono" style={{ color: 'var(--muted)' }}>
-                          Date: {b.reservationDate || b.bookingDate}
-                        </span>
+                      <td className="p-3.5 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5 font-mono font-bold text-xs" style={{ color: 'var(--text)' }}>
+                          <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>{bookingDateVal}</span>
+                          {isTodayBooking && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                              Today
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] font-mono mt-0.5 flex items-center gap-1" style={{ color: 'var(--muted)' }}>
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span>{b.arrivalTime || b.timeSlot || '09:00 AM'}</span>
+                        </div>
+                      </td>
+                      <td className="p-3.5 max-w-xs" style={{ color: 'var(--text)' }}>
+                        <div className="font-bold text-xs">
+                          {b.specificType || b.serviceName || b.packageName || 'Resort Amenities'}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          {b.totalVisitors || b.numberOfGuests || b.quantity || 1} Guests • {b.items?.length || 1} Service(s)
+                        </div>
                       </td>
                       <td className="p-3.5 text-right font-extrabold text-sm" style={{ color: isVoid ? 'var(--muted)' : 'var(--accent)' }}>
                         ₱{parseFloat(b.estimatedTotal || b.grandTotal || b.totalPrice || b.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -484,16 +610,38 @@ export default function ServiceOrdersTab() {
 
                         {/* STAGE 03: USING SERVICES -> COMPLETE STAY */}
                         {stageIdx === 2 && (
-                          <button
-                            onClick={() => handleTimelineAction('mark_completed', b)}
-                            className="px-3 py-1.5 text-white text-[10px] font-extrabold rounded-xl cursor-pointer transition-all shadow inline-flex items-center gap-1"
-                            style={{
-                              background: '#16a34a',
-                              border: '1px solid rgba(134,239,172,0.4)',
-                            }}
-                          >
-                            <Check className="w-3 h-3" /> Mark as Completed
-                          </button>
+                          <div className="inline-flex items-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => {
+                                if (setActiveTab) setActiveTab('pos');
+                                if (showAlert) {
+                                  showAlert({
+                                    title: 'Add Services via POS',
+                                    message: 'You have been redirected to the POS. Select this client from the "Load Client Profile" dropdown to add new services/addons to their tab.',
+                                    type: 'info'
+                                  });
+                                }
+                              }}
+                              className="px-3 py-1.5 text-white text-[10px] font-extrabold rounded-xl cursor-pointer transition-all shadow inline-flex items-center gap-1"
+                              style={{
+                                background: '#eab308',
+                                border: '1px solid rgba(234,179,8,0.4)',
+                              }}
+                              title="Add more services/amenities for this client"
+                            >
+                              <Plus className="w-3 h-3" /> Add Services
+                            </button>
+                            <button
+                              onClick={() => handleTimelineAction('mark_completed', b)}
+                              className="px-3 py-1.5 text-white text-[10px] font-extrabold rounded-xl cursor-pointer transition-all shadow inline-flex items-center gap-1"
+                              style={{
+                                background: '#16a34a',
+                                border: '1px solid rgba(134,239,172,0.4)',
+                              }}
+                            >
+                              <Check className="w-3 h-3" /> Mark as Completed
+                            </button>
+                          </div>
                         )}
 
                         {/* STAGE 04: COMPLETED */}
