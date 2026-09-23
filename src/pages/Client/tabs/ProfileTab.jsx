@@ -4,6 +4,8 @@ import {
   Key, Eye, EyeOff, Lock, Save, X, Sparkles, Clock, Globe
 } from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
+import NotificationsTab from './NotificationsTab';
+import ClientSupportSection from '../components/ClientSupportSection';
 
 const AVATAR_PRESETS = [
   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&q=80",
@@ -13,7 +15,17 @@ const AVATAR_PRESETS = [
   "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&q=80",
 ];
 
-export default function ClientProfileTab() {
+// Support & Help and Notifications live inside My Profile (no separate sidebar items)
+// focusSection: 'support' | 'notifications' -> scroll to that section when opened from a link
+export default function ClientProfileTab({ focusSection = null }) {
+  const supportRef = useRef(null);
+  const notificationsRef = useRef(null);
+
+  useEffect(() => {
+    const target = focusSection === 'support' ? supportRef.current : focusSection === 'notifications' ? notificationsRef.current : null;
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [focusSection]);
+
   const { currentUser: contextUser, updateCurrentUserProfile } = useEcoTour() || {};
 
   const user = contextUser || {
@@ -556,6 +568,16 @@ export default function ClientProfileTab() {
           </form>
         </div>
       )}
+
+      {/* SUPPORT & HELP */}
+      <div ref={supportRef} id="client-support" className="scroll-mt-24">
+        <ClientSupportSection />
+      </div>
+
+      {/* NOTIFICATIONS */}
+      <div ref={notificationsRef} id="client-notifications" className="scroll-mt-24">
+        <NotificationsTab />
+      </div>
 
     </div>
   );

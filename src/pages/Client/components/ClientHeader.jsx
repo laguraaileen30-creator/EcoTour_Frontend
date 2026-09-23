@@ -161,7 +161,7 @@ export default function ClientHeader({ activeTab, setActiveTab, currentUser, des
                       {matchingReceipts.map((r) => (
                         <div
                           key={r.id || r.receiptNo}
-                          onClick={() => handleResultClick('receipts')}
+                          onClick={() => handleResultClick('history')}
                           className="search-result-item p-2 rounded-xl border cursor-pointer flex items-center justify-between transition-all"
                         >
                           <div>

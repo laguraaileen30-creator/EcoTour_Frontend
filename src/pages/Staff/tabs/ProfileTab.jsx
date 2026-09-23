@@ -4,8 +4,10 @@ import {
   Check, Camera, Save, X, Phone, Mail, MapPin, Sparkles
 } from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
+import NotificationsTab from './NotificationsTab';
 
-export default function StaffProfileTab() {
+// Notifications live inside My Profile (no separate sidebar item)
+export default function StaffProfileTab({ notificationsFilter = null }) {
   const { currentUser: contextUser, updateCurrentUserProfile } = useEcoTour() || {};
 
   const currentUser = contextUser || {
@@ -45,6 +47,14 @@ export default function StaffProfileTab() {
   const [msg, setMsg] = useState('');
   const [successBanner, setSuccessBanner] = useState('');
   const [updating, setUpdating] = useState(false);
+  const notificationsRef = useRef(null);
+
+  // Opened from a notifications link (e.g. header search) -> jump to the notifications section
+  useEffect(() => {
+    if (notificationsFilter && notificationsRef.current) {
+      notificationsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [notificationsFilter]);
 
   const fileInputRef = useRef(null);
 
@@ -522,6 +532,11 @@ export default function StaffProfileTab() {
             <Lock className="w-4 h-4" /> {updating ? 'Updating Password in Database…' : 'Save New Password to Database'}
           </button>
         </form>
+      </div>
+
+      {/* NOTIFICATIONS */}
+      <div ref={notificationsRef} id="staff-notifications" className="scroll-mt-24">
+        <NotificationsTab activeTab={notificationsFilter || 'notifications'} />
       </div>
 
     </div>

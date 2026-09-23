@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   User, Phone, Mail, Home, Utensils, Droplets, ShieldCheck, Ticket, Printer,
   CheckCircle2, Plus, Minus, X, Coins, Calculator, RefreshCw, FileText, Eye, Save, Edit3,
@@ -6,6 +6,9 @@ import {
 } from 'lucide-react';
 import { useStaff } from '../hooks/useStaff';
 import { useEcoTour } from '../../../context/EcoTourContext';
+import { getStageIndex as getBookingStage } from '../../../components/VerticalReservationTimeline';
+import StatusBadge from '../../../components/StatusBadge';
+import { API_BASE, resolveImage, isBookable, peso } from '../../../utils/catalog';
 
 // Helper to determine icon based on service category and name
 const getServiceIcon = (category, serviceName) => {
@@ -27,11 +30,13 @@ export default function POSTab() {
   const { parkConfig, activeStaff } = useStaff();
   const {
     resortServices,
+    catalogPackages = [],
     resortBookings,
     reservations,
     updateResortBookingStatus,
     walkIns = [],
     createWalkInTransaction,
+    addServicesToPaidBooking,
     payWalkInTransaction,
     voidWalkInTransaction,
     completeWalkInTransaction,
@@ -56,7 +61,8 @@ export default function POSTab() {
   const [touristName, setTouristName] = useState('');
   const [touristContact, setTouristContact] = useState('');
   const [touristEmail, setTouristEmail] = useState('');
-  const [adults, setAdults] = useState(1);
+  const [adults, setAdults] = useState(0);
+  const [selectedPackageId, setSelectedPackageId] = useState(null);
   const [children, setChildren] = useState(0);
   const [students, setStudents] = useState(0);
   const [seniors, setSeniors] = useState(0);
@@ -66,6 +72,13 @@ export default function POSTab() {
   const [cashReceived, setCashReceived] = useState('');
   const [serviceSearchQuery, setServiceSearchQuery] = useState('');
   const [loadedBookingRef, setLoadedBookingRef] = useState(null);
+  // When a PAID booking is loaded to add services, we snapshot its restored cart as the "already paid" baseline.
+  // Only items added on top of that baseline are charged, so the client never pays twice for the same service.
+  const [paidBookingForAddon, setPaidBookingForAddon] = useState(null);
+  const [paidBaselineItems, setPaidBaselineItems] = useState(null);
+  const [isSavingTransaction, setIsSavingTransaction] = useState(false);
+  const savingLockRef = useRef(false);
+  const addonRequestIdRef = useRef(null);
 
   // Receipt Preview state
   const [previewReceipt, setPreviewReceipt] = useState(null);
@@ -141,6 +154,10 @@ export default function POSTab() {
 
   const COTTAGE_OPTIONS = RAW_COTTAGES.map(c => {
     if (c.id === 'COT-NONE') return { ...c, available_qty: 999, inUse: 0 };
+    const live = (resortServices || []).find(s => s.service_code === c.service_code || (s.service_name || '').toLowerCase() === c.name.toLowerCase());
+    if (live && live.available_for_date !== undefined) {
+      return { ...c, price: parseFloat(live.price), service_id: live.service_id, availability_status: live.availability_status, inUse: live.booked_for_date, available_qty: isBookable(live.availability_status) ? live.available_for_date : 0 };
+    }
     const inUse = getInUseCount(c.name, c.service_code);
     const available = Math.max(0, (c.total_capacity || 10) - inUse);
     return {
@@ -166,7 +183,7 @@ export default function POSTab() {
     ? resortServices.filter(s => {
         const cat = (s.category || '').toLowerCase();
         const name = (s.service_name || s.name || '').toLowerCase();
-        return cat !== 'entrance' && cat !== 'cottage' && !name.includes('entrance ticket') && !name.includes('open cottage');
+        return cat !== 'entrance' && cat !== 'cottage' && cat !== 'package' && cat !== 'promotion' && !name.includes('entrance ticket') && !name.includes('open cottage');
       })
     : RAW_ADDONS;
 
@@ -174,8 +191,9 @@ export default function POSTab() {
     const name = a.service_name || a.name;
     const code = a.service_code || a.service_id || a.id;
     const totalCap = parseInt(a.total_capacity || a.totalQuantity || 10, 10);
-    const inUse = getInUseCount(name, code);
-    const available = Math.max(0, totalCap - inUse);
+    const hasLive = a.available_for_date !== undefined;
+    const inUse = hasLive ? a.booked_for_date : getInUseCount(name, code);
+    const available = hasLive ? (isBookable(a.availability_status) ? a.available_for_date : 0) : Math.max(0, totalCap - inUse);
     return {
       ...a,
       name,
@@ -226,8 +244,14 @@ export default function POSTab() {
     });
   };
 
+  const selectedPackage = !isAddonModeFlag() ? (catalogPackages || []).find(pk => String(pk.id) === String(selectedPackageId)) : null;
+  function isAddonModeFlag() { return !!paidBookingForAddon; }
+
   const buildCartItems = () => {
     const items = [];
+    if (selectedPackage) {
+      items.push({ category: 'Package', name: selectedPackage.package_name, quantity: 1, unitPrice: parseFloat(selectedPackage.final_price), packageId: selectedPackage.id });
+    }
     if (adults > 0) items.push({ category: 'Entrance', name: 'Adult Entrance Ticket', quantity: adults, unitPrice: 100 });
     if (children > 0) items.push({ category: 'Entrance', name: 'Child Entrance Ticket', quantity: children, unitPrice: 40 });
     if (students > 0) items.push({ category: 'Entrance', name: 'Student Entrance Ticket', quantity: students, unitPrice: 70 });
@@ -271,7 +295,40 @@ export default function POSTab() {
   };
 
   const currentCartItems = buildCartItems();
-  const grandTotal = currentCartItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const cartTotal = currentCartItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+
+  const isAddonMode = !!paidBookingForAddon;
+  const itemKey = (it) => `${(it.name || '').toLowerCase().trim()}|${parseFloat(it.unitPrice || 0)}`;
+
+  // Capture the baseline right after the paid booking's items have been restored into the cart
+  useEffect(() => {
+    if (paidBookingForAddon && paidBaselineItems === null) {
+      setPaidBaselineItems(currentCartItems.map(it => ({ ...it })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paidBookingForAddon, paidBaselineItems]);
+
+  // New (unpaid) items = current cart minus what the client already paid for. Reductions are never refunded here.
+  const addonItems = (() => {
+    if (!isAddonMode || !paidBaselineItems) return [];
+    const paidQty = {};
+    paidBaselineItems.forEach(it => { paidQty[itemKey(it)] = (paidQty[itemKey(it)] || 0) + it.quantity; });
+    return currentCartItems
+      .map(it => {
+        const k = itemKey(it);
+        const alreadyPaid = paidQty[k] || 0;
+        paidQty[k] = Math.max(0, alreadyPaid - it.quantity);
+        return { ...it, quantity: it.quantity - alreadyPaid };
+      })
+      .filter(it => it.quantity > 0);
+  })();
+  const addonTotal = addonItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const alreadyPaidAmount = isAddonMode
+    ? parseFloat(paidBookingForAddon.estimatedTotal || paidBookingForAddon.grandTotal || paidBookingForAddon.totalPrice || 0)
+    : 0;
+
+  // Amount the client must pay NOW: in add-on mode this is only the newly added services
+  const grandTotal = isAddonMode ? addonTotal : cartTotal;
   const parsedCash = parseFloat(cashReceived) || 0;
   const changeAmount = Math.max(0, parsedCash - grandTotal);
   const isCashSufficient = parsedCash >= grandTotal && grandTotal > 0;
@@ -284,18 +341,35 @@ export default function POSTab() {
         type: 'warning'
       });
     }
-    if (totalVisitors <= 0) {
-      return showAlert({
-        title: 'Missing Visitor Count',
-        message: 'Please enter at least 1 visitor count.',
-        type: 'warning'
-      });
-    }
     if (currentCartItems.length === 0) {
       return showAlert({
         title: 'Empty Order',
-        message: 'Please select services, tickets, or cottage to calculate the total.',
+        message: 'Please select a package, entrance tickets, or a service.',
         type: 'warning'
+      });
+    }
+    // Server availability check for today (package components + tickets + add-ons)
+    if (!isAddonMode) {
+      try {
+        const res = await fetch(`${API_BASE}/availability/check`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: currentCartItems, packageId: selectedPackage ? selectedPackage.id : null }),
+        });
+        const check = await res.json();
+        if (check.success && check.data.unavailable.length > 0) {
+          return showAlert({ title: 'Not Available Today', message: check.data.message, details: 'Remove or reduce the unavailable items to continue.', type: 'warning' });
+        }
+      } catch (e) {
+        console.warn('Availability check skipped (server offline):', e.message);
+      }
+    }
+    if (isAddonMode && addonItems.length === 0) {
+      return showAlert({
+        title: 'Nothing New to Charge',
+        message: `${paidBookingForAddon.bookingRef || 'This booking'} is already fully paid (₱${alreadyPaidAmount.toLocaleString()}).`,
+        details: 'Add more services, tickets or pax on top of the loaded booking. Only the added services will be charged.',
+        type: 'info'
       });
     }
 
@@ -325,8 +399,13 @@ export default function POSTab() {
       touristEmail: touristEmail.trim(),
       date: localDate,
       time: dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      items: currentCartItems,
+      items: isAddonMode ? addonItems : currentCartItems,
       grandTotal,
+      isAddon: isAddonMode,
+      previouslyPaid: alreadyPaidAmount,
+      bookingRef: isAddonMode ? (paidBookingForAddon.bookingRef || paidBookingForAddon.bookingNumber) : null,
+      packageId: selectedPackage ? selectedPackage.id : null,
+      totalVisitors: totalVisitors || selectedPackage?.included_guests || 1,
       cashReceived: effectiveCash,
       change: Math.max(0, effectiveCash - grandTotal),
       staffName: activeStaff?.name || 'Staff Member',
@@ -339,6 +418,13 @@ export default function POSTab() {
 
   // Option 1: Store order as Pending (Unpaid) so client has the option to void or pay later
   const handleSaveAsPending = async () => {
+    if (isAddonMode) {
+      return showAlert({
+        title: 'Collect Add-on Payment',
+        message: 'This client already paid for their booking. Collect payment for the added services only with "Pay Now".',
+        type: 'info'
+      });
+    }
     if (!touristName.trim()) {
       return showAlert({
         title: 'Missing Tourist Name',
@@ -346,17 +432,10 @@ export default function POSTab() {
         type: 'warning'
       });
     }
-    if (totalVisitors <= 0) {
-      return showAlert({
-        title: 'Missing Visitor Count',
-        message: 'Please enter at least 1 visitor count.',
-        type: 'warning'
-      });
-    }
     if (currentCartItems.length === 0) {
       return showAlert({
         title: 'Empty Order',
-        message: 'Please select services, tickets, or cottage to create an order.',
+        message: 'Please select a package, entrance tickets, or a service to create an order.',
         type: 'warning'
       });
     }
@@ -366,7 +445,8 @@ export default function POSTab() {
       touristName: touristName.trim(),
       touristContact: touristContact.trim(),
       touristEmail: touristEmail.trim(),
-      totalVisitors,
+      totalVisitors: totalVisitors || selectedPackage?.included_guests || 1,
+      packageId: selectedPackage ? selectedPackage.id : null,
       items: currentCartItems,
       grandTotal,
       staffName: activeStaff?.name || 'Staff Member',
@@ -389,12 +469,74 @@ export default function POSTab() {
   // Option 2: Finalize and Save Paid Walk-In Transaction
   const handleSaveTransaction = async (shouldPrint = false) => {
     if (!previewReceipt) return;
+    // Prevent double-submission (double click / double print click) from charging the client twice
+    if (savingLockRef.current) return;
+    savingLockRef.current = true;
+    setIsSavingTransaction(true);
 
+    try {
+      if (previewReceipt.isAddon && paidBookingForAddon) {
+        await handleSaveAddonTransaction(shouldPrint);
+      } else {
+        await handleSaveWalkInTransaction(shouldPrint);
+      }
+    } finally {
+      savingLockRef.current = false;
+      setIsSavingTransaction(false);
+    }
+  };
+
+  const handleSaveAddonTransaction = async (shouldPrint) => {
+    const booking = paidBookingForAddon;
+    if (!addonRequestIdRef.current) {
+      addonRequestIdRef.current = `ADDON-${booking.bookingRef || booking.id}-${Date.now()}`;
+    }
+    try {
+      const { receipt, addonAmount } = await addServicesToPaidBooking({
+        booking,
+        newItems: previewReceipt.items,
+        cashReceived: previewReceipt.cashReceived,
+        staffName: activeStaff?.name || previewReceipt.staffName,
+        requestId: addonRequestIdRef.current
+      });
+      addonRequestIdRef.current = null;
+
+      if (shouldPrint) window.print();
+      resetForm();
+
+      await showAlert({
+        title: 'Add-on Services Paid',
+        message: `₱${addonAmount.toLocaleString()} collected for the added services on ${booking.bookingRef} (${receipt.receiptNo}).`,
+        details: `Previously paid ₱${alreadyPaidAmount.toLocaleString()} was NOT charged again. New booking total: ₱${(alreadyPaidAmount + addonAmount).toLocaleString()}.`,
+        type: 'success'
+      });
+    } catch (err) {
+      if (err.duplicate) {
+        addonRequestIdRef.current = null;
+        resetForm();
+        return showAlert({
+          title: 'Already Recorded',
+          message: 'This add-on payment was already saved. The client was not charged again.',
+          type: 'info'
+        });
+      }
+      showAlert({
+        title: 'Add-on Payment Failed',
+        message: 'Could not record the add-on payment: ' + (err.message || 'Unknown error'),
+        details: 'Nothing was charged. Please check the server connection and try again.',
+        type: 'danger'
+      });
+    }
+  };
+
+  const handleSaveWalkInTransaction = async (shouldPrint) => {
     const createdWalkIn = createWalkInTransaction({
       userNumber: previewReceipt.userNumber,
       touristName: previewReceipt.touristName,
       touristContact: previewReceipt.touristContact,
       touristEmail: previewReceipt.touristEmail,
+      packageId: previewReceipt.packageId || null,
+      totalVisitors: previewReceipt.totalVisitors,
       items: previewReceipt.items,
       cashReceived: previewReceipt.cashReceived,
       grandTotal: previewReceipt.grandTotal,
@@ -405,15 +547,10 @@ export default function POSTab() {
       walk_in_status: 'ACTIVE'
     });
 
-    // Also update any matching pending client reservation to Paid
-    if (updateResortBookingStatus && reservations) {
-      const matchingRes = reservations.find(r => 
-        (r.clientName && r.clientName.toLowerCase() === previewReceipt.touristName.toLowerCase()) ||
-        (r.userNumber && r.userNumber === previewReceipt.userNumber) ||
-        (r.email && r.email.toLowerCase() === previewReceipt.touristEmail.toLowerCase()) ||
-        (loadedBookingRef && r.bookingRef === loadedBookingRef)
-      );
-      if (matchingRes) {
+    // Also update the loaded pending client reservation to Paid (never touch bookings that are already paid / in service)
+    if (updateResortBookingStatus && reservations && loadedBookingRef) {
+      const matchingRes = reservations.find(r => r.bookingRef === loadedBookingRef || String(r.id) === String(loadedBookingRef));
+      if (matchingRes && getBookingStage(matchingRes.status) === 0) {
         updateResortBookingStatus(matchingRes.bookingRef || matchingRes.id, 'Paid (Cash - Gate Verified)');
       }
     }
@@ -506,7 +643,8 @@ export default function POSTab() {
     setTouristName('');
     setTouristContact('');
     setTouristEmail('');
-    setAdults(1);
+    setAdults(0);
+    setSelectedPackageId(null);
     setChildren(0);
     setStudents(0);
     setSeniors(0);
@@ -515,6 +653,10 @@ export default function POSTab() {
     setCashReceived('');
     setServiceSearchQuery('');
     setPreviewReceipt(null);
+    setLoadedBookingRef(null);
+    setPaidBookingForAddon(null);
+    setPaidBaselineItems(null);
+    addonRequestIdRef.current = null;
   };
 
   // Active and Pending Client Bookings (for Add-ons / Payments)
@@ -597,7 +739,8 @@ export default function POSTab() {
             n.includes((a.service_name || a.name || '').toLowerCase())
           );
           if (matchedAddon) {
-            newCart[matchedAddon.id || matchedAddon.service_id] = parseInt(it.quantity || 1, 10);
+            const cartKey = matchedAddon.service_id || matchedAddon.id || matchedAddon.service_code;
+            newCart[cartKey] = (newCart[cartKey] || 0) + parseInt(it.quantity || 1, 10);
           }
         }
       });
@@ -606,6 +749,24 @@ export default function POSTab() {
 
     setLoadedBookingRef(found.bookingRef || found.id);
 
+    const foundStage = getBookingStage(found.status);
+    const isAlreadyPaid = foundStage === 1 || foundStage === 2;
+    setPaidBaselineItems(null);
+    addonRequestIdRef.current = null;
+    setCashReceived('');
+    if (isAlreadyPaid) {
+      setPaidBookingForAddon(found);
+      const paid = parseFloat(found.estimatedTotal || found.grandTotal || found.totalPrice || 0);
+      showAlert({
+        title: 'Paid Booking Loaded — Add Services',
+        message: `${found.bookingRef} for ${found.clientName || found.touristName || 'Client'} is already PAID (₱${paid.toLocaleString()}).`,
+        details: 'Their paid services are shown in the cart. Add new services / pax — only the newly added items will be charged.',
+        type: 'info'
+      });
+      return;
+    }
+    setPaidBookingForAddon(null);
+
     showAlert({
       title: 'Pending Booking Loaded',
       message: `Loaded pending booking (${found.bookingRef}) for ${found.clientName || found.touristName || 'Client'}!`,
@@ -613,6 +774,16 @@ export default function POSTab() {
       type: 'info'
     });
   };
+
+  // Auto-load a client sent here from Service Orders → "Add Services"
+  useEffect(() => {
+    let ref = null;
+    try { ref = sessionStorage.getItem('posLoadBookingRef'); } catch (e) { /* storage unavailable */ }
+    if (!ref || pendingClientBookings.length === 0) return;
+    try { sessionStorage.removeItem('posLoadBookingRef'); } catch (e) { /* ignore */ }
+    handleLoadPendingBooking(ref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingClientBookings.length]);
 
   const dNow = new Date();
   const todayStr = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}-${String(dNow.getDate()).padStart(2, '0')}`;
@@ -770,7 +941,7 @@ export default function POSTab() {
 
             {/* VISITOR PAX COUNTERS */}
             <div>
-              <span className="text-[11px] font-semibold text-slate-300 block mb-2">Guest Pax Breakdown (Entrance Tickets):</span>
+              <span className="text-[11px] font-semibold text-slate-300 block mb-2">Entrance Tickets (optional — leave at 0 for package-only):</span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-black/30 p-3.5 rounded-xl border border-emerald-900/40">
                 {[
                   ['Adults (₱100)', adults, setAdults],
@@ -805,11 +976,44 @@ export default function POSTab() {
             </div>
           </div>
 
+          {/* PACKAGES FIRST — optional for walk-ins; services below are add-ons */}
+          {!isAddonMode && (catalogPackages || []).length > 0 && (
+            <div className="bg-[#0c1f16] p-5 rounded-2xl border border-emerald-500/20 shadow-xl space-y-3">
+              <div className="flex justify-between items-center border-b border-emerald-900/60 pb-3">
+                <h3 className="font-extrabold text-emerald-400 text-xs uppercase tracking-wider">Packages (choose one — tickets &amp; add-ons are optional)</h3>
+                {selectedPackage && <button type="button" onClick={() => setSelectedPackageId(null)} className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer">No package</button>}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {catalogPackages.map(pk => {
+                  const selected = String(pk.id) === String(selectedPackageId);
+                  const ok = isBookable(pk.availability_status);
+                  return (
+                    <button key={pk.id} type="button" disabled={!ok} onClick={() => setSelectedPackageId(selected ? null : pk.id)}
+                      className={`p-2.5 rounded-xl border text-left flex gap-2.5 items-center transition-all ${!ok ? 'opacity-40 cursor-not-allowed border-rose-900/40' : selected ? 'bg-emerald-600/90 border-emerald-400 cursor-pointer' : 'bg-black/30 border-emerald-900/60 hover:bg-emerald-950/60 cursor-pointer'}`}>
+                      <img src={resolveImage(pk.image_url, 'family gateway deal.png')} alt="" className="w-12 h-12 rounded-lg object-cover shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <span className="text-xs font-bold block truncate text-white">{pk.package_type === 'UNLIMITED' ? '♾️ ' : ''}{pk.package_name}</span>
+                        <span className="text-[11px] font-mono font-extrabold text-emerald-300">{peso(pk.final_price)}</span>
+                        <span className="text-[9px] text-slate-300 ml-1">• {pk.included_guests} pax</span>
+                        <div className="mt-0.5"><StatusBadge status={pk.availability_status} size="xs" /></div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedPackage && (
+                <p className="text-[11px] text-emerald-300/90">
+                  Includes: {selectedPackage.items.map(i => `${i.service_name}${i.quantity > 1 ? ' ×' + i.quantity : ''}`).join(', ')}. Add tickets only for extra guests; services below are charged as extras.
+                </p>
+              )}
+            </div>
+          )}
+
           {/* STEP 2: COTTAGE & RESORT SERVICES/FACILITIES SELECTION */}
           <div className="bg-[#0c1f16] p-5 rounded-2xl border border-emerald-500/20 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-emerald-900/60 pb-3">
               <h3 className="font-extrabold text-emerald-400 text-xs uppercase tracking-wider flex items-center gap-2">
-                <Home className="w-4 h-4" /> 2. Cottage & Resort Add-on Services & Facilities
+                <Home className="w-4 h-4" /> 2. Optional Add-ons: Cottage & Resort Services
               </h3>
 
               {/* SEARCH BAR FOR QUICK SELECTION */}
@@ -988,7 +1192,63 @@ export default function POSTab() {
               </span>
             </div>
 
+            {/* ADD-ON MODE BANNER: booking already paid, only new services are charged */}
+            {isAddonMode && (
+              <div className="bg-sky-950/70 border border-sky-500/50 rounded-xl p-3 text-xs space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="font-extrabold text-sky-300 uppercase tracking-wider text-[10px]">Adding services to paid booking</span>
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="text-[10px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                    title="Stop adding services to this booking"
+                  >
+                    <X className="w-3 h-3" /> Exit
+                  </button>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>{paidBookingForAddon.bookingRef} — {paidBookingForAddon.clientName || paidBookingForAddon.touristName || 'Client'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Already paid (not charged again):</span>
+                  <span className="font-mono font-bold text-sky-300">₱{alreadyPaidAmount.toLocaleString()}</span>
+                </div>
+              </div>
+            )}
+
             {/* ITEMIZED CART LIST */}
+            {isAddonMode ? (
+              <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 block">New services to charge:</span>
+                {addonItems.length > 0 ? (
+                  addonItems.map((item, idx) => (
+                    <div key={idx} className="text-xs flex justify-between items-center">
+                      <span className="text-slate-200 font-medium">
+                        {item.name} <small className="text-slate-400 font-normal">(+{item.quantity}x)</small>
+                      </span>
+                      <span className="font-mono font-extrabold text-emerald-400">
+                        ₱{(item.quantity * item.unitPrice).toLocaleString()}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-3 text-slate-500 text-xs font-medium">
+                    No new services yet. Add services or pax on the left.
+                  </div>
+                )}
+                {paidBaselineItems && paidBaselineItems.length > 0 && (
+                  <div className="pt-2 mt-1 border-t border-emerald-900/40 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">Already paid:</span>
+                    {paidBaselineItems.map((item, idx) => (
+                      <div key={idx} className="text-[11px] flex justify-between items-center text-slate-500">
+                        <span>{item.name} ({item.quantity}x)</span>
+                        <span className="font-mono">PAID</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
             <div className="max-h-56 overflow-y-auto space-y-2 pr-1 divide-y divide-emerald-900/40">
               {currentCartItems.length > 0 ? (
                 currentCartItems.map((item, idx) => (
@@ -1007,11 +1267,12 @@ export default function POSTab() {
                 </div>
               )}
             </div>
+            )}
 
             {/* GRAND TOTAL & CASH INPUT */}
             <div className="space-y-3 pt-3 border-t border-emerald-900/60">
               <div className="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-emerald-500/30">
-                <span className="text-xs font-bold text-slate-300">Grand Total:</span>
+                <span className="text-xs font-bold text-slate-300">{isAddonMode ? 'Amount Due (New Services Only):' : 'Grand Total:'}</span>
                 <span className="font-mono font-black text-2xl text-emerald-400">
                   ₱{grandTotal.toLocaleString()}
                 </span>
@@ -1094,7 +1355,7 @@ export default function POSTab() {
               <button
                 type="button"
                 onClick={handleSaveAsPending}
-                disabled={currentCartItems.length === 0 || !touristName.trim()}
+                disabled={isAddonMode || currentCartItems.length === 0 || !touristName.trim()}
                 className="w-full py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/50 disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Save order as Pending / Unpaid without collecting cash now. Client can void or pay at any time."
               >
@@ -1160,7 +1421,13 @@ export default function POSTab() {
 
             {/* PAYMENT SUMMARY */}
             <div className="space-y-2 text-xs font-bold bg-emerald-950/70 p-4 rounded-2xl border border-emerald-700/60 shadow-inner">
-              <div className="flex justify-between text-sm"><span className="text-slate-300">Grand Total Amount:</span><span className="font-mono text-emerald-300 text-lg">₱{previewReceipt.grandTotal.toLocaleString()}</span></div>
+              {previewReceipt.isAddon && (
+                <div className="flex justify-between text-slate-400 font-medium">
+                  <span>Previously Paid ({previewReceipt.bookingRef}) — not charged again:</span>
+                  <span className="font-mono">₱{(previewReceipt.previouslyPaid || 0).toLocaleString()}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm"><span className="text-slate-300">{previewReceipt.isAddon ? 'Add-on Amount Due:' : 'Grand Total Amount:'}</span><span className="font-mono text-emerald-300 text-lg">₱{previewReceipt.grandTotal.toLocaleString()}</span></div>
               <div className="flex justify-between text-slate-300"><span>Cash Received:</span><span className="font-mono">₱{previewReceipt.cashReceived.toLocaleString()}</span></div>
               <div className="flex justify-between text-emerald-400 pt-1.5 border-t border-emerald-800/80"><span>Change Returned:</span><span className="font-mono text-base">₱{previewReceipt.change.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span></div>
             </div>
@@ -1170,13 +1437,15 @@ export default function POSTab() {
               <div className="grid grid-cols-2 gap-2.5">
                 <button
                   onClick={() => handleSaveTransaction(false)}
-                  className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all border border-emerald-400 uppercase tracking-wider"
+                  disabled={isSavingTransaction}
+                  className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all border border-emerald-400 uppercase tracking-wider"
                 >
                   <CheckCircle2 className="w-4 h-4" /> Pay Now &amp; Confirm
                 </button>
                 <button
                   onClick={() => handleSaveTransaction(true)}
-                  className="py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all border border-emerald-600 uppercase tracking-wider"
+                  disabled={isSavingTransaction}
+                  className="py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all border border-emerald-600 uppercase tracking-wider"
                 >
                   <Printer className="w-4 h-4" /> Pay Now &amp; Print
                 </button>

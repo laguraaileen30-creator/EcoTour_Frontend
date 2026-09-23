@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { getPhilippineDateStr, getPhilippineTimeStr } from '../utils/phTime';
 import GlobalModal from '../components/GlobalModal';
+import { API_BASE, resolveImage } from '../utils/catalog';
 
 const EcoTourContext = createContext(null);
 
@@ -16,13 +17,6 @@ import eventImg from '../assets/images/services/event.png';
 import buffetImg from '../assets/images/services/buffet.png';
 import parkingImg from '../assets/images/services/parking.png';
 
-import familyGatewayImg from '../assets/images/services/family gateway deal.png';
-import barkadaDealImg from '../assets/images/services/barkada deal.png';
-import premiumFamilyImg from '../assets/images/services/premium family.png';
-import quickEscapeImg from '../assets/images/services/quick escape.png';
-import quickDipImg from '../assets/images/services/quick dip.png';
-import flashDealImg from '../assets/images/services/flash deal.png';
-import celebrationImg from '../assets/images/services/celebration.png';
 const OFFICIAL_DB_SERVICES = [
   { service_id: 1, service_code: 'DSVC-001', service_name: 'Cold Spring Pool Entrance Ticket', category: 'Entrance', description: 'Day pass access to natural cold spring pool & resort grounds', price: 100, unit: 'head', total_capacity: 300, available_qty: 300, available_quantity: 300, image_url: swimmingImg, status: 'Active' },
   { service_id: 2, service_code: 'DSVC-002', service_name: 'Standard Open Cottage', category: 'Cottage', description: 'Shaded native open cottage near natural pool area', price: 600, unit: 'day', total_capacity: 10, available_qty: 10, available_quantity: 10, image_url: cottageImg, status: 'Active' },
@@ -180,6 +174,9 @@ export const EcoTourProvider = ({ children }) => {
 
   // --- Resort Services State ---
   const [resortServices, setResortServices] = useState(OFFICIAL_DB_SERVICES);
+  // Raw packages (with items + availability) and running deals from the API
+  const [catalogPackages, setCatalogPackages] = useState([]);
+  const [activeDeals, setActiveDeals] = useState([]);
 
   // --- Gallery Items State ---
   const [galleryItems, setGalleryItems] = useState([]);
@@ -390,11 +387,11 @@ export const EcoTourProvider = ({ children }) => {
         setStaffList(staffMembers);
       }
 
-      // 2. Fetch Services, Packages, and Promos
+      // 2. Fetch Services, Packages, and Deals — the database is the single source of truth
       const [resServices, resPackages, resPromos] = await Promise.all([
-        fetch('http://localhost:5000/api/v1/services').catch(() => null),
-        fetch('http://localhost:5000/api/v1/packages').catch(() => null),
-        fetch('http://localhost:5000/api/v1/promotions').catch(() => null)
+        fetch(`${API_BASE}/services`).catch(() => null),
+        fetch(`${API_BASE}/packages`).catch(() => null),
+        fetch(`${API_BASE}/promotions`).catch(() => null)
       ]);
 
       let combinedServices = [];
@@ -402,74 +399,43 @@ export const EcoTourProvider = ({ children }) => {
       if (resServices) {
         const dataServices = await resServices.json();
         if (dataServices.success && Array.isArray(dataServices.services)) {
-          combinedServices = [...dataServices.services];
+          combinedServices = dataServices.services.map(s => ({ ...s, image_url: resolveImage(s.image_url) }));
         }
       }
 
       if (resPackages) {
         const dataPackages = await resPackages.json();
         if (dataPackages.success && Array.isArray(dataPackages.data)) {
-          const formattedPackages = dataPackages.data.map(p => {
-            const pName = (p.package_name || '').toLowerCase();
-            let img = familyGatewayImg;
-            if (pName.includes('barkada')) img = barkadaDealImg;
-            else if (pName.includes('premium')) img = premiumFamilyImg;
-            else if (pName.includes('quick escape')) img = quickEscapeImg;
-            else if (pName.includes('quick dip')) img = quickDipImg;
-
-            return {
-              service_id: `PKG-${p.id}`,
-              service_code: `PKG-${p.id}`,
-              service_name: p.package_name,
-              category: 'Package',
-              description: `Package includes ${p.included_guests} guests.`,
-              price: p.regular_value,
-              unit: 'package',
-              total_capacity: 100,
-              available_qty: 100,
-              available_quantity: 100,
-              status: 'Active',
-              image_url: img
-            };
-          });
-          combinedServices = [...combinedServices, ...formattedPackages];
+          const pkgs = dataPackages.data.map(p => ({ ...p, image_url: resolveImage(p.image_url, 'family gateway deal.png') }));
+          setCatalogPackages(pkgs);
+          const formattedPackages = pkgs.map(p => ({
+            service_id: `PKG-${p.id}`,
+            service_code: `PKG-${p.id}`,
+            package_id: p.id,
+            service_name: p.package_name,
+            category: 'Package',
+            description: p.description,
+            price: p.final_price,
+            original_price: p.regular_value,
+            unit: 'package',
+            included_guests: p.included_guests,
+            items: p.items,
+            availability_status: p.availability_status,
+            status: 'Active',
+            image_url: p.image_url
+          }));
+          combinedServices = [...formattedPackages, ...combinedServices];
         }
       }
 
       if (resPromos) {
         const dataPromos = await resPromos.json();
         if (dataPromos.success && Array.isArray(dataPromos.data)) {
-          const formattedPromos = dataPromos.data.map(p => {
-            const pName = (p.promo_name || '').toLowerCase();
-            let img = flashDealImg;
-            if (pName.includes('celebration') || pName.includes('event')) img = celebrationImg;
-
-            return {
-              service_id: `PRM-${p.id}`,
-              service_code: `PRM-${p.id}`,
-              service_name: p.promo_name,
-              category: 'Promotion',
-              description: `${p.discount_type} discount of ₱${p.discount_value}`,
-              price: 0,
-              unit: 'promo',
-              total_capacity: 100,
-              available_qty: 100,
-              available_quantity: 100,
-              status: 'Active',
-              image_url: img
-            };
-          });
-          combinedServices = [...combinedServices, ...formattedPromos];
+          setActiveDeals(dataPromos.data.map(d => ({ ...d, image_url: resolveImage(d.image_url, 'flash deal.png') })));
         }
       }
 
       if (combinedServices.length > 0) {
-        combinedServices.sort((a, b) => {
-          const rankA = a.category === 'Package' ? 0 : (a.category === 'Promotion' ? 1 : 2);
-          const rankB = b.category === 'Package' ? 0 : (b.category === 'Promotion' ? 1 : 2);
-          return rankA - rankB;
-        });
-
         setResortServices(combinedServices);
         setFacilities(combinedServices);
       }
@@ -503,14 +469,15 @@ export const EcoTourProvider = ({ children }) => {
       const resGallery = await fetch('http://localhost:5000/api/v1/gallery');
       const dataGallery = await resGallery.json();
       if (dataGallery.success && Array.isArray(dataGallery.gallery) && dataGallery.gallery.length > 0) {
-        setGalleryItems(dataGallery.gallery);
+        // Stored paths like /src/assets/... only exist in dev — resolve them to bundled image URLs
+        setGalleryItems(dataGallery.gallery.map(g => ({ ...g, imageUrl: resolveImage(g.imageUrl || g.image || g.image_url, 'swimming.png'), image: resolveImage(g.image || g.imageUrl || g.image_url, 'swimming.png') })));
       }
 
       // 7. Fetch Tourist Spots from MySQL Database
       const resSpots = await fetch('http://localhost:5000/api/v1/tourist_spots');
       const dataSpots = await resSpots.json();
       if (dataSpots.success && Array.isArray(dataSpots.spots) && dataSpots.spots.length > 0) {
-        setTouristSpots(dataSpots.spots);
+        setTouristSpots(dataSpots.spots.map(sp => ({ ...sp, image: sp.image ? resolveImage(sp.image) : sp.image, image_url: sp.image_url ? resolveImage(sp.image_url) : sp.image_url })));
       }
 
       // 8. Fetch Audit Logs
@@ -937,7 +904,11 @@ export const EcoTourProvider = ({ children }) => {
     const cEmail = bookingData.clientEmail || bookingData.email || bookingData.touristEmail || currentUser?.email || 'guest@ecotour.com';
 
     const newBooking = {
-      id: Date.now(),
+      id: bookingData.id || Date.now(),
+      packageId: bookingData.packageId || null,
+      bookingType: bookingData.bookingType || null,
+      assignedFacilities: bookingData.assignedFacilities || [],
+      assignmentStatus: bookingData.assignmentStatus || 'Unassigned',
       bookingRef,
       bookingNumber: bookingRef,
       userNumber: userNum,
@@ -1267,6 +1238,7 @@ export const EcoTourProvider = ({ children }) => {
       paymentMethod: 'Cash',
       payment_status: isPendingOrder ? 'Unpaid' : 'Paid',
       source: 'Walk-In POS',
+      packageId: data.packageId || null,
       items: data.items || []
     };
 
@@ -1277,11 +1249,21 @@ export const EcoTourProvider = ({ children }) => {
       return next;
     });
 
-    fetch('http://localhost:5000/api/v1/reservations', {
+    fetch(`${API_BASE}/reservations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(correspondingBooking)
-    }).catch(() => {});
+    })
+      .then(res => res.json())
+      .then(resData => {
+        if (resData.success && resData.data?.id) {
+          // Use the database id so add-ons, facility assignment and status changes target the right reservation
+          setResortBookings(prev => prev.map(b => b.bookingRef === bookingRef ? { ...b, id: resData.data.id, bookingType: resData.data.bookingType } : b));
+        } else if (resData.code === 'FULLY_BOOKED') {
+          showAlert({ title: 'Walk-In Not Saved to Server', message: resData.message, details: 'The server refused this walk-in because the requested services are fully booked today. Please void it and adjust the order.', type: 'warning' });
+        }
+      })
+      .catch(err => console.warn('Walk-in saved locally, server offline:', err.message));
 
     // If paid right away, record receipt and persist payment
     if (!isPendingOrder) {
@@ -1352,8 +1334,107 @@ export const EcoTourProvider = ({ children }) => {
     return newWalkIn;
   };
 
+  // Add services to an already-paid booking: charges ONLY the new items (what the client already paid is not re-billed).
+  // The new items are appended to the same booking, so occupancy is not double-counted by a separate walk-in record.
+  const addServicesToPaidBooking = async ({ booking, newItems, cashReceived, staffName, requestId }) => {
+    const items = (newItems || []).filter(i => (i.quantity || 0) > 0);
+    if (!booking || items.length === 0) throw new Error('No new services to charge.');
+
+    const bookingKey = booking.bookingRef || booking.bookingNumber || booking.id;
+    const res = await fetch(`${API_BASE}/reservations/${encodeURIComponent(bookingKey)}/addons`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        items,
+        cash_received: cashReceived,
+        staff_name: staffName || currentUser?.name || 'Staff Cashier',
+        request_id: requestId
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      const err = new Error(data.message || `Server rejected add-on payment (HTTP ${res.status})`);
+      err.duplicate = !!data.duplicate;
+      throw err;
+    }
+
+    const addonAmount = parseFloat(data.addonAmount || 0);
+    // Keep the server-priced lines (the server ignores client prices)
+    const pricedItems = (data.receipt?.items || []).map(l => ({ name: l.name, serviceName: l.name, quantity: l.quantity, unitPrice: l.unitPrice, itemType: l.itemType }));
+    const savedItems = pricedItems.length ? pricedItems : items;
+    const matches = (b) =>
+      (booking.id && String(b.id) === String(booking.id)) ||
+      (booking.bookingRef && b.bookingRef === booking.bookingRef);
+
+    setResortBookings(prev => {
+      const next = prev.map(b => {
+        if (!matches(b)) return b;
+        const prevTotal = parseFloat(b.estimatedTotal || b.grandTotal || b.totalPrice || 0);
+        const newTotal = prevTotal + addonAmount;
+        return {
+          ...b,
+          items: [...(Array.isArray(b.items) ? b.items : []), ...savedItems],
+          estimatedTotal: newTotal,
+          grandTotal: newTotal,
+          totalPrice: newTotal,
+          amountPaid: newTotal
+        };
+      });
+      localStorage.setItem('resortBookings', JSON.stringify(next));
+      return next;
+    });
+
+    // Reserve availability for the newly added items only
+    savedItems.filter(i => i.itemType !== 'FEE').forEach(item => {
+      const qty = item.quantity || 1;
+      const iName = (item.name || '').toLowerCase();
+      setResortServices(prev => prev.map(s => {
+        const sName = (s.service_name || s.name || '').toLowerCase();
+        if (sName.includes(iName) || iName.includes(sName)) {
+          const totalCap = parseInt(s.total_capacity || 10, 10);
+          const currentAvail = s.available_qty !== undefined ? parseInt(s.available_qty, 10) : (s.available_quantity !== undefined ? parseInt(s.available_quantity, 10) : totalCap);
+          const updatedAvail = Math.max(0, currentAvail - qty);
+          return { ...s, available_qty: updatedAvail, available_quantity: updatedAvail };
+        }
+        return s;
+      }));
+    });
+
+    const r = data.receipt || {};
+    const dObj = new Date();
+    const receipt = {
+      id: r.id || Date.now(),
+      receiptNo: r.receiptNo || r.payment_ref,
+      booking_id: r.booking_id || booking.id,
+      bookingRef: booking.bookingRef,
+      userNumber: booking.userNumber,
+      touristName: booking.clientName || booking.fullName || booking.touristName || 'Guest',
+      touristEmail: booking.clientEmail || booking.email || '',
+      touristContact: booking.contactNumber || '',
+      date: `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`,
+      time: dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      grandTotal: addonAmount,
+      cashReceived: parseFloat(r.cashReceived ?? cashReceived),
+      change: parseFloat(r.change || 0),
+      previouslyPaid: parseFloat(data.previousTotal || 0),
+      isAddon: true,
+      status: 'Paid',
+      staffName: staffName || currentUser?.name || 'Staff Cashier',
+      items: savedItems,
+      barangayShare: parseFloat(r.barangayShare || 0),
+      municipalShare: parseFloat(r.municipalShare || 0),
+      ownerShare: parseFloat(r.parkShare || 0)
+    };
+    setReceipts(prev => [receipt, ...prev]);
+
+    window.dispatchEvent(new CustomEvent('ecotour:sync'));
+    setTimeout(() => refreshAllLiveData(), 300);
+
+    return { receipt, addonAmount, previousTotal: data.previousTotal, newTotal: data.newTotal };
+  };
+
   // Pay and activate a previously pending Walk-In
-  const payWalkInTransaction = (idOrRef, cashGiven, staffName = null) => {
+  const payWalkInTransaction =(idOrRef, cashGiven, staffName = null) => {
     const sName = staffName || currentUser?.name || 'Staff Cashier';
     const paidAt = new Date().toISOString();
     const dObj = new Date();
@@ -1808,12 +1889,12 @@ export const EcoTourProvider = ({ children }) => {
         showAlert, showConfirm,
         currentUser, setCurrentUser, login, logout, updateCurrentUserProfile,
         userAccounts, approveUserAccount, rejectUserAccount,
-        resortServices, addResortService, updateResortService, deleteResortService,
+        resortServices, catalogPackages, activeDeals, addResortService, updateResortService, deleteResortService,
         staffList, addStaff, updateStaff, deleteStaff, clockInStaff, clockOutStaff, toggleStaffStatus, paySalary,
         facilities, setFacilities, returnFacilityItem,
         resortBookings, reservations: resortBookings, createResortBooking, addReservation, cancelReservationBooking, updateResortBookingStatus, checkInBookingGuest, checkOutBookingGuest, getServiceAvailabilityForDate,
         receipts, processPOSTransaction, submitCashClosing, getDailyTallySummary,
-        walkIns, createWalkInTransaction, payWalkInTransaction, voidWalkInTransaction, completeWalkInTransaction, autoCompleteDailyWalkIns,
+        walkIns, createWalkInTransaction, addServicesToPaidBooking, payWalkInTransaction, voidWalkInTransaction, completeWalkInTransaction, autoCompleteDailyWalkIns,
         announcements, setAnnouncements, addAnnouncement, deleteAnnouncement, galleryItems, touristSpots,
         outboxEmails, markEmailAsRead, clearOutbox,
         auditLogs, tourists, pricingList, deletePriceItem, exportBackupJSON, resetToDefaults,

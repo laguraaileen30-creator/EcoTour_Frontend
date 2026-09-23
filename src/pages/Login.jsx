@@ -17,7 +17,10 @@ export default function Login() {
     password: "",
     rememberMe: false,
   });
-  const [error, setError] = useState("");
+  // Redirected here after the server rejected an expired session
+  const [error, setError] = useState(() =>
+    new URLSearchParams(window.location.search).get("session") === "expired" ? "Your session has expired. Please log in again." : ""
+  );
   const [loading, setLoading] = useState(false);
   const [transitionState, setTransitionState] = useState(null);
 

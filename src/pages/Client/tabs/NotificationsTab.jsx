@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import {
   Bell, CheckCircle2, Calendar, Info, Megaphone, ShieldCheck, Clock,
-  X, ExternalLink, ChevronRight, Eye
+  X, ExternalLink, ChevronRight, Eye, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
+
+// How many notifications to show before "See all notifications"
+const PREVIEW_COUNT = 5;
 
 // ── Format timestamp ──────────────────────────────────────────
 const formatTime = (raw) => {
@@ -23,6 +26,7 @@ export default function NotificationsTab() {
   const [filterType, setFilterType]     = useState('All');
   const [markedReadMap, setMarkedReadMap] = useState({});
   const [selectedNotif, setSelectedNotif] = useState(null); // ← full-message modal
+  const [showAll, setShowAll] = useState(false);
 
   const clientEmail = currentUser?.email?.toLowerCase() || '';
   const clientReservations = (reservations || []).filter(
@@ -77,6 +81,9 @@ export default function NotificationsTab() {
     if (filterType === 'Bookings')      return n.type === 'Booking';
     return true;
   });
+
+  const visibleNotifs = showAll ? filteredNotifs : filteredNotifs.slice(0, PREVIEW_COUNT);
+  const hiddenCount = filteredNotifs.length - visibleNotifs.length;
 
   const unreadCount = combinedNotifs.filter(n => !markedReadMap[n.id]).length;
 
@@ -163,7 +170,7 @@ export default function NotificationsTab() {
               </button>
               <select
                 value={filterType}
-                onChange={e => setFilterType(e.target.value)}
+                onChange={e => { setFilterType(e.target.value); setShowAll(false); }}
                 className="bg-[#092217] border border-emerald-800/60 text-emerald-100 text-xs rounded-xl px-3 py-1.5 outline-none cursor-pointer"
               >
                 <option value="All">All Types</option>
@@ -179,7 +186,7 @@ export default function NotificationsTab() {
                 No notifications or broadcasts available at this time.
               </p>
             ) : (
-              filteredNotifs.map((n) => {
+              visibleNotifs.map((n) => {
                 const IconComp = n.icon;
                 const isRead  = markedReadMap[n.id];
                 // Truncate desc to 120 chars for preview
@@ -231,6 +238,18 @@ export default function NotificationsTab() {
               })
             )}
           </div>
+
+          {/* SEE ALL / SHOW LESS */}
+          {filteredNotifs.length > PREVIEW_COUNT && (
+            <button
+              onClick={() => setShowAll(v => !v)}
+              className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10"
+            >
+              {showAll
+                ? <><ChevronUp className="w-4 h-4" /> Show fewer notifications</>
+                : <><ChevronDown className="w-4 h-4" /> See all notifications ({hiddenCount} more)</>}
+            </button>
+          )}
         </div>
 
         {/* RIGHT SIDEBAR INFO */}

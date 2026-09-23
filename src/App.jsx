@@ -4,12 +4,13 @@ import { EcoTourProvider } from "./context/EcoTourContext";
 // --- Public Pages ---
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
-import Signup from "./pages/Signup";
+import Signup from "./pages/SignUp";
 import ForgotPassword from "./pages/ForgotPassword";
 import PendingApproval from "./pages/PendingApproval";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 import PackagesDeals from "./pages/PackagesDeals";
+import AllServices from "./pages/AllServices";
 
 // --- Admin Pages ---
 import AdminLayout from "./components/AdminLayout";
@@ -46,6 +47,7 @@ function App() {
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/packages" element={<PackagesDeals />} />
+          <Route path="/services" element={<AllServices />} />
 
           {/* Authentication */}
           <Route

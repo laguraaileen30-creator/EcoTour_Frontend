@@ -5,6 +5,10 @@ import {
 } from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
 import { getPhilippineDateStr, getPhilippineTimeStr } from '../../../utils/phTime';
+import FacilityAssignmentModal from '../../../components/FacilityAssignmentModal';
+import BookingBreakdown from '../../../components/BookingBreakdown';
+import ReservationPaymentStatus from '../../../components/ReservationPaymentStatus';
+import { apiJson } from '../../../utils/catalog';
 
 export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS }) {
   const {
@@ -25,11 +29,6 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
   const [issuedReceipt, setIssuedReceipt] = useState(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [assignmentBooking, setAssignmentBooking] = useState(null);
-  const [assignmentService, setAssignmentService] = useState(null);
-  const [availableResources, setAvailableResources] = useState([]);
-  const [selectedResourceId, setSelectedResourceId] = useState('');
-  const [isLoadingResources, setIsLoadingResources] = useState(false);
-  const [isAssigningResource, setIsAssigningResource] = useState(false);
   const isLight = theme === 'light';
 
   // Real-time pending client bookings from database
@@ -73,148 +72,96 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
     );
   });
 
-  const openPaymentModal = (booking) => {
+  const [paymentKind, setPaymentKind] = useState('BALANCE');
+  const [emailingId, setEmailingId] = useState(null);
+
+  const balanceOf = (b) => {
+    const total = parseFloat(b.estimatedTotal || b.grandTotal || b.totalPrice || 0);
+    return b.balanceDue !== undefined ? parseFloat(b.balanceDue) : Math.max(0, total - parseFloat(b.amountPaid || 0));
+  };
+  const feeOutstanding = (b) => (b.feeStatus === 'UNPAID' ? Math.min(balanceOf(b), parseFloat(b.reservationFee || 0)) : 0);
+  const paymentDue = selectedBookingForPayment
+    ? (paymentKind === 'FEE' ? feeOutstanding(selectedBookingForPayment) : balanceOf(selectedBookingForPayment))
+    : 0;
+
+  // kind: 'FEE' = reservation fee (downpayment) only, 'BALANCE' = everything still owed
+  const openPaymentModal = (booking, kind = 'BALANCE') => {
     setSelectedBookingForPayment(booking);
-    const grandTotal = parseFloat(booking.estimatedTotal || booking.grandTotal || booking.totalPrice || 0);
-    setCashReceivedInput(grandTotal ? String(grandTotal) : '');
+    setPaymentKind(kind);
+    const due = kind === 'FEE' ? feeOutstanding(booking) : balanceOf(booking);
+    setCashReceivedInput(due ? String(due) : '');
   };
 
-  const openAssignmentModal = async (booking) => {
-    setAssignmentBooking(booking);
-    setAvailableResources([]);
-    setSelectedResourceId('');
-    setIsLoadingResources(true);
+  // Email the client (account email) asking them to continue or cancel within 24 hours
+  const handleRequestConfirmation = async (booking) => {
+    if (emailingId) return;
+    const resend = booking.confirmationStatus === 'AWAITING_CLIENT';
+    const ok = await showConfirm({
+      title: resend ? 'Resend confirmation email?' : 'Email client to confirm?',
+      message: `${booking.clientName || 'The client'} will be asked to continue or cancel ${booking.bookingRef || booking.bookingNumber}. They have 24 hours to answer; with no answer the booking is voided automatically.`,
+      details: resend ? 'Resending starts a new 24-hour window.' : undefined,
+      type: 'info',
+      confirmText: resend ? 'Resend email' : 'Send email',
+    });
+    if (!ok) return;
+    setEmailingId(booking.id || booking.bookingRef);
     try {
-      let items = booking.items || [];
-      if (booking.packageId) {
-        const packageResponse = await fetch(`http://localhost:5000/api/v1/packages/${booking.packageId}`);
-        const packageData = await packageResponse.json();
-        if (packageData.success) items = packageData.data.items || items;
-      }
-      const requested = items.find((item) => {
-        const name = (item.serviceName || item.service_name || item.name || '').toLowerCase();
-        return (item.category || '').toLowerCase() === 'cottage' || name.includes('cottage') || name.includes('umbrella');
+      const res = await apiJson(`/reservations/${encodeURIComponent(booking.id || booking.bookingRef)}/request-confirmation`, { method: 'POST', auth: true });
+      const d = res.data || {};
+      const deadline = `Deadline: ${new Date(d.deadline).toLocaleString('en-US', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' })} (PHT)`;
+      const needsActivation = /activat/i.test(d.notice || '');
+      showAlert({
+        title: d.delivered ? 'Confirmation email sent' : needsActivation ? 'Client must activate FormSubmit first' : 'Email not delivered yet',
+        message: d.delivered
+          ? `Sent via ${d.channel === 'smtp' ? 'Gmail' : 'FormSubmit'} to ${d.email}. The client has 24 hours to continue or cancel.`
+          : needsActivation
+            ? `FormSubmit sent ${d.email} a one-time "Activate Form" email. Ask the client to click it, then press "Resend 24h email".`
+            : `The email to ${d.email} could not be delivered. The 24-hour window has still started.`,
+        details: [deadline, d.notice ? `FormSubmit: ${d.notice}` : null, d.previewUrl ? `Preview copy: ${d.previewUrl}` : null].filter(Boolean).join('\n'),
+        type: d.delivered ? 'success' : 'warning',
       });
-      const requestedServiceId = requested?.serviceId || requested?.service_id;
-      if (!requestedServiceId) {
-        showAlert({ title: 'No Numbered Facility Requirement', message: 'This reservation does not include a numbered cottage or physical resource.', type: 'info' });
-        setAssignmentBooking(null);
-        return;
-      }
-      setAssignmentService(requested);
-      const query = new URLSearchParams({
-        serviceId: requestedServiceId,
-        date: booking.reservationDate || booking.bookingDate,
-        bookingId: String(booking.id),
-      });
-      const resourceResponse = await fetch(`http://localhost:5000/api/v1/availability/resources?${query}`);
-      const resourceData = await resourceResponse.json();
-      if (!resourceData.success) throw new Error(resourceData.message || 'Could not load availability');
-      setAvailableResources(resourceData.data || []);
-    } catch (error) {
-      showAlert({ title: 'Availability Error', message: error.message || 'Could not load facility availability.', type: 'danger' });
-      setAssignmentBooking(null);
+      if (refreshAllLiveData) refreshAllLiveData();
+    } catch (e) {
+      showAlert({ title: 'Could not send email', message: e.message, type: 'danger' });
     } finally {
-      setIsLoadingResources(false);
-    }
-  };
-
-  const assignResource = async () => {
-    if (!assignmentBooking || !selectedResourceId || isAssigningResource) return;
-    setIsAssigningResource(true);
-    try {
-      const response = await fetch('http://localhost:5000/api/v1/availability/assign', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookingId: assignmentBooking.id,
-          resourceId: selectedResourceId,
-          date: assignmentBooking.reservationDate || assignmentBooking.bookingDate,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.message || 'Facility assignment failed');
-      showAlert({ title: 'Facility Assigned', message: `${data.data.resource_name} is reserved for ${assignmentBooking.bookingRef || assignmentBooking.bookingNumber}.`, type: 'success' });
-      setAssignmentBooking(null);
-      if (refreshAllLiveData) await refreshAllLiveData();
-    } catch (error) {
-      showAlert({ title: 'Assignment Conflict', message: error.message || 'The facility is no longer available.', type: 'warning' });
-      setAvailableResources([]);
-    } finally {
-      setIsAssigningResource(false);
+      setEmailingId(null);
     }
   };
 
   const handleConfirmCashPayment = async () => {
     if (!selectedBookingForPayment || isProcessingPayment) return;
-
-    const grandTotal = parseFloat(selectedBookingForPayment.estimatedTotal || selectedBookingForPayment.grandTotal || selectedBookingForPayment.totalPrice || 0);
+    const b = selectedBookingForPayment;
     const cashReceivedNum = parseFloat(cashReceivedInput) || 0;
-
-    if (cashReceivedNum < grandTotal) {
-      showAlert({
-        title: 'Insufficient Payment',
-        message: `Cash received (₱${cashReceivedNum}) is less than total amount due (₱${grandTotal}). Please collect the full amount.`,
-        type: 'warning'
-      });
+    if (cashReceivedNum < paymentDue) {
+      showAlert({ title: 'Insufficient Payment', message: `Cash received (₱${cashReceivedNum.toLocaleString()}) is less than the amount due (₱${paymentDue.toLocaleString()}).`, type: 'warning' });
       return;
     }
-
     try {
       setIsProcessingPayment(true);
-
-      const refCode = selectedBookingForPayment.bookingRef || selectedBookingForPayment.bookingNumber || `BK-${selectedBookingForPayment.id}`;
-      const userNum = selectedBookingForPayment.userNumber || selectedBookingForPayment.client_id || `CLT-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
-
-      // Build items list
-      const items = Array.isArray(selectedBookingForPayment.items) && selectedBookingForPayment.items.length > 0
-        ? selectedBookingForPayment.items
-        : [{
-            name: selectedBookingForPayment.specificType || selectedBookingForPayment.serviceName || 'Duangon Day Pass & Reservation',
-            quantity: selectedBookingForPayment.numberOfGuests || selectedBookingForPayment.totalVisitors || 1,
-            unitPrice: grandTotal,
-            category: 'Cottage'
-          }];
-
-      // Execute POS transaction and update state & DB
-      const receiptData = {
-        booking_id: selectedBookingForPayment.id,
-        userNumber: userNum,
-        bookingRef: refCode,
-        touristName: selectedBookingForPayment.clientName || selectedBookingForPayment.fullName || selectedBookingForPayment.touristName || 'Client Visitor',
-        touristEmail: selectedBookingForPayment.clientEmail || selectedBookingForPayment.email || selectedBookingForPayment.touristEmail || 'client@ecotourvista.com',
-        touristContact: selectedBookingForPayment.clientPhone || selectedBookingForPayment.contactNumber || '',
-        items,
-        grandTotal,
-        cashReceived: cashReceivedNum,
-        date: selectedBookingForPayment.reservationDate || selectedBookingForPayment.bookingDate || getPhilippineDateStr()
-      };
-
-      if (processPOSTransaction) {
-        processPOSTransaction(receiptData);
-      }
-
-      // Update booking status to Paid in database
-      if (updateResortBookingStatus) {
-        await updateResortBookingStatus(selectedBookingForPayment.id || refCode, 'Paid');
-      }
-
-      const createdReceipt = {
-        receiptNo: `OR-${getPhilippineDateStr().replace(/-/g,'')}-${Math.floor(100 + Math.random() * 900)}`,
+      // Saved on the server (payments + revenue shares); the server computes the amount due
+      const res = await apiJson(`/reservations/${encodeURIComponent(b.id || b.bookingRef)}/payments`, {
+        method: 'POST',
+        auth: true,
+        body: { kind: paymentKind, cash_received: cashReceivedNum, staff_name: currentUser?.name || 'Staff Cashier' },
+      });
+      const d = res.data;
+      setIssuedReceipt({
+        receiptNo: d.receiptNo,
         date: getPhilippineDateStr(),
         time: getPhilippineTimeStr(),
-        touristName: receiptData.touristName,
-        userNumber: userNum,
-        bookingRef: refCode,
-        items,
-        grandTotal,
-        cashReceived: cashReceivedNum,
-        change: Math.max(0, cashReceivedNum - grandTotal),
-        staffName: currentUser?.name || 'Staff Cashier'
-      };
-
-      setIssuedReceipt(createdReceipt);
+        touristName: b.clientName || b.fullName || b.touristName || 'Client Visitor',
+        userNumber: b.userNumber,
+        bookingRef: b.bookingRef || b.bookingNumber,
+        items: [{ name: d.kind === 'FEE' ? 'Reservation fee (downpayment)' : (d.balanceDue > 0 ? 'Partial payment' : 'Balance payment'), quantity: 1, unitPrice: d.amount, price: d.amount }],
+        grandTotal: d.amount,
+        cashReceived: d.cashReceived,
+        change: d.change,
+        staffName: currentUser?.name || 'Staff Cashier',
+      });
       setSelectedBookingForPayment(null);
+      if (refreshAllLiveData) refreshAllLiveData();
+    } catch (e) {
+      showAlert({ title: 'Payment not recorded', message: e.message, type: 'danger' });
     } finally {
       setIsProcessingPayment(false);
     }
@@ -456,20 +403,30 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
                     )}
                   </div>
 
+                  <div className="p-3 rounded-2xl border" style={{ borderColor: 'var(--line)' }}>
+                    <BookingBreakdown booking={b} compact />
+                  </div>
+
+                  <ReservationPaymentStatus booking={b} role="staff" compact />
+
                   <div
                     className="p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                     style={{ background: isLight ? 'rgba(59,130,246,0.06)' : 'rgba(30,64,175,0.12)', borderColor: 'rgba(59,130,246,0.35)' }}
                   >
                     <div>
                       <span className="text-[10px] uppercase font-extrabold block text-blue-500">Facility Assignment</span>
-                      <span className="text-[11px]" style={{ color: 'var(--muted)' }}>Physical cottage is assigned by staff after booking.</span>
+                      <span className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                        {Array.isArray(b.assignedFacilities) && b.assignedFacilities.length > 0
+                          ? <>Assigned: <strong style={{ color: '#60a5fa' }}>{b.assignedFacilities.map(f => f.facilityName).join(', ')}</strong></>
+                          : 'Not yet assigned — pick the actual cottage / unit numbers for this date.'}
+                      </span>
                     </div>
                     <button
-                      onClick={() => openAssignmentModal(b)}
+                      onClick={() => setAssignmentBooking(b)}
                       className="px-3 py-2 rounded-xl text-[11px] font-extrabold inline-flex items-center justify-center gap-1.5 cursor-pointer"
                       style={{ background: 'rgba(59,130,246,0.18)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.45)' }}
                     >
-                      <Home className="w-3.5 h-3.5" /> Assign Cottage
+                      <Home className="w-3.5 h-3.5" /> Assign Facilities
                     </button>
                   </div>
                 </div>
@@ -477,13 +434,39 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
                 {/* CARD FOOTER & ACTION BUTTONS */}
                 <div className="pt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3" style={{ borderTop: '1px solid var(--line)' }}>
                   <div>
-                    <span className="text-[10px] uppercase font-bold block" style={{ color: 'var(--muted)' }}>Cash Amount Due:</span>
+                    <span className="text-[10px] uppercase font-bold block" style={{ color: 'var(--muted)' }}>Balance Due:</span>
                     <div className="text-xl font-black font-mono" style={{ color: 'var(--accent)' }}>
-                      ₱{grandTotal.toLocaleString()}.00
+                      ₱{balanceOf(b).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                     </div>
+                    {feeOutstanding(b) > 0 && (
+                      <span className="text-[10px] font-bold" style={{ color: '#f59e0b' }}>Reservation fee due: ₱{feeOutstanding(b).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
+                    {/* Client online bookings only — walk-ins (fee NOT_REQUIRED) skip the 24-hour confirmation */}
+                    {b.feeStatus && b.feeStatus !== 'NOT_REQUIRED' && b.confirmationStatus !== 'CONFIRMED' && (
+                      <button
+                        onClick={() => handleRequestConfirmation(b)}
+                        disabled={!!emailingId}
+                        className="px-3 py-2 text-[11px] font-bold rounded-xl cursor-pointer transition-all inline-flex items-center gap-1 disabled:opacity-50"
+                        style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.45)', color: '#f59e0b' }}
+                        title="Email the client (account email) to continue or cancel within 24 hours"
+                      >
+                        <Mail className="w-3.5 h-3.5" />
+                        {emailingId === (b.id || b.bookingRef) ? 'Sending…' : b.confirmationStatus === 'AWAITING_CLIENT' ? 'Resend 24h email' : 'Email client to confirm'}
+                      </button>
+                    )}
+                    {feeOutstanding(b) > 0 && (
+                      <button
+                        onClick={() => openPaymentModal(b, 'FEE')}
+                        className="px-3 py-2 text-[11px] font-extrabold rounded-xl cursor-pointer transition-all inline-flex items-center gap-1"
+                        style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.45)', color: 'var(--accent)' }}
+                        title="Collect the reservation fee (downpayment) in cash"
+                      >
+                        <Coins className="w-3.5 h-3.5" /> Record reservation fee
+                      </button>
+                    )}
                     <button
                       onClick={() => handleCancelBooking(b)}
                       className="px-3 py-2 text-rose-300 hover:text-white text-[11px] font-bold rounded-xl cursor-pointer transition-all inline-flex items-center gap-1"
@@ -498,13 +481,13 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
                     </button>
 
                     <button
-                      onClick={() => openPaymentModal(b)}
+                      onClick={() => openPaymentModal(b, 'BALANCE')}
                       className="flex-1 sm:flex-none px-4 py-2 text-slate-950 font-black text-xs rounded-xl shadow-lg cursor-pointer transition-all flex items-center justify-center gap-1.5 uppercase"
                       style={{
                         background: 'var(--accent)',
                       }}
                     >
-                      <Coins className="w-4 h-4" /> Accept Payment
+                      <Coins className="w-4 h-4" /> {feeOutstanding(b) > 0 ? 'Accept Full Payment' : 'Accept Balance'}
                     </button>
                   </div>
                 </div>
@@ -515,40 +498,11 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
       )}
 
       {assignmentBooking && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="border-2 rounded-3xl w-full max-w-lg p-6 space-y-5 shadow-2xl" style={{ background: isLight ? 'var(--bg-1)' : '#071f14', borderColor: 'var(--line)', color: 'var(--text)' }}>
-            <div className="flex justify-between items-center">
-              <div>
-                <span className="text-[10px] uppercase font-extrabold text-blue-400">Physical Facility Assignment</span>
-                <h3 className="text-lg font-extrabold">{assignmentBooking.bookingRef || assignmentBooking.bookingNumber}</h3>
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>{assignmentBooking.reservationDate || assignmentBooking.bookingDate} • {assignmentBooking.clientName}</p>
-              </div>
-              <button onClick={() => setAssignmentBooking(null)} className="p-1 cursor-pointer" style={{ color: 'var(--muted)' }}><X className="w-5 h-5" /></button>
-            </div>
-            <div className="p-3 rounded-2xl border" style={{ background: isLight ? 'var(--panel)' : 'rgba(0,0,0,0.3)', borderColor: 'var(--line)' }}>
-              <span className="text-[10px] uppercase font-bold block" style={{ color: 'var(--muted)' }}>Required Service</span>
-              <strong style={{ color: 'var(--accent)' }}>{assignmentService?.serviceName || assignmentService?.name || 'Loading package requirements...'}</strong>
-            </div>
-            {isLoadingResources ? (
-              <p className="text-sm text-center py-6" style={{ color: 'var(--muted)' }}>Checking facilities for this date...</p>
-            ) : availableResources.length > 0 ? (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {availableResources.map((resource) => (
-                  <label key={resource.id} className="flex items-center justify-between p-3 rounded-xl border cursor-pointer" style={{ borderColor: String(resource.id) === String(selectedResourceId) ? 'var(--accent)' : 'var(--line)', background: String(resource.id) === String(selectedResourceId) ? 'rgba(74,222,128,0.1)' : 'transparent' }}>
-                    <span className="flex items-center gap-2"><input type="radio" name="resource" value={resource.id} checked={String(resource.id) === String(selectedResourceId)} onChange={(event) => setSelectedResourceId(event.target.value)} /> <strong>{resource.resource_name}</strong></span>
-                    <span className="text-[10px] text-emerald-400 font-bold">AVAILABLE</span>
-                  </label>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-center py-6 text-amber-400">No numbered facility is available for this date.</p>
-            )}
-            <div className="flex justify-end gap-2 pt-2 border-t" style={{ borderColor: 'var(--line)' }}>
-              <button onClick={() => setAssignmentBooking(null)} className="px-4 py-2 rounded-xl text-xs font-bold cursor-pointer" style={{ color: 'var(--muted)' }}>Cancel</button>
-              <button onClick={assignResource} disabled={!selectedResourceId || isAssigningResource} className="px-4 py-2 rounded-xl text-xs font-extrabold cursor-pointer disabled:opacity-40" style={{ background: 'var(--accent)', color: '#052012' }}>{isAssigningResource ? 'Assigning...' : 'Assign Facility'}</button>
-            </div>
-          </div>
-        </div>
+        <FacilityAssignmentModal
+          booking={assignmentBooking}
+          onClose={() => setAssignmentBooking(null)}
+          onChanged={() => refreshAllLiveData && refreshAllLiveData()}
+        />
       )}
 
       {/* CASH PAYMENT & CHANGE MODAL */}
@@ -605,9 +559,9 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
                 <strong style={{ color: 'var(--accent)' }}>{selectedBookingForPayment.specificType || selectedBookingForPayment.serviceName}</strong>
               </div>
               <div className="flex justify-between text-sm font-black pt-2" style={{ borderTop: '1px solid var(--line)' }}>
-                <span style={{ color: 'var(--text)' }}>Total Amount Due:</span>
+                <span style={{ color: 'var(--text)' }}>{paymentKind === 'FEE' ? 'Reservation Fee Due:' : 'Amount Due Now:'}</span>
                 <span className="font-mono text-base" style={{ color: 'var(--accent)' }}>
-                  ₱{parseFloat(selectedBookingForPayment.estimatedTotal || selectedBookingForPayment.grandTotal || selectedBookingForPayment.totalPrice || 0).toLocaleString()}.00
+                  ₱{paymentDue.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </span>
               </div>
             </div>
@@ -644,7 +598,7 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
               >
                 <span style={{ color: 'var(--muted)' }}>Change to Return:</span>
                 <span className="text-sm" style={{ color: 'var(--accent)' }}>
-                  ₱{Math.max(0, parseFloat(cashReceivedInput) - parseFloat(selectedBookingForPayment.estimatedTotal || selectedBookingForPayment.grandTotal || selectedBookingForPayment.totalPrice || 0)).toLocaleString()}.00
+                  ₱{Math.max(0, (parseFloat(cashReceivedInput) || 0) - paymentDue).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </span>
               </div>
             )}

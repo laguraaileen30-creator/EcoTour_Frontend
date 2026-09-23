@@ -32,7 +32,7 @@ export default function Navbar({ onOpenBooking }) {
         {/* Brand / Logo */}
         <a href="#home" onClick={(e) => handleNavClick(e, "#home")} className="nav__brand">
           <div className="nav__logo">
-            <EcoTourLogo width={42} height={26} />
+            <EcoTourLogo size={40} showGlow={false} />
           </div>
           <div className="nav__title">
             <span className="nav__name">ECOTOURVISTA</span>
@@ -45,7 +45,7 @@ export default function Navbar({ onOpenBooking }) {
           <a href="#home" onClick={(e) => handleNavClick(e, "#home")} className="nav__link">Home</a>
           <a href="#about" onClick={(e) => handleNavClick(e, "#about")} className="nav__link">About Us</a>
           <a href="#packages" onClick={(e) => handleNavClick(e, "#packages")} className="nav__link font-bold text-emerald-400">Packages & Deals</a>
-          <a href="#services" onClick={(e) => handleNavClick(e, "#services")} className="nav__link">Services</a>
+          <a href="#packages" onClick={(e) => handleNavClick(e, "#packages")} className="nav__link">Services</a>
           <a href="#contact" onClick={(e) => handleNavClick(e, "#contact")} className="nav__link">Contact</a>
           <a href="#nearby" onClick={(e) => handleNavClick(e, "#nearby")} className="nav__link">Nearby Destinations</a>
 
@@ -54,7 +54,8 @@ export default function Navbar({ onOpenBooking }) {
             <ThemeToggle size="sm" />
           </div>
 
-          {/* Book Reservation Button */}
+          {/* Book Reservation Button (only where booking is enabled) */}
+          {onOpenBooking && (
           <button
             onClick={() => {
               if (onOpenBooking) onOpenBooking();
@@ -64,6 +65,7 @@ export default function Navbar({ onOpenBooking }) {
             <Calendar size={14} />
             <span>BOOK NOW</span>
           </button>
+          )}
 
           {/* Single Right-Side Login Button */}
           <a href="/login" className="nav__link nav__link--login">

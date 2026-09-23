@@ -12,7 +12,7 @@ export default function Hero({ onOpenBooking }) {
   const currentGif = theme === "light" ? gifLight : gifDark;
 
   const handleScrollClick = () => {
-    document.getElementById("about")?.scrollIntoView({ behavior: "smooth" });
+    (document.getElementById("packages") || document.getElementById("about"))?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
@@ -56,7 +56,7 @@ export default function Hero({ onOpenBooking }) {
 
           <div className="hero__actions">
             <button className="btn btn--explore" onClick={onOpenBooking || handleScrollClick}>
-              <span>BOOK RESERVATION</span>
+              <span>{onOpenBooking ? 'BOOK RESERVATION' : 'EXPLORE PACKAGES'}</span>
               <span className="btn__arrow">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M5 12h14" />

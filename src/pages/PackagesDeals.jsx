@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useEcoTour } from '../context/EcoTourContext';
 import ServiceDetailsModal from '../components/ServiceDetailsModal';
+import StatusBadge from '../components/StatusBadge';
+import ServicesCatalog from '../components/ServicesCatalog';
+import { API_BASE, resolveImage, isBookable } from '../utils/catalog';
 
-const PackagesDeals = ({ onBookPackage }) => {
+// View-only: shows each package with its included services (booking happens in the client portal)
+const PackagesDeals = () => {
   const { theme } = useEcoTour();
   const isLight = theme === 'light';
   
@@ -12,7 +15,6 @@ const PackagesDeals = ({ onBookPackage }) => {
   const [loading, setLoading] = useState(true);
   const [activePromo, setActivePromo] = useState(null);
   const [selectedServiceForModal, setSelectedServiceForModal] = useState(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
     fetchData();
@@ -21,15 +23,15 @@ const PackagesDeals = ({ onBookPackage }) => {
   const fetchData = async () => {
     try {
       // 1. Fetch all packages
-      const packRes = await fetch('http://localhost:5000/api/v1/packages');
+      const packRes = await fetch(`${API_BASE}/packages?landing=1`);
       const packData = await packRes.json();
       
       // 2. Fetch active promotions (highest priority sorted by backend)
-      const promoRes = await fetch('http://localhost:5000/api/v1/promotions');
+      const promoRes = await fetch(`${API_BASE}/promotions?landing=1`);
       const promoData = await promoRes.json();
       
       if (packData.success) {
-        setPackages(packData.data);
+        setPackages(packData.data.map(pkg => ({ ...pkg, image_url: resolveImage(pkg.image_url, 'family gateway deal.png') })));
       }
       
       if (promoData.success && promoData.data.length > 0) {
@@ -44,46 +46,13 @@ const PackagesDeals = ({ onBookPackage }) => {
     }
   };
 
+  // Prices come from the server with any running deal already applied (same price as checkout)
   const getPackagePrice = (pkg) => {
-    let finalPrice = pkg.promo_price || pkg.regular_value;
-    let originalPrice = pkg.regular_value;
-    let hasDiscount = false;
-    let promoDetails = null;
-
-    if (activePromo && activePromo.packages) {
-      const packagePromo = activePromo.packages.find(p => p.package_id === pkg.id);
-      if (packagePromo) {
-        hasDiscount = true;
-        promoDetails = activePromo;
-        if (packagePromo.discount_type === 'Percentage') {
-          finalPrice = pkg.regular_value - (pkg.regular_value * (packagePromo.discount_value / 100));
-        } else {
-          finalPrice = pkg.regular_value - packagePromo.discount_value;
-        }
-      }
-    }
-
+    const finalPrice = Number(pkg.final_price ?? pkg.promo_price ?? pkg.regular_value);
+    const originalPrice = Number(pkg.regular_value);
+    const hasDiscount = finalPrice < originalPrice;
+    const promoDetails = pkg.active_deal ? { id: pkg.active_deal.id, promo_name: pkg.active_deal.name } : null;
     return { finalPrice, originalPrice, hasDiscount, promoDetails };
-  };
-
-  const handleBookNow = (pkg) => {
-    const { finalPrice, originalPrice, hasDiscount, promoDetails } = getPackagePrice(pkg);
-    
-    if (onBookPackage) {
-      onBookPackage(pkg, { finalPrice, originalPrice, hasDiscount, promoDetails });
-      return;
-    }
-
-    // Fallback if not used inside LandingPage
-    navigate('/login', { 
-      state: { 
-        selectedPackage: pkg.id,
-        finalPrice,
-        originalPrice,
-        promoId: promoDetails ? promoDetails.id : null,
-        promoName: promoDetails ? promoDetails.promo_name : null
-      } 
-    });
   };
 
   if (loading) {
@@ -164,7 +133,9 @@ const PackagesDeals = ({ onBookPackage }) => {
                   background: isLight 
                     ? (hasDiscount ? 'rgba(236,253,245,0.6)' : 'rgba(255,255,255,0.7)')
                     : 'linear-gradient(160deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)', 
-                  borderColor: isLight
+                  borderColor: pkg.package_type === 'UNLIMITED'
+                    ? 'rgba(251,191,36,0.75)'
+                    : isLight
                     ? (hasDiscount ? 'rgba(16,185,129,0.3)' : 'rgba(0,0,0,0.1)')
                     : (hasDiscount ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.1)'),
                   boxShadow: hasDiscount ? '0 10px 30px -10px rgba(16,185,129,0.3)' : (isLight ? '0 10px 30px -10px rgba(0,0,0,0.1)' : '0 10px 30px -10px rgba(0,0,0,0.5)'),
@@ -181,7 +152,6 @@ const PackagesDeals = ({ onBookPackage }) => {
                     src={pkg.image_url} 
                     alt={pkg.package_name} 
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1"
-                    onError={(e) => { e.target.src = 'https://via.placeholder.com/400x300?text=EcoTour+Package'; }}
                   />
                   {pkg.badge && !hasDiscount && (
                     <div className="absolute top-4 right-4 z-20 bg-black/60 backdrop-blur-md text-white border border-white/20 px-3 py-1 rounded-full text-[10px] font-black tracking-widest shadow-lg">
@@ -193,7 +163,7 @@ const PackagesDeals = ({ onBookPackage }) => {
                       className="absolute top-4 right-4 z-20 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-black tracking-widest animate-pulse border shadow-[0_0_15px_rgba(16,185,129,0.5)]"
                       style={{ background: 'linear-gradient(45deg, #10b981, #059669)', borderColor: 'rgba(255,255,255,0.4)' }}
                     >
-                      {activePromo.packages.find(p => p.package_id === pkg.id)?.discount_value}% OFF
+                      {pkg.badge || `${Math.round((1 - finalPrice / originalPrice) * 100)}% OFF`}
                     </div>
                   )}
                   
@@ -208,13 +178,42 @@ const PackagesDeals = ({ onBookPackage }) => {
 
                 {/* Content */}
                 <div className="p-6 flex-grow flex flex-col relative z-20">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    {pkg.package_type === 'UNLIMITED' && (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full text-white" style={{ background: 'linear-gradient(90deg,#d97706,#f59e0b)' }}>♾️ UNLIMITED ACCESS</span>
+                    )}
+                    <StatusBadge status={pkg.availability_status} size="xs" />
+                  </div>
+                  {!isBookable(pkg.availability_status) && (
+                    <p className="text-[11px] mb-2 font-semibold text-rose-400">
+                      Unavailable today{pkg.unavailable_services?.length ? ` — ${pkg.unavailable_services.map(u => u.serviceName).join(', ')}` : ''}. Other dates may be open.
+                    </p>
+                  )}
                   {hasDiscount && promoDetails && (
                     <span className="text-[10px] font-black uppercase tracking-widest mb-2 block text-rose-500 drop-shadow-[0_0_5px_rgba(244,63,94,0.3)]">
                       🔥 {promoDetails.promo_name}
                     </span>
                   )}
                   <h3 className={`text-xl font-black mb-2 leading-tight transition-colors duration-300 ${isLight ? 'text-gray-900 group-hover:text-emerald-700' : 'text-white group-hover:text-emerald-300'}`}>{pkg.package_name}</h3>
-                  <p className={`text-sm mb-6 flex-grow font-medium leading-relaxed ${isLight ? 'text-gray-600' : 'text-emerald-100/70'}`}>{pkg.description}</p>
+                  <p className={`text-sm mb-4 font-medium leading-relaxed ${isLight ? 'text-gray-600' : 'text-emerald-100/70'}`}>{pkg.description}</p>
+
+                  {/* Included services */}
+                  <div className="mb-6 flex-grow">
+                    <span className={`text-[10px] font-black uppercase tracking-widest block mb-2 ${isLight ? 'text-emerald-700' : 'text-emerald-400'}`}>
+                      {pkg.package_type === 'UNLIMITED' ? 'All services included' : "What's included"}
+                    </span>
+                    <ul className="space-y-1">
+                      {(pkg.items || []).slice(0, 5).map((it) => (
+                        <li key={it.service_id} className={`text-xs flex items-start gap-1.5 ${isLight ? 'text-gray-700' : 'text-emerald-50/90'}`}>
+                          <span className={isLight ? 'text-emerald-600' : 'text-emerald-400'}>✓</span>
+                          <span>{it.service_name}{it.quantity > 1 ? ` × ${it.quantity}` : ''}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {(pkg.items || []).length > 5 && (
+                      <span className={`text-[11px] font-bold mt-1 block ${isLight ? 'text-emerald-700' : 'text-emerald-300'}`}>+ {pkg.items.length - 5} more services</span>
+                    )}
+                  </div>
                   
                   {/* Pricing */}
                   <div className={`mt-auto border-t pt-5 pb-6 ${isLight ? 'border-gray-200' : 'border-white/10'}`}>
@@ -239,14 +238,14 @@ const PackagesDeals = ({ onBookPackage }) => {
                   
                   {/* Action Button */}
                   <button 
-                    onClick={() => handleBookNow(pkg)}
+                    onClick={() => setSelectedServiceForModal(pkg)}
                     className={`w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest text-center transition-all duration-300 transform group-hover:scale-[1.02] ${
                       hasDiscount 
                         ? 'bg-gradient-to-r from-emerald-500 to-teal-400 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)] border border-emerald-400' 
                         : (isLight ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-white/10 hover:bg-white/20 text-white border border-white/20 hover:border-white/40 shadow-lg')
                     }`}
                   >
-                    {hasDiscount ? 'Claim Deal' : 'Book Package'}
+                    View Included Services
                   </button>
                 </div>
               </div>
@@ -255,11 +254,15 @@ const PackagesDeals = ({ onBookPackage }) => {
         </div>
       </div>
 
+      {/* Individual services are offered as optional add-ons to a package */}
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 mt-16">
+        <ServicesCatalog compact />
+      </div>
+
       <ServiceDetailsModal 
         isOpen={!!selectedServiceForModal}
         onClose={() => setSelectedServiceForModal(null)}
         service={selectedServiceForModal}
-        onBookNow={handleBookNow}
       />
     </div>
   );

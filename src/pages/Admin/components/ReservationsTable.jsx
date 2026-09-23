@@ -8,6 +8,7 @@ import { formatCurrency } from '../utils/dashboardHelpers';
 import PaymentModal from '../modals/PaymentModal';
 import OfficialReceiptModal from '../modals/OfficialReceiptModal';
 import VerticalReservationTimeline, { getStageIndex } from '../../../components/VerticalReservationTimeline';
+import BookingBreakdown from '../../../components/BookingBreakdown';
 
 export default function ReservationsTable({ defaultFilter = 'all' }) {
   const {
@@ -377,32 +378,9 @@ export default function ReservationsTable({ defaultFilter = 'all' }) {
               <div className="md:col-span-6 space-y-4">
                 <div className="bg-black/40 p-4 rounded-2xl border border-emerald-900/60 space-y-2 text-xs">
                   <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-wider block">
-                    Reserved Services Breakdown:
+                    Reservation Details — what the client purchased:
                   </span>
-
-                  {Array.isArray(selectedTimelineBooking.items) && selectedTimelineBooking.items.length > 0 ? (
-                    <ul className="divide-y divide-white/5 text-xs space-y-1">
-                      {selectedTimelineBooking.items.map((it, idx) => (
-                        <li key={idx} className="pt-1.5 flex justify-between items-center text-slate-200">
-                          <span>{it.name || it.serviceName} {it.quantity > 1 ? `(x${it.quantity})` : ''}</span>
-                          <strong className="font-mono text-emerald-300">
-                            ₱{(parseFloat(it.unitPrice || it.price || 0) * (it.quantity || 1)).toLocaleString()}.00
-                          </strong>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-slate-300 py-1">
-                      {selectedTimelineBooking.specificType || selectedTimelineBooking.serviceName || 'Duangon Day Pass Entrance & Cottage'}
-                    </p>
-                  )}
-
-                  <div className="pt-3 border-t border-emerald-900/80 flex justify-between items-center text-sm font-bold">
-                    <span className="text-slate-300">Total Amount:</span>
-                    <strong className="text-emerald-400 font-mono text-base font-black">
-                      ₱{parseFloat(selectedTimelineBooking.estimatedTotal || selectedTimelineBooking.grandTotal || selectedTimelineBooking.totalPrice || 0).toLocaleString()}.00
-                    </strong>
-                  </div>
+                  <BookingBreakdown booking={selectedTimelineBooking} />
                 </div>
 
                 <div className="bg-black/30 p-3.5 rounded-2xl border border-emerald-900/40 space-y-1 text-xs">

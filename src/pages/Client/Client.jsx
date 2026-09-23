@@ -1,16 +1,21 @@
 import React, { useState, useRef } from 'react';
+import EcoTourLogo from '../../components/EcoTourLogo';
 import { useEcoTour } from '../../context/EcoTourContext';
 import ClientSidebar from './components/ClientSidebar';
 import ClientHeader from './components/ClientHeader';
 import './Client.css';
 import ClientServicesTab from './tabs/ClientServicesTab';
-import ActivityLogsTab from './tabs/ActivityLogsTab';
-import NotificationsTab from './tabs/NotificationsTab';
-import ClientReceiptsTab from './tabs/ReceiptsTab';
 import ClientProfileTab from './tabs/ProfileTab';
 import ClientBookingsTab from './tabs/ClientBookingsTab';
 import ClientHistoryTab from './tabs/ClientHistoryTab';
-import ClientPaymentsTab from './tabs/ClientPaymentsTab';
+import {
+  DashboardShell, GlassHero, Glance, KpiCard, Panel, Row, statusPill, QuickActions, EmptyState, useNow, phDate, greeting, peso,
+} from '../../components/dashboard/Glass';
+import { resolveImage } from '../../utils/catalog';
+import { Camera } from 'lucide-react';
+import heroDark from '../../assets/home2.png';
+import heroLight from '../../assets/home1.png';
+import resortPhoto from '../../assets/spring.png';
 
 import {
   Calendar, Coins, CheckCircle2, Package, Sparkles, Megaphone,
@@ -34,6 +39,8 @@ export const ClientDashboard = () => {
     reservations = [],
     announcements = [],
     galleryItems = [],
+    catalogPackages = [],
+    theme,
     logout,
   } = useEcoTour();
 
@@ -67,7 +74,7 @@ export const ClientDashboard = () => {
     const matchesName = Boolean(clientName && rName && (rName.includes(clientName) || clientName.includes(rName)));
     const matchesUserNum = Boolean(clientUserNum && rUserNum && (rUserNum === clientUserNum || rUserNum.includes(clientUserNum)));
     const matchesId = Boolean(clientUserId && rUserId && clientUserId === rUserId);
-    return matchesEmail || matchesName || matchesUserNum || matchesId || !clientEmail || clientEmail.includes('client');
+    return matchesEmail || matchesName || matchesUserNum || matchesId;
   });
 
   const upcomingReservations = clientReservations.filter((r) => {
@@ -85,6 +92,13 @@ export const ClientDashboard = () => {
     .reduce((s, r) => s + parseFloat(r.estimatedTotal || r.grandTotal || r.totalPrice || 0), 0);
   const loyaltyPoints = Math.floor(totalSpent / 20);
 
+  const nowTick = useNow(60000);
+  const firstName = currentUser?.fname || (currentUser?.name || '').split(' ')[0] || 'Guest';
+  const featuredPackages = [...(catalogPackages || [])]
+    .filter((pk) => pk.status !== 'Inactive')
+    .sort((a, b) => (b.is_featured - a.is_featured) || (b.package_type === 'UNLIMITED') - (a.package_type === 'UNLIMITED'))
+    .slice(0, 3);
+
   const displayGallery = galleryItems.length > 0 ? galleryItems : [
     { id: 1, title: 'Crystal Cold Spring', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80' },
     { id: 2, title: 'Lush Forest Pool', image: 'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=600&q=80' },
@@ -100,145 +114,128 @@ export const ClientDashboard = () => {
         <main className="ct-content overflow-y-auto p-4 sm:p-6 space-y-6">
 
           {activeTab === 'overview' && (
-            <>
-              {/* HERO BANNER */}
-              <section className="ct-hero">
-                <p className="hi">Welcome back,</p>
-                <p className="name">
-                  {currentUser?.name || `${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || 'Client Guest'} 🌿
-                </p>
-                <h2>DUANGON COLD SPRING<br /><span>RESORT PARADISE</span></h2>
-                <p className="sub">Your next adventure is waiting in Bilar, Bohol.<br />Cash payments are accepted on-site at the resort entrance.</p>
-                
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button 
-                    onClick={() => setActiveTab('my_reservations')}
-                    className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center gap-1.5 transition-transform hover:scale-105 cursor-pointer"
-                  >
-                    <Plus size={16} /> Book New Reservation
-                  </button>
-                  <button 
-                    onClick={() => setActiveTab('services')}
-                    className="px-5 py-2.5 bg-black/40 hover:bg-black/60 text-emerald-300 font-bold text-xs rounded-xl border border-emerald-500/30 flex items-center gap-1.5 cursor-pointer transition-all"
-                  >
-                    <Compass size={16} /> Explore Services &amp; Cottages
-                  </button>
-                </div>
-              </section>
+            <DashboardShell>
+              <GlassHero
+                image={theme === 'light' ? heroLight : heroDark}
+                eyebrow={`${phDate(nowTick)} • Duangon Cold Spring, Bilar, Bohol`}
+                title={`${greeting(nowTick)},`}
+                highlight={`${firstName}! 🌿`}
+                subtitle={nextReservation
+                  ? `Your next visit is on ${nextReservation.reservationDate || nextReservation.bookingDate}. Show your booking reference at the entrance — payment is in cash on arrival.`
+                  : 'Plan your next cold-spring escape. Pick a package, add extras if you like, and pay in cash when you arrive.'}
+                actions={(
+                  <>
+                    <button type="button" className="gd-btn gd-btn-primary" onClick={() => setActiveTab('my_reservations')}><Plus size={15} /> Book a package</button>
+                    <button type="button" className="gd-btn gd-btn-ghost" onClick={() => setActiveTab('services')}><Compass size={15} /> Explore services</button>
+                  </>
+                )}
+                aside={(
+                  <>
+                    <Glance icon={CalendarDays} label="Next visit" value={nextReservation ? (nextReservation.reservationDate || nextReservation.bookingDate) : 'Not booked'} tone="emerald" />
+                    <Glance icon={Sparkles} label="Loyalty points" value={`${loyaltyPoints} pts`} tone="amber" />
+                    <Glance icon={ShieldCheck} label="Account" value="Verified" tone="sky" />
+                  </>
+                )}
+              />
 
-              {/* TOP GRID: UPCOMING TRIP & STATS */}
-              <section className="ct-top-grid">
-                <div className="ct-card">
-                  <div className="ct-card-head" style={{ padding: '18px 20px 0' }}>
-                    <span>UPCOMING RESERVATION</span>
-                    <button className="ct-link" onClick={() => setActiveTab('my_reservations')}>View All</button>
-                  </div>
-                  {nextReservation ? (
-                    <div className="ct-res-body">
-                      <img src="https://images.unsplash.com/photo-1433086966358-54859d0ed716?w=400&q=60" alt="resort" />
-                      <div className="ct-res-info">
-                        <h4>Duangon Cold Spring Resort</h4>
-                        <p><Calendar size={14} /> {nextReservation.reservationDate || nextReservation.bookingDate} &bull; {nextReservation.arrivalTime || nextReservation.timeSlot || '09:00 AM'}</p>
-                        <p><Package size={14} /> {nextReservation.specificType || nextReservation.serviceName || nextReservation.packageName || 'Resort Day Pass'}{' '}<span className="ct-badge confirmed">{nextReservation.status}</span></p>
-                        <p><Users size={14} /> {nextReservation.numberOfGuests || nextReservation.totalVisitors || 1} Visitors</p>
-                        <small>Reservation Reference</small>
-                        <strong className="ct-code">{nextReservation.bookingRef || nextReservation.bookingNumber}</strong>
+              <div className="gd-kpis gd-anim">
+                <KpiCard icon={CalendarDays} tone="emerald" label="Total bookings" value={totalBookingsCount} sub="All reservations" onClick={() => setActiveTab('my_reservations')} />
+                <KpiCard icon={Clock} tone="sky" label="Upcoming visits" value={upcomingReservations.length} sub={upcomingReservations.length ? 'Ready for your trip' : 'Nothing scheduled yet'} onClick={() => setActiveTab('my_reservations')} />
+                <KpiCard icon={Coins} tone="teal" label="Total spent" value={peso(totalSpent)} sub="Paid & completed stays" onClick={() => setActiveTab('history')} />
+                <KpiCard icon={Sparkles} tone="amber" label="Loyalty points" value={loyaltyPoints} progress={(loyaltyPoints % 500) / 5} sub={`${500 - (loyaltyPoints % 500)} pts to next reward`} />
+              </div>
+
+              <div className="gd-grid">
+                <div className="gd-col">
+                  <Panel icon={CalendarDays} title="Your upcoming visit" action={{ label: 'My reservations', onClick: () => setActiveTab('my_reservations') }}>
+                    {nextReservation ? (
+                      <div className="gd-trip">
+                        <img src={resortPhoto} alt="Duangon Cold Spring" />
+                        <div>
+                          <div className="flex items-start justify-between gap-2 flex-wrap">
+                            <div>
+                              <strong style={{ fontSize: 16, fontWeight: 900 }}>{nextReservation.packageName || nextReservation.serviceName || 'Resort Day Pass'}</strong>
+                              <div className="gd-muted" style={{ fontSize: 12, marginTop: 2 }}>Reference <b className="font-mono">{nextReservation.bookingRef || nextReservation.bookingNumber}</b></div>
+                            </div>
+                            {statusPill(nextReservation.status)}
+                          </div>
+                          <div className="gd-trip-meta">
+                            <div><small>Visit date</small><strong>{nextReservation.reservationDate || nextReservation.bookingDate}</strong></div>
+                            <div><small>Arrival</small><strong>{nextReservation.arrivalTime || nextReservation.timeSlot || '09:00 AM'}</strong></div>
+                            <div><small>Guests</small><strong>{nextReservation.numberOfGuests || nextReservation.totalVisitors || 1} pax</strong></div>
+                            <div><small>Total (cash)</small><strong>{peso(nextReservation.estimatedTotal || nextReservation.grandTotal || nextReservation.totalPrice || 0)}</strong></div>
+                          </div>
+                          <div className="gd-muted" style={{ fontSize: 12, marginTop: 10 }}>
+                            {Array.isArray(nextReservation.assignedFacilities) && nextReservation.assignedFacilities.length
+                              ? <>📍 Assigned: <b>{nextReservation.assignedFacilities.map((f) => f.facilityName).join(', ')}</b></>
+                              : 'Your cottage number will be assigned by the resort staff.'}
+                          </div>
+                        </div>
                       </div>
-                      <div className="ct-res-side">
-                        <small>STATUS</small>
-                        <span className="ok"><CheckCircle2 size={15} style={{ display: 'inline', marginRight: 5 }} />{nextReservation.status}</span>
-                        <small>ESTIMATED TOTAL</small>
-                        <strong className="font-mono">&#8369;{parseFloat(nextReservation.estimatedTotal || nextReservation.totalPrice || nextReservation.grandTotal || 0).toLocaleString()}.00</strong>
-                        <button className="ct-btn" onClick={() => setActiveTab('my_reservations')}>View Details <ArrowRight size={14} /></button>
+                    ) : (
+                      <EmptyState icon={CalendarDays} title="No upcoming visit yet" text="Choose a package — tickets and add-ons are optional — and reserve your date in a few steps."
+                        action={<button type="button" className="gd-btn gd-btn-primary" onClick={() => setActiveTab('my_reservations')}><Plus size={14} /> Book a package</button>} />
+                    )}
+                  </Panel>
+
+                  <Panel icon={Package} title="Recommended packages" action={{ label: 'All services', onClick: () => setActiveTab('services') }}>
+                    {featuredPackages.length === 0 ? (
+                      <EmptyState icon={Package} title="Packages are loading" />
+                    ) : (
+                      <div className="gd-cards">
+                        {featuredPackages.map((pk) => (
+                          <div key={pk.id} className="gd-glass gd-pcard" onClick={() => setActiveTab('my_reservations')} role="button" tabIndex={0}>
+                            <img src={resolveImage(pk.image_url, 'family gateway deal.png')} alt={pk.package_name} />
+                            <div className="body">
+                              <div className="flex items-center justify-between gap-2">
+                                <strong>{pk.package_type === 'UNLIMITED' ? '♾️ ' : ''}{pk.package_name}</strong>
+                                {pk.badge && <span className="gd-pill warn">{pk.badge}</span>}
+                              </div>
+                              <span className="price">{peso(pk.final_price)}{pk.discount_amount > 0 && <s>{peso(pk.regular_value)}</s>}</span>
+                              <span className="gd-muted" style={{ fontSize: 11 }}>{pk.items?.length || 0} services • up to {pk.included_guests} guests</span>
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="p-8 text-center space-y-3">
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
-                        <CalendarDays size={24} />
-                      </div>
-                      <div>
-                        <h4 className="text-sm font-bold text-white">No active upcoming reservations</h4>
-                        <p className="text-xs text-slate-400 mt-1">Plan your visit to Duangon Cold Spring. Reserve cottages, tables, and life vests easily.</p>
-                      </div>
-                      <button 
-                        className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs rounded-xl shadow cursor-pointer transition-all inline-flex items-center gap-1.5"
-                        onClick={() => setActiveTab('my_reservations')}
-                      >
-                        <Plus size={14} /> Reserve a Visit Now &rarr;
-                      </button>
-                    </div>
-                  )}
+                    )}
+                  </Panel>
                 </div>
 
-                <div className="ct-stats">
-                  <div className="ct-card ct-stat" onClick={() => setActiveTab('my_reservations')}>
-                    <div className="top"><span className="ico"><CalendarDays size={17} /></span><small>Total Bookings</small></div>
-                    <strong>{totalBookingsCount}</strong>
-                    <button className="ct-link">View all bookings</button>
-                  </div>
-                  <div className="ct-card ct-stat" onClick={() => setActiveTab('payments')}>
-                    <div className="top"><span className="ico"><Coins size={17} /></span><small>Total Spent</small></div>
-                    <strong className="font-mono">&#8369;{totalSpent.toLocaleString()}.00</strong>
-                    <button className="ct-link">View payment history</button>
-                  </div>
-                  <div className="ct-card ct-stat" onClick={() => setActiveTab('services')}>
-                    <div className="top"><span className="ico"><Sparkles size={17} /></span><small>Loyalty Points</small></div>
-                    <strong>{loyaltyPoints} pts</strong>
-                    <button className="ct-link">View reward perks</button>
-                  </div>
-                  <div className="ct-card ct-stat" onClick={() => setActiveTab('profile')}>
-                    <div className="top"><span className="ico"><ShieldCheck size={17} /></span><small>Account Status</small></div>
-                    <strong className="text-emerald-400">Verified</strong>
-                    <button className="ct-link">My Profile &amp; Settings</button>
-                  </div>
-                </div>
-              </section>
+                <div className="gd-col">
+                  <Panel icon={Megaphone} title="Resort announcements" action={{ label: 'All notifications', onClick: () => setActiveTab('notifications') }}>
+                    {(announcements || []).length === 0 ? (
+                      <EmptyState icon={Megaphone} title="No announcements right now" />
+                    ) : (
+                      <div className="gd-list">
+                        {(announcements || []).slice(0, 4).map((a) => (
+                          <Row key={a.id || a.announcement_id} title={a.title} sub={a.description || a.content || a.message} tone="sky" />
+                        ))}
+                      </div>
+                    )}
+                  </Panel>
 
-              {/* MID GRID: GALLERY & ANNOUNCEMENTS */}
-              <section className="ct-mid-grid">
-                <div className="ct-card ct-pad">
-                  <div className="ct-card-head">
-                    <span>RESORT GALLERY</span>
-                    <button className="ct-link" onClick={() => setActiveTab('services')}>Explore Services</button>
-                  </div>
-                  <div className="ct-gal-row" ref={galRef}>
-                    {displayGallery.slice(0, 8).map((g) => (
-                      <div className="ct-gal-item" key={g.id}><img src={g.imageUrl || g.image} alt={g.title} /></div>
-                    ))}
-                  </div>
-                  <div className="ct-arrows" style={{ justifyContent: 'center', marginTop: 8, display: 'flex', gap: '8px' }}>
-                    <button onClick={() => scroll(galRef, -1)} aria-label="Previous"><ChevronLeft size={16} /></button>
-                    <button onClick={() => scroll(galRef, 1)} aria-label="Next"><ChevronRight size={16} /></button>
-                  </div>
+                  <Panel icon={HelpCircle} title="Need help?">
+                    <QuickActions items={[
+                      { icon: Phone, label: 'Contact staff', sub: 'Front desk & email', onClick: () => setActiveTab('support'), tone: 'emerald' },
+                      { icon: HelpCircle, label: 'FAQs', sub: 'Payments, cancellations', onClick: () => setActiveTab('support'), tone: 'sky' },
+                      { icon: MapPin, label: 'Directions', sub: 'Duangon, Bilar, Bohol', onClick: () => setActiveTab('support'), tone: 'amber' },
+                      { icon: Receipt, label: 'Booking history', sub: 'Receipts & past stays', onClick: () => setActiveTab('history'), tone: 'violet' },
+                    ]} />
+                  </Panel>
                 </div>
-                <div className="ct-card ct-pad">
-                  <div className="ct-card-head">
-                    <span>MANAGEMENT ANNOUNCEMENTS</span>
-                    <button className="ct-link" onClick={() => setActiveTab('notifications')}>View All</button>
-                  </div>
-                  {(announcements || []).slice(0, 3).map((a) => (
-                    <div className="ct-event" key={a.id || a.announcement_id}>
-                      <span className="ct-help-icon"><Megaphone size={16} /></span>
-                      <div className="info"><h5>{a.title}</h5><p>{a.description || a.content || a.message}</p></div>
-                      <small style={{ color: 'var(--muted)' }}>{a.date || 'Today'}</small>
-                    </div>
+              </div>
+
+              <Panel icon={Camera} title="Resort gallery" action={{ label: 'Explore services', onClick: () => setActiveTab('services') }}>
+                <div className="gd-gallery">
+                  {displayGallery.slice(0, 8).map((g) => (
+                    <figure key={g.id}>
+                      <img src={g.imageUrl || g.image} alt={g.title} loading="lazy" />
+                      <figcaption>{g.title}</figcaption>
+                    </figure>
                   ))}
-                  {(!announcements || announcements.length === 0) && (
-                    <p className="ct-empty-text" style={{ padding: '20px' }}>No announcements at this time.</p>
-                  )}
                 </div>
-              </section>
-
-              {/* HELP & CONTACT SECTION */}
-              <section className="ct-card ct-help">
-                <div><h4>NEED HELP?</h4><p>We are here to make your stay amazing and hassle-free.</p></div>
-                <button className="ct-help-item" onClick={() => setActiveTab('support')}><span className="ct-help-icon"><Phone size={18} /></span><div><strong>Contact Staff</strong><small>Get in touch</small></div></button>
-                <button className="ct-help-item" onClick={() => setActiveTab('support')}><span className="ct-help-icon"><HelpCircle size={18} /></span><div><strong>FAQs</strong><small>Find answers</small></div></button>
-                <button className="ct-help-item" onClick={() => setActiveTab('support')}><span className="ct-help-icon"><MapPin size={18} /></span><div><strong>Directions</strong><small>How to get here</small></div></button>
-                <button className="ct-help-item" onClick={() => setActiveTab('support')}><span className="ct-help-icon"><ShieldCheck size={18} /></span><div><strong>Emergency</strong><small>24/7 Support</small></div></button>
-              </section>
-            </>
+              </Panel>
+            </DashboardShell>
           )}
 
           {activeTab === 'services' && (<ClientServicesTab onNavigateBook={() => setActiveTab('my_reservations')} />)}
@@ -253,62 +250,16 @@ export const ClientDashboard = () => {
               onNavigateBook={() => setActiveTab('services')}
             />
           )}
-          {(activeTab === 'payments' || activeTab.startsWith('payments_')) && (<ClientPaymentsTab />)}
-          {(activeTab === 'receipts' || activeTab.startsWith('receipts')) && (<ClientReceiptsTab />)}
           {(activeTab === 'profile' || activeTab.startsWith('profile')) && (<ClientProfileTab />)}
-          {(activeTab === 'notifications' || activeTab.startsWith('notifications')) && (<NotificationsTab />)}
-          {(activeTab === 'activity_logs' || activeTab.startsWith('activity_logs')) && (<ActivityLogsTab />)}
+          {(activeTab === 'notifications' || activeTab.startsWith('notifications')) && (<ClientProfileTab focusSection="notifications" />)}
 
-          {activeTab === 'support' && (
-            <div className="space-y-6">
-              <div className="ct-card ct-pad">
-                <div className="ct-card-head"><span>SUPPORT &amp; ASSISTANCE CENTER</span></div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
-                  <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/20 text-center space-y-2">
-                    <div className="w-10 h-10 mx-auto rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><Phone size={20} /></div>
-                    <strong className="block text-white text-sm">Resort Front Desk</strong>
-                    <p className="text-xs text-slate-400 font-mono">(038) 501-8920 / +63 917 889 1234</p>
-                    <small className="text-[10px] text-emerald-300 block">Available 07:00 AM - 07:00 PM</small>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/20 text-center space-y-2">
-                    <div className="w-10 h-10 mx-auto rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><HelpCircle size={20} /></div>
-                    <strong className="block text-white text-sm">Email Support</strong>
-                    <p className="text-xs text-slate-400 font-mono">support@ecotourvista.ph</p>
-                    <small className="text-[10px] text-emerald-300 block">Typical response: Under 2 hours</small>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-emerald-950/30 border border-emerald-500/20 text-center space-y-2">
-                    <div className="w-10 h-10 mx-auto rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center"><MapPin size={20} /></div>
-                    <strong className="block text-white text-sm">Resort Address</strong>
-                    <p className="text-xs text-slate-400">Duangon, Zamora, Bilar, Bohol, Philippines</p>
-                    <small className="text-[10px] text-emerald-300 block">Open daily including holidays</small>
-                  </div>
-                </div>
-              </div>
-              <div className="ct-card ct-pad">
-                <div className="ct-card-head"><span>FREQUENTLY ASKED QUESTIONS</span></div>
-                <div className="space-y-3 mt-4">
-                  <div className="p-3 rounded-xl bg-black/20 border border-white/5 space-y-1">
-                    <strong className="text-emerald-300 font-bold block text-sm">How do I pay for my reservation?</strong>
-                    <p className="text-slate-300 text-xs">All reservations are settled on-site via 100% Cash at the Entrance Cashier Counter upon arrival.</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-black/20 border border-white/5 space-y-1">
-                    <strong className="text-emerald-300 font-bold block text-sm">Can I cancel or reschedule my booking?</strong>
-                    <p className="text-slate-300 text-xs">Yes! Navigate to My Reservations tab and click Cancel Booking at any time prior to arrival.</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-black/20 border border-white/5 space-y-1">
-                    <strong className="text-emerald-300 font-bold block text-sm">Are outside food and drinks permitted?</strong>
-                    <p className="text-slate-300 text-xs">Yes, you may bring food to your open cottages and kubo rooms without corkage fees.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          {activeTab === 'support' && (<ClientProfileTab focusSection="support" />)}
 
         </main>
 
         <footer className="ct-footer">
           <div className="ct-footer-brand">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400"><Trees size={22} /></div>
+            <EcoTourLogo size={36} />
             <div><strong>EcoTourVista</strong><span>CLIENT PORTAL</span></div>
           </div>
           <nav className="ct-footer-links">

@@ -5,6 +5,8 @@ import {
   Plus, Minus, Ticket, Utensils, Music, Droplets, ShieldCheck, Home, Sparkles, Coffee, Car, Search, X, Check, FileText, History, Info
 } from 'lucide-react';
 import ServiceDetailsModal from '../../../components/ServiceDetailsModal';
+import BookingWizard from '../../../components/BookingWizard';
+import ReservationPaymentStatus from '../../../components/ReservationPaymentStatus';
 import { useEcoTour } from '../../../context/EcoTourContext';
 import VerticalReservationTimeline, { getStageIndex } from '../../../components/VerticalReservationTimeline';
 import { getPhilippineDateStr, getPhilippineFormattedDate } from '../../../utils/phTime';
@@ -631,9 +633,11 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
               border: '1px solid var(--line)',
             }}
           >
-            <strong className="block" style={{ color: 'var(--accent)' }}>📌 NEXT STEP — PAY AT RESORT CASHIER:</strong>
+            <strong className="block" style={{ color: 'var(--accent)' }}>📌 NEXT STEPS:</strong>
             <p style={{ color: 'var(--text)' }}>
-              Please present your Booking Reference Code <strong>({submittedBooking.bookingRef})</strong> to Staff at the Duangon Entrance Gate Cashier. Pay <strong>₱{submittedBooking.estimatedTotal.toLocaleString()}.00</strong> cash to receive your official receipt and verified check-in!
+              1. Pay the <strong>₱{Number(submittedBooking.reservationFee || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong> reservation fee ({submittedBooking.reservationFeePct || 50}% downpayment) in <strong>cash at the resort counter</strong> using reference <strong>{submittedBooking.bookingRef}</strong>.<br />
+              2. The resort will email <strong>your account email</strong> asking you to confirm. You have <strong>24 hours</strong> to continue or cancel — otherwise the booking is voided automatically.<br />
+              3. Pay the remaining <strong>₱{Math.max(0, Number(submittedBooking.estimatedTotal || submittedBooking.totalPrice || 0) - Number(submittedBooking.reservationFee || 0)).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong> balance on arrival.
             </p>
           </div>
         </div>
@@ -717,8 +721,13 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
                         </span>
                       </div>
                       <h3 className="text-lg font-black mt-0.5" style={{ color: 'var(--text)' }}>
-                        {res.specificType || res.serviceName || res.packageName || 'Duangon Cold Spring Resort Reservation'}
+                        {res.packageName || res.specificType || res.serviceName || 'Duangon Cold Spring Resort Reservation'}
                       </h3>
+                      <p className="text-[11px] font-bold mt-0.5" style={{ color: Array.isArray(res.assignedFacilities) && res.assignedFacilities.length ? '#38bdf8' : 'var(--muted)' }}>
+                        {Array.isArray(res.assignedFacilities) && res.assignedFacilities.length
+                          ? `📍 Assigned: ${res.assignedFacilities.map(f => f.facilityName).join(', ')}`
+                          : 'Cottage / facility: to be assigned by staff'}
+                      </p>
                     </div>
                   </div>
 
@@ -726,6 +735,9 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
                     {getStatusBadge(res.status)}
                   </div>
                 </div>
+
+                {/* RESERVATION FEE + 24-HOUR CONFIRMATION */}
+                <ReservationPaymentStatus booking={res} role="client" onChanged={() => refreshAllLiveData && refreshAllLiveData()} />
 
                 {/* TWO-COLUMN GRID: LEFT SUMMARY & SERVICES | RIGHT VERTICAL TIMELINE */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -894,412 +906,27 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
             </button>
 
             {/* MODAL HEADER */}
-            <div className="flex items-center gap-3 pb-4" style={{ borderBottom: '1px solid var(--line)' }}>
-              <div
-                className="w-10 h-10 rounded-2xl flex items-center justify-center"
-                style={{
-                  background: 'rgba(74,222,128,0.12)',
-                  border: '1px solid rgba(74,222,128,0.3)',
-                  color: 'var(--accent)',
-                }}
-              >
-                <Ticket className="w-5 h-5" />
+            <div className="flex items-center gap-3 pb-4 pr-10" style={{ borderBottom: '1px solid var(--line)' }}>
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(74,222,128,0.12)', border: '1px solid rgba(74,222,128,0.3)', color: 'var(--accent)' }}>
+                <Package className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-xl font-extrabold" style={{ color: 'var(--text)' }}>
-                  Select Tickets, Cottage &amp; Resort Services
-                </h3>
+                <h3 className="text-xl font-extrabold" style={{ color: 'var(--text)' }}>Book a Package</h3>
                 <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                  Pre-select services online, then present your Reference Code at the cashier to pay cash and get your official receipt!
+                  Choose a package first — entrance tickets and add-on services are optional. Present your Reference Code at the cashier to pay.
                 </p>
               </div>
             </div>
 
-            <form onSubmit={handleSubmitBooking} className="space-y-6 text-xs">
-
-              {/* SECTION 1: TOURIST INFO & TICKETS */}
-              <div className="space-y-3">
-                <h4 className="font-extrabold uppercase tracking-wider text-xs flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
-                  <Users className="w-4 h-4" /> 1. Tourist Registration &amp; Entrance Tickets
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase mb-1" style={{ color: 'var(--muted)' }}>Client ID Number</label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={generateUserNumber()}
-                      className="w-full rounded-xl px-3 py-2 font-mono font-bold outline-none cursor-not-allowed"
-                      style={{
-                        background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.4)',
-                        border: '1px solid var(--line)',
-                        color: 'var(--accent)',
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase mb-1" style={{ color: 'var(--muted)' }}>Full Name</label>
-                    <input
-                      type="text"
-                      readOnly
-                      value={clientName}
-                      className="w-full rounded-xl px-3 py-2 font-bold outline-none cursor-not-allowed"
-                      style={{
-                        background: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(0,0,0,0.4)',
-                        border: '1px solid var(--line)',
-                        color: 'var(--text)',
-                      }}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase mb-1" style={{ color: 'var(--muted)' }}>Target Visit Date *</label>
-                    <input
-                      type="date"
-                      value={visitDate}
-                      onChange={(e) => setVisitDate(e.target.value)}
-                      required
-                      className="w-full rounded-xl px-3 py-2 outline-none font-mono"
-                      style={{
-                        background: isLight ? 'rgba(255,255,255,0.8)' : '#04150e',
-                        border: '1px solid var(--line)',
-                        color: 'var(--text)',
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* GUEST PAX COUNTERS */}
-                <div
-                  className="p-4 rounded-2xl space-y-3"
-                  style={{
-                    background: isLight ? 'var(--panel)' : '#04150e',
-                    border: '1px solid var(--line)',
-                  }}
-                >
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider block" style={{ color: 'var(--text)' }}>
-                    Guest Pax Breakdown (Entrance Tickets):
-                  </span>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <div
-                      className="p-2.5 rounded-xl flex justify-between items-center"
-                      style={{ background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', border: '1px solid var(--line)' }}
-                    >
-                      <div><strong className="block" style={{ color: 'var(--text)' }}>Adults</strong><span className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>₱100/head</span></div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setAdults(Math.max(1, adults - 1))}
-                          className="w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer"
-                          style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                        >-</button>
-                        <span className="font-bold w-4 text-center" style={{ color: 'var(--text)' }}>{adults}</span>
-                        <button
-                          type="button"
-                          onClick={() => setAdults(adults + 1)}
-                          className="w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer"
-                          style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                        >+</button>
-                      </div>
-                    </div>
-
-                    <div
-                      className="p-2.5 rounded-xl flex justify-between items-center"
-                      style={{ background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', border: '1px solid var(--line)' }}
-                    >
-                      <div><strong className="block" style={{ color: 'var(--text)' }}>Children</strong><span className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>₱40/head</span></div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setChildren(Math.max(0, children - 1))}
-                          className="w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer"
-                          style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                        >-</button>
-                        <span className="font-bold w-4 text-center" style={{ color: 'var(--text)' }}>{children}</span>
-                        <button
-                          type="button"
-                          onClick={() => setChildren(children + 1)}
-                          className="w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer"
-                          style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                        >+</button>
-                      </div>
-                    </div>
-
-                    <div
-                      className="p-2.5 rounded-xl flex justify-between items-center"
-                      style={{ background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', border: '1px solid var(--line)' }}
-                    >
-                      <div><strong className="block" style={{ color: 'var(--text)' }}>Students</strong><span className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>₱70/head</span></div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setStudents(Math.max(0, students - 1))}
-                          className="w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer"
-                          style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                        >-</button>
-                        <span className="font-bold w-4 text-center" style={{ color: 'var(--text)' }}>{students}</span>
-                        <button
-                          type="button"
-                          onClick={() => setStudents(students + 1)}
-                          className="w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer"
-                          style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                        >+</button>
-                      </div>
-                    </div>
-
-                    <div
-                      className="p-2.5 rounded-xl flex justify-between items-center"
-                      style={{ background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.3)', border: '1px solid var(--line)' }}
-                    >
-                      <div><strong className="block" style={{ color: 'var(--text)' }}>Seniors</strong><span className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>₱80/head</span></div>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setSeniors(Math.max(0, seniors - 1))}
-                          className="w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer"
-                          style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                        >-</button>
-                        <span className="font-bold w-4 text-center" style={{ color: 'var(--text)' }}>{seniors}</span>
-                        <button
-                          type="button"
-                          onClick={() => setSeniors(seniors + 1)}
-                          className="w-6 h-6 rounded-lg font-bold flex items-center justify-center cursor-pointer"
-                          style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                        >+</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center text-[11px] pt-1">
-                    <span style={{ color: 'var(--muted)' }}>Total Visitors: <strong style={{ color: 'var(--text)' }}>{totalVisitors} Guests</strong></span>
-                    <span className="font-bold" style={{ color: 'var(--accent)' }}>• Duangon Cold Spring Day Pass Entrance</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* SECTION 2: PACKAGES & DEALS */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-extrabold uppercase tracking-wider text-xs flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
-                    <Package className="w-4 h-4" /> 2. Packages &amp; Deals
-                  </h4>
-                  <span className="text-[10px] font-mono" style={{ color: 'var(--muted)' }}>Select special offers</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div
-                    onClick={() => setSelectedPackageId(null)}
-                    className="p-3 rounded-xl border cursor-pointer transition-all flex justify-between items-center"
-                    style={
-                      selectedPackageId === null
-                        ? {
-                            background: isLight ? 'rgba(74,222,128,0.15)' : 'rgba(6,60,30,0.8)',
-                            borderColor: 'var(--accent)',
-                            boxShadow: '0 0 10px rgba(74,222,128,0.2)',
-                          }
-                        : {
-                            background: isLight ? 'var(--panel)' : '#04150e',
-                            borderColor: 'var(--line)',
-                          }
-                    }
-                  >
-                    <strong className="block text-xs" style={{ color: 'var(--text)' }}>No Package</strong>
-                    <strong className="font-mono text-xs" style={{ color: 'var(--accent)' }}>Free</strong>
-                  </div>
-                  {packagesList.map((pkg) => (
-                    <div
-                      key={pkg.id}
-                      onClick={() => setSelectedPackageId(pkg.id)}
-                      className="p-3 rounded-xl border cursor-pointer transition-all flex justify-between items-center"
-                      style={
-                        selectedPackageId === pkg.id
-                          ? {
-                              background: isLight ? 'rgba(74,222,128,0.15)' : 'rgba(6,60,30,0.8)',
-                              borderColor: 'var(--accent)',
-                              boxShadow: '0 0 10px rgba(74,222,128,0.2)',
-                            }
-                          : {
-                              background: isLight ? 'var(--panel)' : '#04150e',
-                              borderColor: 'var(--line)',
-                            }
-                      }
-                    >
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setModalService(pkg); }}
-                          className="text-emerald-500 hover:bg-emerald-500/10 p-1.5 rounded-full transition-colors"
-                        >
-                          <Info className="w-4 h-4" />
-                        </button>
-                        <div>
-                          <strong className="block text-xs" style={{ color: 'var(--text)' }}>{pkg.package_name}</strong>
-                          <span className="text-[10px] font-mono" style={{ color: 'var(--muted)' }}>{pkg.included_guests} Guests</span>
-                        </div>
-                      </div>
-                      <strong className="font-mono text-xs" style={{ color: 'var(--accent)' }}>
-                        ₱{pkg.regular_value}
-                      </strong>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* SECTION 3: COTTAGE RENTAL SELECTION */}
-              <div className="space-y-3">
-                <h4 className="font-extrabold uppercase tracking-wider text-xs flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
-                  <Home className="w-4 h-4" /> 3. Cottage Rental Selection
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {COTTAGE_OPTIONS.map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => setSelectedCottage(c)}
-                      className="p-3 rounded-xl border cursor-pointer transition-all flex justify-between items-center"
-                      style={
-                        selectedCottage?.id === c.id
-                          ? {
-                              background: isLight ? 'rgba(74,222,128,0.15)' : 'rgba(6,60,30,0.8)',
-                              borderColor: 'var(--accent)',
-                              boxShadow: '0 0 10px rgba(74,222,128,0.2)',
-                            }
-                          : {
-                              background: isLight ? 'var(--panel)' : '#04150e',
-                              borderColor: 'var(--line)',
-                            }
-                      }
-                    >
-                      <div className="flex items-center gap-2">
-                        {c.price > 0 && (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setModalService(c); }}
-                            className="text-emerald-500 hover:bg-emerald-500/10 p-1.5 rounded-full transition-colors"
-                          >
-                            <Info className="w-4 h-4" />
-                          </button>
-                        )}
-                        <div>
-                          <strong className="block text-xs" style={{ color: 'var(--text)' }}>{c.name}</strong>
-                          <span className="text-[10px] font-mono" style={{ color: 'var(--muted)' }}>{c.code}</span>
-                        </div>
-                      </div>
-                      <strong className="font-mono text-xs" style={{ color: 'var(--accent)' }}>
-                        {c.price === 0 ? 'Free' : `₱${c.price}/day`}
-                      </strong>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* SECTION 4: RESORT ADD-ONS */}
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-extrabold uppercase tracking-wider text-xs flex items-center gap-1.5" style={{ color: 'var(--accent)' }}>
-                    <Sparkles className="w-4 h-4" /> 4. Add-Ons
-                  </h4>
-                  <span className="text-[10px] font-mono" style={{ color: 'var(--muted)' }}>{RESORT_SERVICES_CATALOG.length} Items Available</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                  {RESORT_SERVICES_CATALOG.map((s) => {
-                    const IconComp = s.icon;
-                    const qty = addonCart[s.id] || 0;
-                    return (
-                      <div
-                        key={s.id}
-                        className="p-3 rounded-xl border flex items-center justify-between"
-                        style={{
-                          background: isLight ? 'var(--panel)' : '#04150e',
-                          borderColor: 'var(--line)',
-                        }}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-                            style={{ background: 'rgba(74,222,128,0.15)', color: 'var(--accent)' }}
-                          >
-                            <IconComp className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <h5 className="font-bold text-xs leading-tight" style={{ color: 'var(--text)' }}>{s.name}</h5>
-                            <span className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>₱{s.price} / {s.unit}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setModalService(s); }}
-                            className="ml-1 text-emerald-500 hover:bg-emerald-500/10 p-1 rounded-full transition-colors"
-                          >
-                            <Info className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleAddonQty(s.id, -1)}
-                            className="w-5 h-5 rounded font-bold flex items-center justify-center cursor-pointer"
-                            style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                          >-</button>
-                          <span className="font-bold text-xs w-4 text-center" style={{ color: 'var(--text)' }}>{qty}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleAddonQty(s.id, 1)}
-                            className="w-5 h-5 rounded font-bold flex items-center justify-center cursor-pointer"
-                            style={{ background: 'var(--accent)', color: isLight ? '#fff' : '#04170e' }}
-                          >+</button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ORDER SUMMARY & GRAND TOTAL */}
-              <div
-                className="p-4 rounded-2xl border flex flex-col sm:flex-row justify-between items-center gap-4"
-                style={{
-                  background: isLight ? 'var(--panel)' : 'rgba(0,0,0,0.4)',
-                  borderColor: 'var(--line)',
-                }}
-              >
-                <div className="space-y-1">
-                  <span className="text-[10px] uppercase font-bold tracking-wider" style={{ color: 'var(--muted)' }}>Computed Grand Total:</span>
-                  <div className="text-2xl font-black font-mono" style={{ color: 'var(--accent)' }}>
-                    ₱{grandTotal.toLocaleString()}.00
-                  </div>
-                  <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                    Includes Entrance (₱{entranceTotal}), Package (₱{packageTotal}), Cottage (₱{cottageTotal}), Add-ons (₱{addonTotal})
-                  </span>
-                </div>
-
-                <div className="flex gap-2 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={() => setShowBookingModal(false)}
-                    className="px-4 py-2.5 font-bold rounded-xl text-xs cursor-pointer transition-all"
-                    style={{
-                      background: isLight ? 'rgba(0,0,0,0.06)' : '#1e293b',
-                      color: 'var(--text)',
-                      border: '1px solid var(--line)',
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 sm:flex-none px-6 py-2.5 text-slate-950 font-black rounded-xl text-xs shadow-lg cursor-pointer transition-all uppercase tracking-wider flex items-center justify-center gap-2"
-                    style={{
-                      background: 'var(--accent)',
-                    }}
-                  >
-                    <Check className="w-4 h-4" /> Submit &amp; Get Reference Code
-                  </button>
-                </div>
-              </div>
-
-            </form>
+            <BookingWizard
+              contact={{ name: clientName, email: clientEmail, phone: clientPhone }}
+              userId={currentUser?.user_id || currentUser?.id || null}
+              onSubmitted={(booking) => {
+                setSubmittedBooking(booking);
+                setShowBookingModal(false);
+                if (refreshAllLiveData) refreshAllLiveData();
+              }}
+            />
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import EcoTourLogo from '../../../components/EcoTourLogo';
 import {
   Settings as SettingsIcon, Save, Globe, Monitor, Cloud, Users, Code,
   Shield, Mail, Database, Wrench, CheckCircle, AlertTriangle, ChevronRight, RefreshCw
@@ -306,11 +307,7 @@ export default function Settings() {
                 <label className="block text-xs font-semibold text-slate-300 mb-2">Site Logo</label>
                 <div className="flex items-center gap-3">
                   <div className="p-3 bg-[#04150e] border border-emerald-800/60 rounded-xl">
-                    <svg viewBox="0 0 64 40" width="48" height="30">
-                      <path d="M8 26 L22 8 L32 20 L40 10 L56 26" stroke="#eafff2" strokeWidth="3" fill="none" strokeLinejoin="round" />
-                      <path d="M6 31 q6 -4 12 0 t12 0 t12 0 t12 0" stroke="#4ade80" strokeWidth="2.5" fill="none" />
-                      <path d="M10 36 q6 -4 12 0 t12 0 t12 0" stroke="#2dd4bf" strokeWidth="2.5" fill="none" />
-                    </svg>
+                    <EcoTourLogo size={44} />
                   </div>
                   <div className="space-x-2">
                     <button className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold cursor-pointer">Change Logo</button>

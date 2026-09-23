@@ -189,7 +189,7 @@ export default function Header() {
                       {matchingStaff.map((st) => (
                         <div
                           key={st.id || st.user_id || st.name}
-                          onClick={() => handleResultClick('staff')}
+                          onClick={() => handleResultClick('users')}
                           className="search-result-item p-2 rounded-xl border cursor-pointer flex items-center justify-between transition-all"
                         >
                           <div>

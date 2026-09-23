@@ -149,7 +149,7 @@ export default function Footer() {
         >
           <div className="footer-brand">
             <a href="#home" onClick={(e) => handleNavClick(e, "#home")} className="brand-logo">
-              <EcoTourLogo width={42} height={26} />
+              <EcoTourLogo size={36} />
               <span>EcoTour<span className="text-accent">Vista</span></span>
             </a>
             <p className="brand-desc">

@@ -1,39 +1,33 @@
 import React from 'react';
+import EcoTourLogo from '../../components/EcoTourLogo';
 import './Dashboard.css';
 import { DashboardProvider, useDashboard } from './hooks/useDashboard';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import DashboardTab from './tabs/DashboardTab';
-import ClientTab from './tabs/ClientTab';
 import UsersTab from './tabs/UsersTab';
-import StaffTab from './tabs/StaffTab';
 import ReservationsTab from './tabs/ReservationsTab';
 import WalkInTab from './tabs/WalkInTab';
-import ServicesTab from './tabs/ServicesTab';
+import CatalogManagementTab from './tabs/CatalogManagementTab';
+import AccountCenterTab from './tabs/AccountCenterTab';
 import TouristSpotsTab from './tabs/TouristSpotsTab';
 import ReportsTab from './tabs/ReportsTab';
 import GalleryTab from './tabs/GalleryTab';
-import AnnouncementTab from './tabs/AnnouncementTab';
-import SettingsTab from './tabs/SettingsTab';
 import RevenuePaymentsTab from './tabs/RevenuePaymentsTab';
-import ProfileTab from './tabs/ProfileTab';
-import ActivityLogsTab from './tabs/ActivityLogsTab';
-import AvailabilityTab from '../Staff/tabs/AvailabilityTab';
 
 const TabRouter = () => {
   const { activeTab } = useDashboard();
   switch (activeTab) {
     case 'availability':
-      return <AvailabilityTab />;
+      return <CatalogManagementTab initialSection="availability" />;
+    // Client & Staff management are part of User Management
     case 'clients':
-      return <ClientTab />;
+    case 'staff':
     case 'users':
     case 'users_clients':
     case 'users_staff':
     case 'users_pending':
       return <UsersTab />;
-    case 'staff':
-      return <StaffTab />;
     case 'reservations':
     case 'reservations_pending':
     case 'reservations_approved':
@@ -53,12 +47,12 @@ const TabRouter = () => {
     case 'services_rooms':
     case 'services_parking':
     case 'services_other':
-      return <ServicesTab />;
+      return <CatalogManagementTab />;
     case 'pricing':
     case 'pricing_rentals':
     case 'pricing_services':
     case 'pricing_history':
-      return <ServicesTab />;
+      return <CatalogManagementTab />;
     case 'spots':
     case 'spots_nearby':
       return <TouristSpotsTab />;
@@ -72,17 +66,14 @@ const TabRouter = () => {
     case 'gallery':
       return <GalleryTab />;
     case 'announcement':
-      return <AnnouncementTab />;
     case 'activity_logs':
-      return <ActivityLogsTab />;
+    case 'settings':
+    case 'profile':
+      return <AccountCenterTab section={activeTab} />;
     case 'payments':
     case 'payments_daily':
     case 'payments_commission':
       return <RevenuePaymentsTab />;
-    case 'settings':
-      return <SettingsTab />;
-    case 'profile':
-      return <ProfileTab />;
     default:
       return <DashboardTab />;
   }
@@ -91,11 +82,7 @@ const TabRouter = () => {
 const Footer = () => (
   <footer className="etv-footer">
     <div className="footer-brand">
-      <svg viewBox="0 0 64 40" width="40">
-        <path d="M8 26 L22 8 L32 20 L40 10 L56 26" stroke="#eafff2" strokeWidth="3" fill="none" strokeLinejoin="round" />
-        <path d="M6 31 q6 -4 12 0 t12 0 t12 0 t12 0" stroke="#4ade80" strokeWidth="2.5" fill="none" />
-        <path d="M10 36 q6 -4 12 0 t12 0 t12 0" stroke="#2dd4bf" strokeWidth="2.5" fill="none" />
-      </svg>
+      <EcoTourLogo size={36} />
       <div><strong>EcoTourVista</strong><span>ADMIN PANEL</span></div>
     </div>
     <p>© 2024 EcoTourVista. All rights reserved.</p>

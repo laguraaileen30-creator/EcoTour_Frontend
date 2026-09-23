@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   FileText, Search, CheckCircle2, Clock, XCircle, ArrowRight,
   Ticket, DollarSign, Printer, Coins, X, Check, Sparkles, Eye, UserCheck, RefreshCw, Calendar, Plus
@@ -7,9 +7,13 @@ import { useStaff } from '../hooks/useStaff';
 import { useEcoTour } from '../../../context/EcoTourContext';
 import VerticalReservationTimeline, { getStageIndex } from '../../../components/VerticalReservationTimeline';
 import { getPhilippineDateStr, getPhilippineTimeStr, getPhilippineFormattedDate } from '../../../utils/phTime';
+import AddServicesModal from '../../../components/AddServicesModal';
+import BookingBreakdown from '../../../components/BookingBreakdown';
+import { apiJson } from '../../../utils/catalog';
+import FacilityAssignmentModal from '../../../components/FacilityAssignmentModal';
 
 export default function ServiceOrdersTab() {
-  const { resortBookings, updateResortBookingStatus, setActiveTab } = useStaff();
+  const { resortBookings, updateResortBookingStatus } = useStaff();
   const { receipts, processPOSTransaction, currentUser, theme, refreshAllLiveData, cancelReservationBooking, showAlert, showConfirm } = useEcoTour();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBookingForPayment, setSelectedBookingForPayment] = useState(null);
@@ -18,6 +22,9 @@ export default function ServiceOrdersTab() {
   const [selectedTimelineBooking, setSelectedTimelineBooking] = useState(null);
   const [stageFilter, setStageFilter] = useState('all');
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const paymentLockRef = useRef(false);
+  const [addServicesBooking, setAddServicesBooking] = useState(null);
+  const [assignBooking, setAssignBooking] = useState(null);
   const isLight = theme === 'light';
 
   const todayStr = getPhilippineDateStr();
@@ -72,10 +79,16 @@ export default function ServiceOrdersTab() {
     return matchesDate && matchesSearch && matchesStage;
   });
 
+  // What is still owed (total minus reservation fee / earlier payments)
+  const balanceOf = (b) => {
+    const total = parseFloat(b.estimatedTotal || b.grandTotal || b.totalPrice || 0);
+    return b.balanceDue !== undefined ? parseFloat(b.balanceDue) : Math.max(0, total - parseFloat(b.amountPaid || 0));
+  };
+
   const openPaymentModal = (booking) => {
     setSelectedBookingForPayment(booking);
-    const grandTotal = parseFloat(booking.estimatedTotal || booking.grandTotal || booking.totalPrice || 0);
-    setCashReceivedInput(grandTotal ? String(grandTotal) : '');
+    const due = balanceOf(booking);
+    setCashReceivedInput(due ? String(due) : '');
   };
 
   const handleCancelBooking = async (booking) => {
@@ -105,8 +118,14 @@ export default function ServiceOrdersTab() {
   };
 
   const handleConfirmCashPayment = async () => {
-    if (!selectedBookingForPayment) return;
-    const totalDue = parseFloat(selectedBookingForPayment.estimatedTotal || selectedBookingForPayment.grandTotal || selectedBookingForPayment.totalPrice || 0);
+    if (!selectedBookingForPayment || paymentLockRef.current) return;
+    // Block paying a booking that is no longer pending (prevents double payment)
+    const liveBooking = bookingsList.find(b => (b.id && b.id === selectedBookingForPayment.id) || (b.bookingRef && b.bookingRef === selectedBookingForPayment.bookingRef));
+    if (liveBooking && getStageIndex(liveBooking.status) !== 0) {
+      setSelectedBookingForPayment(null);
+      return showAlert({ title: 'Already Paid', message: 'This booking has already been paid. The client was not charged again.', type: 'info' });
+    }
+    const totalDue = balanceOf(selectedBookingForPayment);
     const cashRec = parseFloat(cashReceivedInput) || 0;
 
     if (cashRec < totalDue) {
@@ -117,33 +136,25 @@ export default function ServiceOrdersTab() {
       });
     }
 
+    paymentLockRef.current = true;
     setIsSubmittingPayment(true);
     try {
       const refCode = selectedBookingForPayment.bookingRef || selectedBookingForPayment.bookingNumber || `BK-${selectedBookingForPayment.id}`;
       const changeAmt = Math.max(0, cashRec - totalDue);
 
+      // Saved on the server (payments + revenue shares); marks the booking Paid when nothing is left owing
+      const res = await apiJson(`/reservations/${encodeURIComponent(selectedBookingForPayment.id || refCode)}/payments`, {
+        method: 'POST',
+        auth: true,
+        body: { kind: 'BALANCE', cash_received: cashRec, staff_name: currentUser?.name || 'Staff Member' },
+      });
+      const paid = res.data;
       const paymentRecord = {
-        booking_id: selectedBookingForPayment.id || null,
-        client_name: selectedBookingForPayment.clientName || selectedBookingForPayment.fullName || 'Guest',
-        staff_name: currentUser?.name || 'Staff Member',
-        total_amount: totalDue,
-        cash_received: cashRec,
-        payment_method: 'Cash',
-        items: selectedBookingForPayment.items || [{
-          name: selectedBookingForPayment.specificType || selectedBookingForPayment.serviceName || 'Resort Reservation',
-          quantity: selectedBookingForPayment.quantity || selectedBookingForPayment.totalVisitors || 1,
-          price: totalDue
-        }]
+        items: [{ name: parseFloat(selectedBookingForPayment.amountPaid || 0) > 0 ? 'Balance payment' : (selectedBookingForPayment.packageName || selectedBookingForPayment.serviceName || 'Resort Reservation'), quantity: 1, price: paid.amount, unitPrice: paid.amount }],
       };
 
-      if (processPOSTransaction) {
-        await processPOSTransaction(paymentRecord);
-      }
-
-      await updateResortBookingStatus(selectedBookingForPayment.id || refCode, 'Paid (Cash - Gate Verified)');
-
       const receipt = {
-        receiptNo: `OR-${Date.now()}`,
+        receiptNo: paid.receiptNo,
         booking_id: selectedBookingForPayment.id,
         userNumber: selectedBookingForPayment.userNumber || 'CLT-2026-901',
         touristName: selectedBookingForPayment.clientName || selectedBookingForPayment.fullName || 'Guest',
@@ -151,9 +162,9 @@ export default function ServiceOrdersTab() {
         touristEmail: selectedBookingForPayment.clientEmail || '',
         date: getPhilippineDateStr(),
         time: getPhilippineTimeStr(),
-        grandTotal: totalDue,
-        cashReceived: cashRec,
-        change: changeAmt,
+        grandTotal: paid.amount,
+        cashReceived: paid.cashReceived,
+        change: paid.change,
         staffName: currentUser?.name || 'Staff Member',
         items: paymentRecord.items
       };
@@ -176,6 +187,7 @@ export default function ServiceOrdersTab() {
         type: 'danger'
       });
     } finally {
+      paymentLockRef.current = false;
       setIsSubmittingPayment(false);
     }
   };
@@ -545,6 +557,11 @@ export default function ServiceOrdersTab() {
                         <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                           {b.totalVisitors || b.numberOfGuests || b.quantity || 1} Guests • {b.items?.length || 1} Service(s)
                         </div>
+                        {Array.isArray(b.assignedFacilities) && b.assignedFacilities.length > 0 && (
+                          <div className="text-[10px] font-bold mt-0.5" style={{ color: '#38bdf8' }}>
+                            📍 {b.assignedFacilities.map(f => f.facilityName).join(', ')}
+                          </div>
+                        )}
                       </td>
                       <td className="p-3.5 text-right font-extrabold text-sm" style={{ color: isVoid ? 'var(--muted)' : 'var(--accent)' }}>
                         ₱{parseFloat(b.estimatedTotal || b.grandTotal || b.totalPrice || b.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -594,6 +611,21 @@ export default function ServiceOrdersTab() {
                           </div>
                         )}
 
+                        {/* STAGE 02 / 03: ADD SERVICES (only the new services are charged) */}
+                        {(stageIdx === 1 || stageIdx === 2) && (
+                          <button
+                            onClick={() => setAddServicesBooking(b)}
+                            className="px-3 py-1.5 text-white text-[10px] font-extrabold rounded-xl cursor-pointer transition-all shadow inline-flex items-center gap-1 mr-1.5"
+                            style={{
+                              background: '#eab308',
+                              border: '1px solid rgba(234,179,8,0.4)',
+                            }}
+                            title="Add more services — only the newly added services are charged"
+                          >
+                            <Plus className="w-3 h-3" /> Add Services
+                          </button>
+                        )}
+
                         {/* STAGE 02: PAID -> START SERVICE */}
                         {stageIdx === 1 && (
                           <button
@@ -612,26 +644,6 @@ export default function ServiceOrdersTab() {
                         {stageIdx === 2 && (
                           <div className="inline-flex items-center gap-1.5 flex-wrap">
                             <button
-                              onClick={() => {
-                                if (setActiveTab) setActiveTab('pos');
-                                if (showAlert) {
-                                  showAlert({
-                                    title: 'Add Services via POS',
-                                    message: 'You have been redirected to the POS. Select this client from the "Load Client Profile" dropdown to add new services/addons to their tab.',
-                                    type: 'info'
-                                  });
-                                }
-                              }}
-                              className="px-3 py-1.5 text-white text-[10px] font-extrabold rounded-xl cursor-pointer transition-all shadow inline-flex items-center gap-1"
-                              style={{
-                                background: '#eab308',
-                                border: '1px solid rgba(234,179,8,0.4)',
-                              }}
-                              title="Add more services/amenities for this client"
-                            >
-                              <Plus className="w-3 h-3" /> Add Services
-                            </button>
-                            <button
                               onClick={() => handleTimelineAction('mark_completed', b)}
                               className="px-3 py-1.5 text-white text-[10px] font-extrabold rounded-xl cursor-pointer transition-all shadow inline-flex items-center gap-1"
                               style={{
@@ -649,6 +661,18 @@ export default function ServiceOrdersTab() {
                           <span className="text-[10px] font-mono font-bold" style={{ color: 'var(--accent)' }}>
                             ✓ Completed Stay
                           </span>
+                        )}
+
+                        {/* ASSIGN NUMBERED FACILITIES (Cottage 05, Videoke 02, ...) */}
+                        {!isVoid && stageIdx !== 3 && (
+                          <button
+                            onClick={() => setAssignBooking(b)}
+                            className="px-2.5 py-1.5 text-[10px] font-bold rounded-xl cursor-pointer inline-flex items-center gap-1 transition-all mr-1.5"
+                            style={{ background: 'rgba(56,189,248,0.12)', border: '1px solid rgba(56,189,248,0.4)', color: '#38bdf8' }}
+                            title="Assign cottage / facility numbers"
+                          >
+                            <Ticket className="w-3 h-3" /> {Array.isArray(b.assignedFacilities) && b.assignedFacilities.length ? 'Units' : 'Assign'}
+                          </button>
                         )}
 
                         {/* VIEW TIMELINE MODAL BUTTON */}
@@ -724,32 +748,9 @@ export default function ServiceOrdersTab() {
                   }}
                 >
                   <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: 'var(--accent)' }}>
-                    Reserved Services Breakdown:
+                    What the client purchased:
                   </span>
-
-                  {Array.isArray(selectedTimelineBooking.items) && selectedTimelineBooking.items.length > 0 ? (
-                    <ul className="divide-y divide-white/5 text-xs space-y-1">
-                      {selectedTimelineBooking.items.map((it, idx) => (
-                        <li key={idx} className="pt-1.5 flex justify-between items-center" style={{ color: 'var(--text)' }}>
-                          <span>{it.name || it.serviceName} {it.quantity > 1 ? `(x${it.quantity})` : ''}</span>
-                          <strong className="font-mono" style={{ color: 'var(--accent)' }}>
-                            ₱{(parseFloat(it.unitPrice || it.price || 0) * (it.quantity || 1)).toLocaleString()}.00
-                          </strong>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs py-1" style={{ color: 'var(--text)' }}>
-                      {selectedTimelineBooking.specificType || selectedTimelineBooking.serviceName || 'Duangon Day Pass Entrance & Cottage'}
-                    </p>
-                  )}
-
-                  <div className="pt-3 flex justify-between items-center text-sm font-bold" style={{ borderTop: '1px solid var(--line)' }}>
-                    <span style={{ color: 'var(--muted)' }}>Total Amount:</span>
-                    <strong className="font-mono text-base font-black" style={{ color: 'var(--accent)' }}>
-                      ₱{parseFloat(selectedTimelineBooking.estimatedTotal || selectedTimelineBooking.grandTotal || selectedTimelineBooking.totalPrice || 0).toLocaleString()}.00
-                    </strong>
-                  </div>
+                  <BookingBreakdown booking={selectedTimelineBooking} />
                 </div>
 
                 <div
@@ -833,9 +834,9 @@ export default function ServiceOrdersTab() {
                 <span className="font-mono" style={{ color: 'var(--text)' }}>{selectedBookingForPayment.reservationDate || selectedBookingForPayment.bookingDate}</span>
               </div>
               <div className="flex justify-between text-xs pt-2" style={{ borderTop: '1px solid var(--line)' }}>
-                <span className="font-bold" style={{ color: 'var(--accent)' }}>TOTAL AMOUNT DUE:</span>
+                <span className="font-bold" style={{ color: 'var(--accent)' }}>{parseFloat(selectedBookingForPayment.amountPaid || 0) > 0 ? 'BALANCE DUE:' : 'TOTAL AMOUNT DUE:'}</span>
                 <strong className="text-base font-mono font-black" style={{ color: 'var(--accent)' }}>
-                  ₱{parseFloat(selectedBookingForPayment.estimatedTotal || selectedBookingForPayment.grandTotal || selectedBookingForPayment.totalPrice || 0).toLocaleString()}.00
+                  ₱{balanceOf(selectedBookingForPayment).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                 </strong>
               </div>
             </div>
@@ -861,7 +862,7 @@ export default function ServiceOrdersTab() {
 
               <div className="flex gap-2 pt-1">
                 {[
-                  parseFloat(selectedBookingForPayment.estimatedTotal || selectedBookingForPayment.grandTotal || 0),
+                  balanceOf(selectedBookingForPayment),
                   500,
                   1000,
                   2000
@@ -884,7 +885,7 @@ export default function ServiceOrdersTab() {
             </div>
 
             {(() => {
-              const due = parseFloat(selectedBookingForPayment.estimatedTotal || selectedBookingForPayment.grandTotal || selectedBookingForPayment.totalPrice || 0);
+              const due = balanceOf(selectedBookingForPayment);
               const cash = parseFloat(cashReceivedInput) || 0;
               const change = cash - due;
 
@@ -969,6 +970,22 @@ export default function ServiceOrdersTab() {
             </div>
           </div>
         </div>
+      )}
+
+      {addServicesBooking && (
+        <AddServicesModal
+          booking={addServicesBooking}
+          onClose={() => setAddServicesBooking(null)}
+          onDone={() => refreshAllLiveData && refreshAllLiveData()}
+        />
+      )}
+
+      {assignBooking && (
+        <FacilityAssignmentModal
+          booking={assignBooking}
+          onClose={() => setAssignBooking(null)}
+          onChanged={() => refreshAllLiveData && refreshAllLiveData()}
+        />
       )}
 
       {/* RECEIPT PREVIEW POPUP */}
