@@ -23,10 +23,10 @@ export default function Signup() {
     email: "",
     contactNumber: "",
     address: "",
-    agreeTerms: false,
+    agreeTerms: true,
   });
 
-  const generatedPassword = (formData.lastName.trim() + formData.firstName.trim()).toLowerCase();
+  const generatedPassword = (formData.lastName.trim() + formData.firstName.trim() + "123").toLowerCase().replace(/\s+/g, "");
 
   const handleRoleChange = (newRole) => {
     const prefix = newRole === "staff" ? "STF" : "CLT";
@@ -37,6 +37,14 @@ export default function Signup() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!formData.firstName.trim()) return alert("First Name is required.");
+    if (!formData.lastName.trim()) return alert("Last Name is required.");
+    if (!formData.contactNumber.trim()) return alert("Contact Number is required.");
+    if (!formData.email.trim()) return alert("Email Address is required.");
+    if (!formData.address.trim()) return alert("Complete Address is required.");
+    if (!formData.agreeTerms) return alert("You must confirm the details.");
+
     setLoading(true);
 
     try {
@@ -51,7 +59,7 @@ export default function Signup() {
         role: formData.role,
         email: formData.email,
         password: generatedPassword || `${formData.lastName.toLowerCase()}${formData.firstName.toLowerCase()}`,
-        status: "pending",
+        status: "Pending",
       };
 
       let response;
@@ -102,7 +110,7 @@ export default function Signup() {
             <p className="success-note" style={{ marginTop: '12px' }}>
               📧 <strong>What happens next?</strong>
               <br />
-              Your application is under review by the Administrator. Once approved, your default password will be auto-generated <code style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px' }}>firstname+middlename+lastname+123</code> and sent directly to your email address: <strong>{formData.email}</strong>.
+              Your application is under review by the Administrator. Once approved, your default password will be <code style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px' }}>lastnamefirstname123</code> (lowercase, no spaces).
             </p>
             <button
               onClick={() => navigate("/login")}
@@ -188,7 +196,6 @@ export default function Signup() {
                     placeholder="Enter your First Name"
                     value={formData.firstName}
                     onChange={(e) => setFormData({ ...formData, firstName: e.target.value.replace(/[^a-zA-Z\s'-]/g, "") })}
-                    required
                     disabled={loading}
                   />
                 </div>
@@ -219,7 +226,6 @@ export default function Signup() {
                     placeholder="Enter your Last Name"
                     value={formData.lastName}
                     onChange={(e) => setFormData({ ...formData, lastName: e.target.value.replace(/[^a-zA-Z\s'-]/g, "") })}
-                    required
                     disabled={loading}
                   />
                 </div>
@@ -234,7 +240,6 @@ export default function Signup() {
                     onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                     className="w-full bg-slate-50 border p-2.5 rounded-xl text-xs font-medium text-slate-800"
                     disabled={loading}
-                    required
                   >
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
@@ -250,7 +255,6 @@ export default function Signup() {
                       placeholder="09123456789"
                       value={formData.contactNumber}
                       onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value.replace(/\D/g, "") })}
-                      required
                       disabled={loading}
                     />
                   </div>
@@ -268,7 +272,6 @@ export default function Signup() {
                       placeholder="Enter your Email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value.toLowerCase() })}
-                      required
                       disabled={loading}
                     />
                   </div>
@@ -286,7 +289,6 @@ export default function Signup() {
                       placeholder="House/Street, Barangay, City, Province"
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      required
                       disabled={loading}
                     />
                   </div>
@@ -298,11 +300,11 @@ export default function Signup() {
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-semibold text-blue-900">Auto-Generated Password:</span>
                   <code className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono font-bold">
-                    {generatedPassword || "lastnamefirstname"}
+                    {generatedPassword || "lastnamefirstname123"}
                   </code>
                 </div>
                 <p className="text-[11px] text-blue-700">
-                  Standard rule: <code>lastname + firstname</code> (lowercase). Will be used for your initial login.
+                  Standard rule: <code>lastname + firstname + 123</code> (lowercase, no spaces). Will be used for your initial login.
                 </p>
               </div>
 
@@ -321,7 +323,6 @@ export default function Signup() {
                     type="checkbox"
                     checked={formData.agreeTerms}
                     onChange={(e) => setFormData({ ...formData, agreeTerms: e.target.checked })}
-                    required
                     disabled={loading}
                   />
                   <span className="checkmark" />

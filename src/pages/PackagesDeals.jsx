@@ -69,7 +69,7 @@ const PackagesDeals = () => {
       {/* Dynamic Promotion Banner */}
       {activePromo && (
         <div 
-          className={`w-full py-10 shadow-2xl relative overflow-hidden backdrop-blur-xl mb-12 rounded-3xl border group ${isLight ? 'border-emerald-500/20' : 'border-emerald-500/30'}`}
+          className={`max-w-[1400px] w-[calc(100%-2rem)] sm:w-[calc(100%-3rem)] lg:w-[calc(100%-4rem)] mx-auto py-10 shadow-xl relative overflow-hidden backdrop-blur-xl mb-12 rounded-3xl border group ${isLight ? 'border-emerald-500/20' : 'border-emerald-500/30'}`}
           style={{ 
             background: isLight ? 'linear-gradient(135deg, rgba(236,253,245,0.8) 0%, rgba(209,250,229,0.9) 100%)' : 'linear-gradient(135deg, rgba(10,90,90,0.6) 0%, rgba(3,19,11,0.8) 100%)',
           }}
@@ -106,7 +106,7 @@ const PackagesDeals = () => {
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight drop-shadow-md" style={{ color: 'inherit' }}>EcoTourVista Packages & Deals</h1>
-            <p className="mt-2 text-sm sm:text-base max-w-2xl mx-auto font-medium" style={{ color: 'var(--muted)' }}>Discover the perfect package for your next adventure. Book today to lock in your reservation.</p>
+            <p className="mt-2 text-sm sm:text-base max-w-2xl mx-auto font-medium" style={{ color: 'var(--muted)' }}>Discover the perfect package for your next adventure. Sign in to your account when you are ready to book.</p>
           </div>
         </div>
       )}
@@ -116,7 +116,7 @@ const PackagesDeals = () => {
         {activePromo && (
           <div className="mb-8 text-center md:text-left">
             <h3 className="text-2xl font-bold tracking-tight" style={{ color: 'inherit' }}>Featured Packages on Sale</h3>
-            <p className="mt-1 text-sm font-medium" style={{ color: 'var(--muted)' }}>Select an eligible package below to claim your discount.</p>
+            <p className="mt-1 text-sm font-medium" style={{ color: 'var(--muted)' }}>Sale prices are already applied — tap a package to see everything it includes.</p>
           </div>
         )}
         
@@ -154,13 +154,13 @@ const PackagesDeals = () => {
                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 group-hover:rotate-1"
                   />
                   {pkg.badge && !hasDiscount && (
-                    <div className="absolute top-4 right-4 z-20 bg-black/60 backdrop-blur-md text-white border border-white/20 px-3 py-1 rounded-full text-[10px] font-black tracking-widest shadow-lg">
+                    <div className="pkg-badge absolute top-4 right-4 z-20 px-3 py-1 rounded-full text-[10px] font-black tracking-widest">
                       {pkg.badge}
                     </div>
                   )}
                   {hasDiscount && (
                     <div 
-                      className="absolute top-4 right-4 z-20 backdrop-blur-md text-white px-3 py-1 rounded-full text-xs font-black tracking-widest animate-pulse border shadow-[0_0_15px_rgba(16,185,129,0.5)]"
+                      className="pkg-badge absolute top-4 right-4 z-20 px-3 py-1 rounded-full text-[10px] font-black tracking-widest"
                       style={{ background: 'linear-gradient(45deg, #10b981, #059669)', borderColor: 'rgba(255,255,255,0.4)' }}
                     >
                       {pkg.badge || `${Math.round((1 - finalPrice / originalPrice) * 100)}% OFF`}

@@ -137,7 +137,7 @@ export default function ServicesManager() {
         <table className="w-full text-xs text-left">
           <thead className="uppercase text-[10px] font-mono" style={{ background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.35)', color: 'var(--muted)' }}>
             <tr>
-              {['Image', 'Service', 'Category', 'Price', 'Capacity', 'Booked', 'Available', 'Status', 'Landing', 'Actions'].map((h) => <th key={h} className={`p-3 ${['Price', 'Capacity', 'Booked', 'Available'].includes(h) ? 'text-right' : ''}`}>{h}</th>)}
+              {['Image', 'Service', 'Category', 'Price', 'Capacity', 'In Use', 'Booked', 'Available', 'Status', 'Landing', 'Actions'].map((h) => <th key={h} className={`p-3 ${['Price', 'Capacity', 'In Use', 'Booked', 'Available'].includes(h) ? 'text-right' : ''}`} title={h === 'In Use' ? 'Guests on site now (checked in / using services, including not yet checked out)' : h === 'Booked' ? 'All active bookings for the date, including those in use' : undefined}>{h}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -154,6 +154,7 @@ export default function ServicesManager() {
                   <td className="p-3">{s.category}</td>
                   <td className="p-3 text-right font-mono">{peso(s.price)} <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{unitLabel(s.unit)}</span></td>
                   <td className="p-3 text-right font-mono">{s.capacity_for_date}</td>
+                  <td className="p-3 text-right font-mono" title={(s.occupants || []).map((o) => `${o.bookingRef} — ${o.clientName}`).join('\n') || undefined}><span className={s.in_use_for_date ? 'text-rose-400 font-bold' : ''}>{s.in_use_for_date || 0}</span></td>
                   <td className="p-3 text-right font-mono">{s.booked_for_date}</td>
                   <td className="p-3 text-right font-mono font-bold">{s.available_for_date}</td>
                   <td className="p-3"><StatusBadge status={s.availability_status} size="xs" /></td>

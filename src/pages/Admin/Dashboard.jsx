@@ -14,6 +14,7 @@ import TouristSpotsTab from './tabs/TouristSpotsTab';
 import ReportsTab from './tabs/ReportsTab';
 import GalleryTab from './tabs/GalleryTab';
 import RevenuePaymentsTab from './tabs/RevenuePaymentsTab';
+import DamageReviewsTab from './tabs/DamageReviewsTab';
 
 const TabRouter = () => {
   const { activeTab } = useDashboard();
@@ -74,6 +75,8 @@ const TabRouter = () => {
     case 'payments_daily':
     case 'payments_commission':
       return <RevenuePaymentsTab />;
+    case 'damage_reviews':
+      return <DamageReviewsTab />;
     default:
       return <DashboardTab />;
   }

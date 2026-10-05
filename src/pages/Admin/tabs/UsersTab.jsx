@@ -18,7 +18,12 @@ export default function UsersTab() {
 
   const fetchUserStats = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/v1/users');
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/v1/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       if (data.success && Array.isArray(data.users)) {
         const allUsers = data.users;

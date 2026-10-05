@@ -16,7 +16,12 @@ export default function UserTable({ onOpenAddUser }) {
 
   const fetchUsers = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/v1/users');
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/v1/users', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
       const data = await res.json();
       if (data.success && Array.isArray(data.users)) {
         const formatted = data.users.map((u, i) => {
@@ -82,7 +87,10 @@ export default function UserTable({ onOpenAddUser }) {
       const targetUser = dbUsers.find(u => u.user_id === userId || u.id === userId);
       const res = await fetch(`http://localhost:5000/api/v1/users/${userId}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: JSON.stringify({ status: 'Approved', approved_by: 'Admin' })
       });
 
@@ -129,7 +137,10 @@ export default function UserTable({ onOpenAddUser }) {
       if (rejectUserAccount) rejectUserAccount(userId);
       await fetch(`http://localhost:5000/api/v1/users/${userId}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: JSON.stringify({ status: 'Rejected', reason: declineReasonText })
       });
 
@@ -182,7 +193,10 @@ export default function UserTable({ onOpenAddUser }) {
     try {
       const res = await fetch(`http://localhost:5000/api/v1/users/${userId}/profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         body: JSON.stringify(editFormData),
       });
 
@@ -246,7 +260,10 @@ export default function UserTable({ onOpenAddUser }) {
       // 1. Call Backend Endpoint
       await fetch(`http://localhost:5000/api/v1/users/${encodeURIComponent(userId)}/send-credentials`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
       });
 
       // 2. Parallel Direct FormSubmit Email from Browser for instant delivery

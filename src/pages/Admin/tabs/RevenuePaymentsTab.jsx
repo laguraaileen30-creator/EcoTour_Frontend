@@ -10,32 +10,55 @@ import OfficialReceiptModal from '../modals/OfficialReceiptModal';
 import { getPhilippineDateStr, getPhilippineDate } from '../../../utils/phTime';
 
 // ── Period filter helper (Philippine Time) ──────────────────────────────────────
-const getDateRange = (period) => {
+const getDateRange = (period, phNow) => {
   const today = getPhilippineDateStr();
-  const phNow = getPhilippineDate();
+  const year = phNow.getFullYear();
+  const month = phNow.getMonth();
 
-  if (period === 'today') {
-    return { from: today, to: today };
-  }
+  if (period === 'today') return { from: today, to: today };
   if (period === 'week') {
-    const day = phNow.getDay(); // 0=Sun
+    const day = phNow.getDay();
     const monday = new Date(phNow);
     monday.setDate(phNow.getDate() - ((day + 6) % 7));
     return { from: getPhilippineDateStr(monday), to: today };
   }
-  if (period === 'month') {
-    const first = new Date(phNow.getFullYear(), phNow.getMonth(), 1);
-    return { from: getPhilippineDateStr(first), to: today };
+  if (period === 'monthly') {
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    return { from: getPhilippineDateStr(first), to: getPhilippineDateStr(last) };
   }
-  // 'all'
+  if (period === 'semi_yearly') {
+    const isFirstHalf = month < 6;
+    const first = new Date(year, isFirstHalf ? 0 : 6, 1);
+    const last = new Date(year, isFirstHalf ? 6 : 12, 0);
+    return { from: getPhilippineDateStr(first), to: getPhilippineDateStr(last) };
+  }
+  if (period === 'yearly') {
+    const first = new Date(year, 0, 1);
+    const last = new Date(year, 11, 31);
+    return { from: getPhilippineDateStr(first), to: getPhilippineDateStr(last) };
+  }
   return { from: null, to: null };
 };
 
-const isInRange = (dateStr, range) => {
-  if (!range.from) return true; // all-time
+const isInRange = (dateStr, range, filterYear, filterMonth, filterDay) => {
   if (!dateStr) return false;
   const d = dateStr.split('T')[0];
+  const [y, m, day] = d.split('-');
+  
+  if (filterYear && y !== filterYear) return false;
+  if (filterMonth && m !== filterMonth) return false;
+  if (filterDay && day !== filterDay) return false;
+  
+  if (!range.from) return true;
   return d >= range.from && d <= range.to;
+};
+
+const isPaidStatus = (status) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  return normalized === 'paid' || normalized.startsWith('paid ') ||
+    normalized === 'completed' || normalized === 'settled' || normalized === 'fully paid' ||
+    normalized === 'success' || normalized === 'succeeded';
 };
 
 export default function RevenuePaymentsTab() {
@@ -49,10 +72,14 @@ export default function RevenuePaymentsTab() {
   } = useEcoTour();
 
   // ── State ──────────────────────────────────────────────────
-  const [period, setPeriod]           = useState('today');
+  const [period, setPeriod]           = useState('monthly');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMethod, setSelectedMethod] = useState('all');
-  const [selectedDate, setSelectedDate]     = useState('');
+  
+  const [filterYear, setFilterYear] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
+  const [filterDay, setFilterDay] = useState('');
+  
   const [viewReceiptData, setViewReceiptData] = useState(null);
   const [lastRefreshed, setLastRefreshed]   = useState(new Date());
   const [refreshing, setRefreshing]         = useState(false);
@@ -94,19 +121,20 @@ export default function RevenuePaymentsTab() {
 
     // 1. Receipts from payments table
     (receipts || []).forEach(r => {
-      const key = r.receiptNo || r.payment_ref || `OR-${r.id}`;
+      const key = String(r.receiptNo || r.receipt_number || r.receipt_no ||
+        r.payment_ref || r.payment_reference || `OR-${r.id}`);
       map.set(key, {
         id: r.id,
         receiptNo: key,
-        touristName: r.touristName || r.clientName || r.client_name || 'Visitor Guest',
-        clientName: r.clientName || r.touristName || r.client_name || 'Visitor Guest',
+        touristName: r.touristName || r.clientName || r.client_name || r.customer_name || 'Visitor Guest',
+        clientName: r.clientName || r.touristName || r.client_name || r.customer_name || 'Visitor Guest',
         userNumber: r.userNumber || `CLT-2026-000${r.id || 1}`,
-        date: (r.date || r.created_at || todayStr).split('T')[0],
+        date: (r.date || r.payment_date || r.paid_at || r.transaction_date || r.created_at || todayStr).split('T')[0],
         time: r.time || '10:00 AM',
-        paymentMethod: r.paymentMethod || r.payment_method || 'Cash',
-        status: r.status || 'Paid',
-        grandTotal: parseFloat(r.grandTotal || r.total_amount || 0),
-        totalVisitors: parseInt(r.totalVisitors || r.total_visitors || 1, 10),
+        paymentMethod: r.paymentMethod || r.payment_method || r.method || 'Cash',
+        status: r.status || r.payment_status || 'Paid',
+        grandTotal: parseFloat(r.grandTotal || r.total_amount || r.amount_paid || r.amount || 0),
+        totalVisitors: parseInt(r.totalVisitors || r.total_visitors || r.guest_count || 1, 10),
         items: r.items || [],
         notes: r.notes || 'Counter / POS Verified',
         verifiedBy: r.verifiedBy || 'Resort Staff Cashier',
@@ -115,21 +143,21 @@ export default function RevenuePaymentsTab() {
 
     // 2. Paid Walk-Ins
     (walkIns || []).forEach(w => {
-      const key = w.receiptNo || `OR-${w.walk_in_id || w.id}`;
-      const isPaid = w.payment_status === 'PAID' || (w.status || '').toLowerCase().includes('paid');
+      const key = String(w.receiptNo || w.receipt_number || `OR-${w.walk_in_id || w.id}`);
+      const isPaid = isPaidStatus(w.payment_status || w.status);
       const isVoid = (w.status || '').toLowerCase().includes('cancel') || (w.status || '').toLowerCase().includes('void');
       if (isPaid && !isVoid && !map.has(key)) {
         map.set(key, {
           id: w.id,
           receiptNo: key,
-          touristName: w.customer_name || w.touristName || 'Walk-In Guest',
-          clientName: w.customer_name || w.touristName || 'Walk-In Guest',
+          touristName: w.customer_name || w.touristName || w.tourist_name || 'Walk-In Guest',
+          clientName: w.customer_name || w.touristName || w.tourist_name || 'Walk-In Guest',
           userNumber: `CLT-2026-${w.id || 101}`,
-          date: (w.transaction_date || w.operating_date || w.created_at || w.date || todayStr).split('T')[0],
+          date: (w.transaction_date || w.payment_date || w.operating_date || w.created_at || w.date || todayStr).split('T')[0],
           time: w.time || '10:00 AM',
           paymentMethod: 'Walk-In Gate POS (Cash)',
           status: 'Paid',
-          grandTotal: parseFloat(w.grandTotal || w.total_amount || 0),
+          grandTotal: parseFloat(w.grandTotal || w.total_amount || w.amount_paid || w.amount || 0),
           totalVisitors: parseInt(w.guest_count || w.totalVisitors || 1, 10),
           items: w.items || [],
           notes: 'Point of Sale Entry Ticket',
@@ -140,23 +168,23 @@ export default function RevenuePaymentsTab() {
 
     // 3. Paid Reservations
     (resortBookings || []).forEach(b => {
-      const s = (b.status || '').toLowerCase();
-      const isPaid = s.includes('paid') || s.includes('using') || s.includes('completed');
+      const s = (b.status || b.payment_status || '').toLowerCase();
+      const isPaid = isPaidStatus(s) || s.includes('using') || s.includes('checked in');
       const isVoid = s.includes('cancel') || s.includes('void');
       if (isPaid && !isVoid) {
-        const key = b.bookingRef || b.bookingNumber || `BK-${b.id}`;
+        const key = String(b.bookingRef || b.booking_ref || b.bookingNumber || b.booking_number || `BK-${b.id}`);
         if (!map.has(key)) {
           map.set(key, {
             id: b.id,
             receiptNo: key,
-            touristName: b.clientName || b.fullName || b.touristName || 'Client Reservation',
-            clientName: b.clientName || b.fullName || b.touristName || 'Client Reservation',
+            touristName: b.clientName || b.client_name || b.fullName || b.touristName || 'Client Reservation',
+            clientName: b.clientName || b.client_name || b.fullName || b.touristName || 'Client Reservation',
             userNumber: b.userNumber || `CLT-2026-000${b.id}`,
-            date: (b.reservationDate || b.bookingDate || b.created_at || todayStr).split('T')[0],
+            date: (b.reservationDate || b.reservation_date || b.bookingDate || b.booking_date || b.created_at || todayStr).split('T')[0],
             time: b.arrivalTime || '09:00 AM',
             paymentMethod: 'Reservation Counter (Cash)',
             status: 'Paid',
-            grandTotal: parseFloat(b.grandTotal || b.estimatedTotal || b.totalPrice || 0),
+            grandTotal: parseFloat(b.grandTotal || b.total_amount || b.estimatedTotal || b.totalPrice || b.amount_due || 0),
             totalVisitors: parseInt(b.numberOfGuests || b.totalVisitors || 1, 10),
             items: b.items || [],
             notes: 'Advance Booking Verified',
@@ -170,15 +198,16 @@ export default function RevenuePaymentsTab() {
   }, [receipts, walkIns, resortBookings]);
 
   // ── Compute totals for selected period ────────────────────
-  const range = getDateRange(period);
+  const phNow = getPhilippineDate();
+  const range = getDateRange(period, phNow);
   const todayStr = getPhilippineDateStr();
 
   const periodReceipts = unifiedTransactions.filter(r =>
-    r.status === 'Paid' && isInRange(r.date, range)
+    isPaidStatus(r.status) && isInRange(r.date, range, filterYear, filterMonth, filterDay)
   );
 
   const todayReceipts = unifiedTransactions.filter(r =>
-    r.status === 'Paid' && r.date === todayStr
+    isPaidStatus(r.status) && r.date === todayStr
   );
 
   const totalGross  = periodReceipts.reduce((s, r) => s + parseFloat(r.grandTotal || 0), 0);
@@ -223,7 +252,7 @@ export default function RevenuePaymentsTab() {
     if (selectedMethod === 'counter') matchMethod = rMethod.includes('counter') || rMethod.includes('reserv');
 
     const rDate = r.date;
-    const matchDate = !selectedDate || rDate === selectedDate;
+    const matchDate = isInRange(rDate, {from: null, to: null}, filterYear, filterMonth, filterDay);
 
     return matchSearch && matchMethod && matchDate;
   });
@@ -241,9 +270,10 @@ export default function RevenuePaymentsTab() {
 
   const PERIODS = [
     { key: 'today', label: '📅 Today' },
-    { key: 'week',  label: '📆 This Week' },
-    { key: 'month', label: '🗓️ This Month' },
-    { key: 'all',   label: '📊 All Time' },
+    { key: 'monthly', label: '🗓️ Monthly' },
+    { key: 'semi_yearly', label: '📆 Semi-Yearly' },
+    { key: 'yearly', label: '📊 Yearly' },
+    { key: 'all',   label: '∞ All Time' },
   ];
 
   const periodLabel = PERIODS.find(p => p.key === period)?.label || 'Today';
@@ -315,6 +345,23 @@ export default function RevenuePaymentsTab() {
             📅 {new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </span>
         )}
+        <div className="flex gap-2 ml-auto">
+          <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="bg-emerald-950/40 border border-emerald-800 text-slate-200 text-xs px-2 py-1.5 rounded-lg outline-none focus:border-emerald-500">
+            <option value="">Year</option>
+            {Array.from({length: 11}, (_, i) => 2020 + i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
+          </select>
+          <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="bg-emerald-950/40 border border-emerald-800 text-slate-200 text-xs px-2 py-1.5 rounded-lg outline-none focus:border-emerald-500">
+            <option value="">Month</option>
+            {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => <option key={i} value={(i + 1).toString().padStart(2, '0')}>{m}</option>)}
+          </select>
+          <select value={filterDay} onChange={e => setFilterDay(e.target.value)} className="bg-emerald-950/40 border border-emerald-800 text-slate-200 text-xs px-2 py-1.5 rounded-lg outline-none focus:border-emerald-500">
+            <option value="">Day</option>
+            {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d.toString().padStart(2, '0')}>{d}</option>)}
+          </select>
+          {(filterYear || filterMonth || filterDay) && (
+            <button onClick={() => { setFilterYear(''); setFilterMonth(''); setFilterDay(''); }} className="text-xs font-bold text-rose-400 px-2">Clear</button>
+          )}
+        </div>
       </div>
 
       {/* ── KPI STAT CARDS ─────────────────────────────────── */}
@@ -507,21 +554,6 @@ export default function RevenuePaymentsTab() {
               <option value="counter">Reservation Counter</option>
             </select>
 
-            {/* Date filter */}
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-[#04150e] border border-emerald-900/60 text-xs text-emerald-300 outline-none cursor-pointer"
-            />
-            {selectedDate && (
-              <button
-                onClick={() => setSelectedDate('')}
-                className="text-[10px] text-rose-400 hover:underline"
-              >
-                Clear Date
-              </button>
-            )}
           </div>
         </div>
 

@@ -12,8 +12,8 @@ const STAFF_MENU_ITEMS = [
   { key: 'overview', label: 'Staff Dashboard', icon: LayoutDashboard },
   { key: 'walkin_pos', label: 'Walk-In Order Terminal (POS)', icon: Footprints },
   { key: 'pending_bookings', label: 'Pending Client Bookings', icon: Ticket },
-
-  { key: 'service_orders', label: 'Service Orders & Reservations', icon: Calendar },
+  { key: 'inspections', label: 'Facility Inspections & Damage', icon: Trees },
+  { key: 'service_orders', label: 'Bills & Services', icon: Calendar },
   { key: 'availability', label: 'Service Availability & Facility Map', icon: Trees },
   { key: 'daily_sales', label: 'My Daily Sales Tally', icon: Coins },
   { key: 'staff_profile', label: 'My Profile, Attendance & Notifications', icon: User },

@@ -48,6 +48,11 @@ const MENU_ITEMS = [
 
   },
   {
+    key: 'damage_reviews',
+    label: 'Damage & Inspections',
+    icon: Footprints, // Or another icon
+  },
+  {
     key: 'reports',
     label: 'Reports & Analytics',
     icon: BarChart3,

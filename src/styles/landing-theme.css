@@ -1,0 +1,184 @@
+/* =====================================================================
+   LANDING PAGE THEME (public site: /, /services)
+   Loaded after globals.css. Makes light mode match the green brand and
+   keeps text readable over the resort photos in BOTH themes.
+   ===================================================================== */
+
+/* ---------- One heading font for both themes ---------- */
+.landing-page .hero__title,
+.landing-page .about-title,
+.landing-page .about-title-upgraded,
+.landing-page .hiw-title,
+.landing-page .nearby-title,
+.landing-page .contact-title,
+.landing-page .services-enhanced-title,
+html body.light-mode .landing-page .hero__title,
+html body.light-mode .landing-page .about-title,
+html body.light-mode .landing-page .about-title-upgraded,
+html body.light-mode .landing-page .nearby-title,
+html body.light-mode .landing-page .contact-title,
+html body.light-mode .landing-page .services-enhanced-title {
+  font-family: 'Poppins', 'Inter', system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* =====================================================================
+   LIGHT MODE
+   ===================================================================== */
+html body.light-mode .landing-page {
+  --lp-bg: #f5fbf7;
+  --lp-surface: rgba(255, 255, 255, 0.82);
+  --lp-border: rgba(16, 185, 129, 0.2);
+  --lp-text: #0f2a1e;
+  --lp-muted: #3f5b4c;
+  --lp-accent: #047857;
+  --skin-bg-light: #f5fbf7; /* legacy cream -> mint white */
+  background: var(--lp-bg) !important;
+  color: var(--lp-text);
+}
+
+/* Header: clean white glass with a mint edge (was cream) */
+html body.light-mode .landing-page .nav,
+html body.light-mode .landing-page .nav--scrolled {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-bottom: 1px solid var(--lp-border) !important;
+  box-shadow: 0 6px 24px rgba(6, 78, 59, 0.07) !important;
+}
+html body.light-mode .landing-page .nav__link { color: #1f3b2e !important; }
+html body.light-mode .landing-page .nav__link:hover { color: var(--lp-accent) !important; }
+html body.light-mode .landing-page .nav__link--login {
+  border-color: var(--lp-accent) !important;
+  color: var(--lp-accent) !important;
+}
+html body.light-mode .landing-page .nav__link--login:hover { background: rgba(16, 185, 129, 0.1) !important; }
+
+/* Hero: bright photo stays, but the text side gets a soft white wash so copy is readable */
+html body.light-mode .landing-page .hero { background: var(--lp-bg) !important; }
+html body.light-mode .landing-page .hero__overlay {
+  display: block !important;
+  background:
+    linear-gradient(90deg, rgba(245, 251, 247, 0.96) 0%, rgba(245, 251, 247, 0.86) 34%, rgba(245, 251, 247, 0.35) 58%, rgba(245, 251, 247, 0) 75%),
+    linear-gradient(180deg, rgba(245, 251, 247, 0) 70%, rgba(245, 251, 247, 0.95) 100%) !important;
+}
+html body.light-mode .landing-page .hero__title .title-white { color: #0f2a1e !important; }
+html body.light-mode .landing-page .hero__title .title-green {
+  color: #059669 !important;
+  -webkit-text-fill-color: #059669 !important;
+}
+html body.light-mode .landing-page .hero__subtitle {
+  color: #2d4a3b !important;
+  font-weight: 500 !important;
+}
+
+/* Location card: mint glass instead of peach */
+html body.light-mode .landing-page .hero__location-card {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid var(--lp-border) !important;
+  box-shadow: 0 10px 28px rgba(6, 78, 59, 0.1) !important;
+}
+
+/* Section photos become a subtle texture behind a mint-white wash */
+html body.light-mode .landing-page .about-section .section__bg,
+html body.light-mode .landing-page .nearby-section .section__bg,
+html body.light-mode .landing-page .contact-section .section__bg,
+html body.light-mode .landing-page .site-footer .section__bg,
+html body.light-mode .landing-page .hiw-bg {
+  opacity: 0.16 !important;
+  filter: saturate(0.9) !important;
+}
+html body.light-mode .landing-page .about-section,
+html body.light-mode .landing-page .nearby-section,
+html body.light-mode .landing-page .contact-section,
+html body.light-mode .landing-page .hiw-section {
+  background: linear-gradient(180deg, #f5fbf7 0%, #ecf8f1 100%) !important;
+}
+html body.light-mode .landing-page .site-footer { background: #eaf6ef !important; }
+html body.light-mode .landing-page .site-footer::before { background: linear-gradient(180deg, rgba(234, 246, 239, 0.6), rgba(234, 246, 239, 0.9)) !important; }
+
+/* Body copy: darker for contrast */
+html body.light-mode .landing-page .about-section p,
+html body.light-mode .landing-page .contact-desc,
+html body.light-mode .landing-page .hiw-subtitle,
+html body.light-mode .landing-page .hiw-card p,
+html body.light-mode .landing-page .footer-brand .brand-desc {
+  color: var(--lp-muted) !important;
+}
+
+/* Cards: white glass with mint border (were beige) */
+html body.light-mode .landing-page .feature-card,
+html body.light-mode .landing-page .contact-info-card,
+html body.light-mode .landing-page .custom-map-container,
+html body.light-mode .landing-page .hiw-card {
+  background: var(--lp-surface) !important;
+  border: 1px solid var(--lp-border) !important;
+  box-shadow: 0 12px 30px rgba(6, 78, 59, 0.08) !important;
+}
+
+/* Footer text & links readable */
+html body.light-mode .landing-page .footer-col h4 { color: var(--lp-accent) !important; }
+html body.light-mode .landing-page .footer-col a,
+html body.light-mode .landing-page .footer-col li,
+html body.light-mode .landing-page .footer-col p,
+html body.light-mode .landing-page .footer-bottom,
+html body.light-mode .landing-page .footer-bottom p,
+html body.light-mode .landing-page .legal-links li a,
+html body.light-mode .landing-page .legal-link-btn {
+  color: #2d4a3b !important;
+  opacity: 1 !important;
+}
+html body.light-mode .landing-page .footer-col a:hover,
+html body.light-mode .landing-page .legal-links li a:hover,
+html body.light-mode .landing-page .legal-link-btn:hover { color: var(--lp-accent) !important; }
+html body.light-mode .landing-page .footer-social button {
+  background: #ffffff !important;
+  border: 1px solid var(--lp-border) !important;
+  color: var(--lp-accent) !important;
+}
+
+/* =====================================================================
+   DARK MODE — small readability touches
+   ===================================================================== */
+html body:not(.light-mode) .landing-page .legal-links li a,
+html body:not(.light-mode) .landing-page .legal-link-btn { opacity: 0.85; }
+
+/* =====================================================================
+   BOTH THEMES — package badges & CTA
+   ===================================================================== */
+.landing-page .pkg-badge {
+  background: linear-gradient(135deg, #059669, #0d9488) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 6px 18px rgba(5, 150, 105, 0.35) !important;
+  opacity: 1 !important;
+}
+/* Status tags sitting on photos get a solid backing */
+.landing-page .on-photo-badge > span { background: rgba(255, 255, 255, 0.95) !important; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18); }
+html body:not(.light-mode) .landing-page .on-photo-badge > span { background: rgba(3, 19, 11, 0.88) !important; }
+
+.landing-page .hiw-cta-btn {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* Section spacing on phones */
+@media (max-width: 640px) {
+  .landing-page .hero__subtitle { font-size: 0.95rem !important; }
+}
+
+/* Footer extras in light mode (newsletter pill, social icons, page edge) */
+html:has(body.light-mode .landing-page),
+html body.light-mode:has(.landing-page) { background: #eaf6ef !important; }
+html body.light-mode .landing-page .newsletter-form {
+  background: #ffffff !important;
+  border: 1px solid var(--lp-border) !important;
+  box-shadow: 0 6px 18px rgba(6, 78, 59, 0.08) !important;
+}
+html body.light-mode .landing-page .social-icon {
+  background: #ffffff !important;
+  border: 1px solid var(--lp-border) !important;
+  color: var(--lp-accent) !important;
+}
+html body.light-mode .landing-page .social-icon:hover { background: #059669 !important; color: #ffffff !important; }

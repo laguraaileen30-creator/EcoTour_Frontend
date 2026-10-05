@@ -89,7 +89,7 @@ export default function ServicesCatalog({ compact = false, onReserve }) {
             <div key={s.service_id} className="rounded-2xl overflow-hidden flex flex-col border" style={{ background: isLight ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.04)', borderColor: s.is_featured ? 'rgba(74,222,128,0.5)' : 'var(--line)' }}>
               <div className="h-36 relative">
                 <img src={s.image_url} alt={s.service_name} className="w-full h-full object-cover" style={{ filter: isBookable(s.availability_status) ? 'none' : 'grayscale(0.7)' }} />
-                <div className="absolute top-2 left-2"><StatusBadge status={s.availability_status} size="xs" /></div>
+                <div className="absolute top-2 left-2 on-photo-badge"><StatusBadge status={s.availability_status} size="xs" /></div>
                 {s.is_featured && <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[9px] font-black text-white bg-emerald-600">FEATURED</span>}
               </div>
               <div className="p-4 flex flex-col flex-1 gap-1.5">

@@ -14,6 +14,7 @@ export default function AvailabilityOverview({ compact = false, onViewService })
   const [services, setServices] = useState([]);
   const [packages, setPackages] = useState([]);
   const [dealSummary, setDealSummary] = useState(null);
+  const [notCheckedOut, setNotCheckedOut] = useState([]); // guests from earlier days still on site
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -25,6 +26,7 @@ export default function AvailabilityOverview({ compact = false, onViewService })
         apiJson('/deals').catch(() => null),
       ]);
       setServices(s.services.filter((x) => !x.deleted_at));
+      setNotCheckedOut(s.notCheckedOut || []);
       setPackages(p.data);
       setDealSummary(d?.summary || null);
     } catch (e) {
@@ -42,6 +44,8 @@ export default function AvailabilityOverview({ compact = false, onViewService })
   const count = (st) => services.filter((s) => s.availability_status === st).length;
   const lowStock = services.filter((s) => s.availability_status === 'LOW_STOCK' || s.availability_status === 'FULLY_BOOKED');
   const activePkgs = packages.filter((p) => p.status === 'Active');
+  const onSiteUnits = services.reduce((n, s) => n + (s.in_use_for_date || 0), 0);
+  const onSiteBookings = new Set(services.flatMap((s) => (s.occupants || []).map((o) => o.bookingRef))).size;
   const card = { background: isLight ? 'var(--panel)' : 'rgba(0,0,0,0.3)', border: '1px solid var(--line)' };
 
   return (
@@ -84,6 +88,24 @@ export default function AvailabilityOverview({ compact = false, onViewService })
         )}
       </div>
 
+      {onSiteBookings > 0 && (
+        <div className="p-3 rounded-2xl text-xs" style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.35)' }}>
+          <strong className="text-rose-400">IN USE NOW:</strong> {onSiteBookings} booking{onSiteBookings === 1 ? '' : 's'} checked in / using services — {onSiteUnits} service slot{onSiteUnits === 1 ? '' : 's'} occupied. These stay taken until the guest is checked out.
+        </div>
+      )}
+
+      {notCheckedOut.length > 0 && (
+        <div className="p-3 rounded-2xl space-y-1.5" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.45)' }}>
+          <strong className="text-xs flex items-center gap-1 text-rose-400"><AlertTriangle className="w-4 h-4" /> NOT CHECKED OUT YET — still counted as in use today</strong>
+          {notCheckedOut.map((o) => (
+            <div key={o.bookingRef} className="text-xs flex flex-wrap items-center justify-between gap-2">
+              <span><strong className="font-mono">{o.bookingRef}</strong> — {o.clientName} • visit date {o.bookingDate} • {o.status}</span>
+              <span style={{ color: 'var(--muted)' }}>Check out in Service Orders when the guest leaves</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {lowStock.length > 0 && (
         <div className="p-3 rounded-2xl space-y-1.5" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.45)' }}>
           <strong className="text-xs flex items-center gap-1 text-amber-400"><AlertTriangle className="w-4 h-4" /> LOW STOCK / FULLY BOOKED — {date}</strong>
@@ -100,7 +122,7 @@ export default function AvailabilityOverview({ compact = false, onViewService })
         <div className="rounded-2xl overflow-x-auto border" style={{ borderColor: 'var(--line)' }}>
           <table className="w-full text-xs">
             <thead className="uppercase text-[10px] font-mono" style={{ background: isLight ? 'rgba(0,0,0,0.04)' : 'rgba(0,0,0,0.35)', color: 'var(--muted)' }}>
-              <tr>{['Service', 'Price', 'Capacity', 'Booked', 'Remaining', 'Status'].map((h) => <th key={h} className="p-3 text-left">{h}</th>)}</tr>
+              <tr>{['Service', 'Price', 'Capacity', 'In Use Now', 'Upcoming', 'Remaining', 'Status'].map((h) => <th key={h} className="p-3 text-left">{h}</th>)}</tr>
             </thead>
             <tbody>
               {services.map((s) => (
@@ -108,7 +130,15 @@ export default function AvailabilityOverview({ compact = false, onViewService })
                   <td className="p-3 font-bold">{s.service_name}<div className="text-[10px] font-normal" style={{ color: 'var(--muted)' }}>{s.category}</div></td>
                   <td className="p-3 font-mono">{peso(s.price)} <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{unitLabel(s.unit)}</span></td>
                   <td className="p-3 font-mono">{s.capacity_for_date}</td>
-                  <td className="p-3 font-mono">{s.booked_for_date}</td>
+                  <td className="p-3 font-mono">
+                    <span className={s.in_use_for_date ? 'text-rose-400 font-bold' : ''}>{s.in_use_for_date || 0}</span>
+                    {(s.occupants || []).length > 0 && (
+                      <div className="text-[10px] font-sans" style={{ color: 'var(--muted)' }}>
+                        {s.occupants.map((o) => `${o.bookingRef} (${o.clientName})${o.carriedOver ? ' • since ' + o.bookingDate : ''}`).join(', ')}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 font-mono">{s.upcoming_for_date ?? Math.max(0, (s.booked_for_date || 0) - (s.in_use_for_date || 0))}</td>
                   <td className="p-3 font-mono font-bold">{s.available_for_date}</td>
                   <td className="p-3"><StatusBadge status={s.availability_status} size="xs" /></td>
                 </tr>

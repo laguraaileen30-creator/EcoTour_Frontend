@@ -85,6 +85,9 @@ export default function POSTab() {
   // Modal for paying a previously saved pending walk-in order
   const [selectedPendingWalkInForPayment, setSelectedPendingWalkInForPayment] = useState(null);
   const [pendingPayCashInput, setPendingPayCashInput] = useState('');
+  const [pendingPayDue, setPendingPayDue] = useState(null); // amount still owed, read from the server reservation
+  const [isPayingPending, setIsPayingPending] = useState(false);
+  const payingPendingRef = useRef(false);
   const [walkInFilterTab, setWalkInFilterTab] = useState('all'); // 'all' | 'active' | 'pending' | 'completed' | 'voided'
 
   const totalVisitors = adults + children + students + seniors;
@@ -181,10 +184,10 @@ export default function POSTab() {
 
   const mergedAddons = (resortServices && resortServices.length > 0)
     ? resortServices.filter(s => {
-        const cat = (s.category || '').toLowerCase();
-        const name = (s.service_name || s.name || '').toLowerCase();
-        return cat !== 'entrance' && cat !== 'cottage' && cat !== 'package' && cat !== 'promotion' && !name.includes('entrance ticket') && !name.includes('open cottage');
-      })
+      const cat = (s.category || '').toLowerCase();
+      const name = (s.service_name || s.name || '').toLowerCase();
+      return cat !== 'entrance' && cat !== 'cottage' && cat !== 'package' && cat !== 'promotion' && !name.includes('entrance ticket') && !name.includes('open cottage');
+    })
     : RAW_ADDONS;
 
   const AMENITY_ADDONS = (mergedAddons.length >= 9 ? mergedAddons : RAW_ADDONS).map(a => {
@@ -392,7 +395,7 @@ export default function POSTab() {
     const dObj = new Date();
     const localDate = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
     const draftReceipt = {
-      receiptNo: `OR-${localDate.replace(/-/g,'')}-${Math.floor(100 + Math.random() * 900)}`,
+      receiptNo: `OR-${localDate.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`,
       userNumber: userNumber.trim() || generateUserNumber(),
       touristName: touristName.trim(),
       touristContact: touristContact.trim(),
@@ -569,46 +572,87 @@ export default function POSTab() {
     });
   };
 
-  // Open Pay Modal for a stored Pending Walk-In
-  const handleOpenPayPendingModal = (walkIn) => {
+  // Open Pay Modal for a held (unpaid) walk-in order
+  const handleOpenPayPendingModal = async (walkIn) => {
+    const localDue = parseFloat(walkIn.grandTotal || walkIn.total_amount || 0);
     setSelectedPendingWalkInForPayment(walkIn);
-    setPendingPayCashInput(String(walkIn.grandTotal || walkIn.total_amount || 0));
+    setPendingPayDue(null);
+    setPendingPayCashInput(String(localDue));
+    // The server prices the order, so show exactly what it still expects
+    const key = walkIn.booking_id || walkIn.bookingRef;
+    if (!key) return;
+    try {
+      const res = await fetch(`${API_BASE}/reservations/${encodeURIComponent(key)}`);
+      const data = await res.json();
+      if (res.ok && data.success && data.data && data.data.balanceDue !== undefined) {
+        const due = parseFloat(data.data.balanceDue);
+        setPendingPayDue(due);
+        setPendingPayCashInput(prev => ((parseFloat(prev) || 0) === localDue ? String(due) : prev));
+      }
+    } catch (e) {
+      console.warn('Using local total for held order (server offline):', e.message);
+    }
   };
 
-  // Confirm payment for a stored Pending Walk-In
+  const closePayPendingModal = () => {
+    setSelectedPendingWalkInForPayment(null);
+    setPendingPayCashInput('');
+    setPendingPayDue(null);
+  };
+
+  // Collect payment for a held order — saved on the server, charged once
   const handleConfirmPayPendingWalkIn = async (shouldPrint = false) => {
-    if (!selectedPendingWalkInForPayment) return;
+    if (!selectedPendingWalkInForPayment || payingPendingRef.current) return;
     const w = selectedPendingWalkInForPayment;
-    const grandTotal = parseFloat(w.grandTotal || w.total_amount || 0);
+    const amountDue = pendingPayDue !== null ? pendingPayDue : parseFloat(w.grandTotal || w.total_amount || 0);
     const cashRec = parseFloat(pendingPayCashInput) || 0;
 
-    if (cashRec < grandTotal) {
+    if (cashRec < amountDue) {
       return showAlert({
         title: 'Insufficient Cash',
-        message: `Cash given (₱${cashRec.toLocaleString()}) is less than total due (₱${grandTotal.toLocaleString()}).`,
-        details: `Please collect full amount of ₱${grandTotal.toLocaleString()}.`,
+        message: `Cash given (₱${cashRec.toLocaleString()}) is less than the amount due (₱${amountDue.toLocaleString()}).`,
+        details: `Please collect the full amount of ₱${amountDue.toLocaleString()}, or close this and keep the order on hold.`,
         type: 'warning'
       });
     }
 
-    const { walkIn: updatedW, receipt } = payWalkInTransaction(w.id || w.walk_in_id, cashRec, activeStaff?.name);
-
-    setSelectedPendingWalkInForPayment(null);
-    setPendingPayCashInput('');
-
-    if (shouldPrint) {
-      window.print();
+    payingPendingRef.current = true;
+    setIsPayingPending(true);
+    let result;
+    try {
+      result = await payWalkInTransaction(w.id || w.walk_in_id, cashRec, activeStaff?.name);
+    } catch (err) {
+      if (err.alreadyPaid) closePayPendingModal();
+      return showAlert({
+        title: err.alreadyPaid ? 'Already Paid' : 'Payment Not Saved',
+        message: err.message || 'Could not record the payment.',
+        details: err.alreadyPaid ? 'The client was not charged again.' : 'Nothing was charged. The order is still on hold — check the connection and try again.',
+        type: err.alreadyPaid ? 'info' : 'danger'
+      });
+    } finally {
+      payingPendingRef.current = false;
+      setIsPayingPending(false);
     }
 
-    // Open Official Receipt Preview for this completed payment!
-    if (receipt) {
-      setPreviewReceipt(receipt);
+    closePayPendingModal();
+
+    if (result.paidElsewhere) {
+      return showAlert({
+        title: 'Already Paid',
+        message: `Order #${w.walk_in_id} was already paid from another screen.`,
+        details: 'The list has been updated. The client was not charged again.',
+        type: 'info'
+      });
     }
+
+    // Show the official receipt (already saved — the modal only offers Print / Done)
+    setPreviewReceipt(result.receipt);
+    if (shouldPrint) setTimeout(() => window.print(), 350);
 
     await showAlert({
       title: 'Payment Recorded Successfully',
       message: `Walk-In Order #${w.walk_in_id} for ${w.customer_name} is now PAID!`,
-      details: `Total: ₱${grandTotal.toLocaleString()} • Cash Received: ₱${cashRec.toLocaleString()} • Change: ₱${Math.max(0, cashRec - grandTotal).toLocaleString('en-US', { minimumFractionDigits: 2 })}. This booking has advanced to Service Orders ready for Check-In!`,
+      details: `Paid: ₱${result.receipt.grandTotal.toLocaleString()} • Cash Received: ₱${result.receipt.cashReceived.toLocaleString()} • Change: ₱${result.receipt.change.toLocaleString('en-US', { minimumFractionDigits: 2 })}.${result.savedOnServer ? '' : ' (Saved on this device — server offline.)'} The order has moved to Service Orders, ready for Check-In.`,
       type: 'success'
     });
   };
@@ -619,8 +663,8 @@ export default function POSTab() {
     const confirmed = await showConfirm({
       title: isPending ? 'Void Pending Walk-In Order' : 'Void Walk-In Transaction',
       message: `Are you sure you want to VOID order #${walkIn.walk_in_id} for ${walkIn.customer_name || walkIn.touristName}?`,
-      details: isPending 
-        ? 'The client will not continue the purchase. This order will be officially voided with no charge.' 
+      details: isPending
+        ? 'The client will not continue the purchase. This order will be officially voided with no charge.'
         : 'This walk-in will be cancelled and any occupied cottages/services will be released back to available inventory.',
       type: 'danger',
       confirmText: 'YES, Void Order',
@@ -734,7 +778,7 @@ export default function POSTab() {
       found.items.forEach(it => {
         const n = (it.name || it.serviceName || '').toLowerCase();
         if (!n.includes('entrance') && !n.includes('cottage') && !n.includes('shade')) {
-          const matchedAddon = AMENITY_ADDONS.find(a => 
+          const matchedAddon = AMENITY_ADDONS.find(a =>
             (a.service_name || a.name || '').toLowerCase() === n ||
             n.includes((a.service_name || a.name || '').toLowerCase())
           );
@@ -791,6 +835,9 @@ export default function POSTab() {
   const activeWalkIns = todayWalkIns.filter(w => w.walk_in_status === 'ACTIVE');
   const completedTodayWalkIns = todayWalkIns.filter(w => w.walk_in_status === 'COMPLETED');
   const totalPaidWalkIns = todayWalkIns.filter(w => w.payment_status === 'PAID');
+  // Held (unpaid) orders stay listed until they are paid or voided, even after the day they were made
+  const heldWalkIns = walkIns.filter(w => w.walk_in_status === 'PENDING');
+  const listedWalkIns = [...todayWalkIns, ...heldWalkIns.filter(w => !todayWalkIns.includes(w))];
 
   return (
     <div className="space-y-6 text-white max-w-[1600px] mx-auto p-2 sm:p-4">
@@ -864,7 +911,7 @@ export default function POSTab() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* LEFT COLUMN: REGISTRATION & SERVICE SELECTION (7 Cols) */}
         <div className="lg:col-span-7 space-y-6">
-          
+
           {/* STEP 1: TOURIST REGISTRATION */}
           <div className="bg-[#0c1f16] p-5 rounded-2xl border border-emerald-500/20 shadow-xl space-y-4">
             <h3 className="font-extrabold text-emerald-400 text-xs uppercase tracking-wider flex items-center gap-2 border-b border-emerald-900/60 pb-3">
@@ -980,7 +1027,7 @@ export default function POSTab() {
           {!isAddonMode && (catalogPackages || []).length > 0 && (
             <div className="bg-[#0c1f16] p-5 rounded-2xl border border-emerald-500/20 shadow-xl space-y-3">
               <div className="flex justify-between items-center border-b border-emerald-900/60 pb-3">
-                <h3 className="font-extrabold text-emerald-400 text-xs uppercase tracking-wider">Packages (choose one — tickets &amp; add-ons are optional)</h3>
+                <h3 className="font-extrabold text-emerald-400 text-xs uppercase tracking-wider">Packages</h3>
                 {selectedPackage && <button type="button" onClick={() => setSelectedPackageId(null)} className="text-[10px] text-slate-400 hover:text-white underline cursor-pointer">No package</button>}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1050,13 +1097,12 @@ export default function POSTab() {
                       key={c.id}
                       disabled={isFull}
                       onClick={() => !isFull && setSelectedCottage(c.id === 'COT-NONE' ? null : c)}
-                      className={`p-3 rounded-xl border text-left transition-all flex justify-between items-center ${
-                        isFull
-                          ? 'opacity-40 bg-rose-950/30 border-rose-900/40 cursor-not-allowed'
-                          : isSelected
+                      className={`p-3 rounded-xl border text-left transition-all flex justify-between items-center ${isFull
+                        ? 'opacity-40 bg-rose-950/30 border-rose-900/40 cursor-not-allowed'
+                        : isSelected
                           ? 'bg-emerald-600/90 text-white border-emerald-400 shadow-md font-bold cursor-pointer'
                           : 'bg-black/30 border-emerald-900/60 text-slate-300 hover:bg-emerald-950/60 cursor-pointer'
-                      }`}
+                        }`}
                     >
                       <div className="min-w-0 pr-2">
                         <span className="text-xs font-bold block truncate">{c.name}</span>
@@ -1065,13 +1111,12 @@ export default function POSTab() {
                             <span className="text-[9px] font-mono text-emerald-400 font-bold">{c.service_code}</span>
                           )}
                           {c.id !== 'COT-NONE' && (
-                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${
-                              c.available_qty === 0
-                                ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                                : c.available_qty <= 3
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded font-mono ${c.available_qty === 0
+                              ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                              : c.available_qty <= 3
                                 ? 'bg-amber-950 text-amber-300 border border-amber-800'
                                 : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                            }`}>
+                              }`}>
                               {c.available_qty === 0 ? '🚫 0 left (Full)' : `${c.available_qty} left`}
                             </span>
                           )}
@@ -1111,9 +1156,8 @@ export default function POSTab() {
                     return (
                       <div
                         key={key}
-                        className={`p-3 rounded-xl border transition-all flex items-center justify-between ${
-                          qty > 0 ? 'bg-emerald-950/90 border-emerald-500/60 shadow-md' : 'bg-black/30 border-emerald-900/40'
-                        }`}
+                        className={`p-3 rounded-xl border transition-all flex items-center justify-between ${qty > 0 ? 'bg-emerald-950/90 border-emerald-500/60 shadow-md' : 'bg-black/30 border-emerald-900/40'
+                          }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0 pr-2">
                           <div className="w-8 h-8 rounded-lg bg-emerald-900/60 border border-emerald-700/50 flex items-center justify-center text-emerald-400 shrink-0">
@@ -1133,13 +1177,12 @@ export default function POSTab() {
                               <span className="text-[9px] text-slate-400 font-normal">
                                 / {addon.unit || 'unit'}
                               </span>
-                              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded font-mono ${
-                                availQty === 0
-                                  ? 'bg-rose-950 text-rose-300 border border-rose-800'
-                                  : availQty <= 3
+                              <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded font-mono ${availQty === 0
+                                ? 'bg-rose-950 text-rose-300 border border-rose-800'
+                                : availQty <= 3
                                   ? 'bg-amber-950 text-amber-300 border border-amber-800'
                                   : 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                              }`}>
+                                }`}>
                                 {availQty === 0 ? '🚫 0 left' : `${availQty} left`}
                               </span>
                             </div>
@@ -1249,24 +1292,24 @@ export default function POSTab() {
                 )}
               </div>
             ) : (
-            <div className="max-h-56 overflow-y-auto space-y-2 pr-1 divide-y divide-emerald-900/40">
-              {currentCartItems.length > 0 ? (
-                currentCartItems.map((item, idx) => (
-                  <div key={idx} className="pt-2 text-xs flex justify-between items-center">
-                    <span className="text-slate-200 font-medium">
-                      {item.name} <small className="text-slate-400 font-normal">({item.quantity}x)</small>
-                    </span>
-                    <span className="font-mono font-extrabold text-emerald-400">
-                      ₱{(item.quantity * item.unitPrice).toLocaleString()}
-                    </span>
+              <div className="max-h-56 overflow-y-auto space-y-2 pr-1 divide-y divide-emerald-900/40">
+                {currentCartItems.length > 0 ? (
+                  currentCartItems.map((item, idx) => (
+                    <div key={idx} className="pt-2 text-xs flex justify-between items-center">
+                      <span className="text-slate-200 font-medium">
+                        {item.name} <small className="text-slate-400 font-normal">({item.quantity}x)</small>
+                      </span>
+                      <span className="font-mono font-extrabold text-emerald-400">
+                        ₱{(item.quantity * item.unitPrice).toLocaleString()}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-6 text-slate-500 text-xs font-medium">
+                    Select visitor count & services to calculate total
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-6 text-slate-500 text-xs font-medium">
-                  Select visitor count & services to calculate total
-                </div>
-              )}
-            </div>
+                )}
+              </div>
             )}
 
             {/* GRAND TOTAL & CASH INPUT */}
@@ -1322,17 +1365,16 @@ export default function POSTab() {
               </div>
 
               {/* CHANGE DUE READOUT */}
-              <div className={`p-3 rounded-xl border flex justify-between items-center text-xs ${
-                parsedCash >= grandTotal && grandTotal > 0
-                  ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300' 
-                  : 'bg-black/30 border-white/10 text-slate-300'
-              }`}>
+              <div className={`p-3 rounded-xl border flex justify-between items-center text-xs ${parsedCash >= grandTotal && grandTotal > 0
+                ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
+                : 'bg-black/30 border-white/10 text-slate-300'
+                }`}>
                 <span className="font-bold">
                   {parsedCash >= grandTotal && grandTotal > 0 ? 'Change Due:' : 'Status:'}
                 </span>
                 <span className="font-mono font-extrabold text-sm">
                   {parsedCash >= grandTotal && grandTotal > 0
-                    ? `₱ ${changeAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}` 
+                    ? `₱ ${changeAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
                     : grandTotal > 0 && parsedCash > 0 ? `Need ₱ ${(grandTotal - parsedCash).toLocaleString()} more` : `Total Due: ₱ ${grandTotal.toLocaleString()}`}
                 </span>
               </div>
@@ -1433,6 +1475,22 @@ export default function POSTab() {
             </div>
 
             {/* ACTION DECISION BUTTONS */}
+            {previewReceipt.alreadySaved ? (
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                <button
+                  onClick={() => window.print()}
+                  className="py-3 bg-emerald-800 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all border border-emerald-600 uppercase tracking-wider"
+                >
+                  <Printer className="w-4 h-4" /> Print Receipt
+                </button>
+                <button
+                  onClick={() => setPreviewReceipt(null)}
+                  className="py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all border border-emerald-400 uppercase tracking-wider"
+                >
+                  <CheckCircle2 className="w-4 h-4" /> Done
+                </button>
+              </div>
+            ) : (
             <div className="space-y-2 pt-1">
               <div className="grid grid-cols-2 gap-2.5">
                 <button
@@ -1458,6 +1516,7 @@ export default function POSTab() {
                 <Edit3 className="w-4 h-4 text-amber-400" /> Edit Order Details
               </button>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -1478,25 +1537,23 @@ export default function POSTab() {
           {/* FILTER PILLS */}
           <div className="flex flex-wrap items-center gap-1.5 p-1 bg-black/40 rounded-xl border border-emerald-900/60 text-xs">
             {[
-              { key: 'all', label: 'All Walk-Ins', count: todayWalkIns.length },
+              { key: 'all', label: 'All Walk-Ins', count: listedWalkIns.length },
               { key: 'active', label: '🟢 Active (Paid)', count: activeWalkIns.length },
-              { key: 'pending', label: '⏳ Pending (Unpaid)', count: todayWalkIns.filter(w => w.walk_in_status === 'PENDING').length },
+              { key: 'pending', label: '⏳ On Hold (Unpaid)', count: heldWalkIns.length },
               { key: 'completed', label: '✓ Completed', count: completedTodayWalkIns.length },
               { key: 'voided', label: '✕ Voided', count: todayWalkIns.filter(w => w.walk_in_status === 'VOIDED').length },
             ].map(tab => (
               <button
                 key={tab.key}
                 onClick={() => setWalkInFilterTab(tab.key)}
-                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  walkInFilterTab === tab.key
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
+                className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1.5 ${walkInFilterTab === tab.key
+                  ? 'bg-emerald-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-slate-200'
+                  }`}
               >
                 <span>{tab.label}</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                  walkInFilterTab === tab.key ? 'bg-black/30 text-white' : 'bg-white/10 text-slate-400'
-                }`}>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${walkInFilterTab === tab.key ? 'bg-black/30 text-white' : 'bg-white/10 text-slate-400'
+                  }`}>
                   {tab.count}
                 </span>
               </button>
@@ -1524,7 +1581,7 @@ export default function POSTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-emerald-900/40 font-medium">
-                {todayWalkIns
+                {listedWalkIns
                   .filter(w => {
                     if (walkInFilterTab === 'active') return w.walk_in_status === 'ACTIVE';
                     if (walkInFilterTab === 'pending') return w.walk_in_status === 'PENDING';
@@ -1583,11 +1640,10 @@ export default function POSTab() {
                             </span>
                           )}
                           {isCompleted && (
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 ${
-                              isAutoClosed
-                                ? 'bg-amber-950/70 text-amber-300 border border-amber-600/50'
-                                : 'bg-slate-800 text-slate-300 border border-slate-700'
-                            }`}>
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase inline-flex items-center gap-1 ${isAutoClosed
+                              ? 'bg-amber-950/70 text-amber-300 border border-amber-600/50'
+                              : 'bg-slate-800 text-slate-300 border border-slate-700'
+                              }`}>
                               <CheckCircle2 className="w-3 h-3 text-emerald-400" />
                               {isAutoClosed ? 'AUTO-COMPLETED' : 'COMPLETED'}
                             </span>
@@ -1674,7 +1730,7 @@ export default function POSTab() {
         <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
           <div className="bg-[#05180f] border border-emerald-500/40 rounded-3xl max-w-md w-full p-6 text-white space-y-5 shadow-2xl relative">
             <button
-              onClick={() => setSelectedPendingWalkInForPayment(null)}
+              onClick={closePayPendingModal}
               className="absolute top-4 right-4 p-1.5 bg-black/40 hover:bg-black/60 rounded-full text-slate-400 hover:text-white border border-white/10"
               title="Close"
             >
@@ -1705,7 +1761,7 @@ export default function POSTab() {
               <div className="flex justify-between items-center text-sm font-bold">
                 <span className="text-slate-300">Total Amount Due:</span>
                 <span className="font-mono text-2xl text-emerald-300 font-black">
-                  ₱{parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0).toLocaleString()}
+                  ₱{(pendingPayDue !== null ? pendingPayDue : parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0)).toLocaleString()}
                 </span>
               </div>
 
@@ -1725,7 +1781,7 @@ export default function POSTab() {
 
               {/* CHANGE CALCULATION */}
               {(() => {
-                const total = parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0);
+                const total = pendingPayDue !== null ? pendingPayDue : parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0);
                 const cash = parseFloat(pendingPayCashInput) || 0;
                 const change = cash - total;
                 return (
@@ -1744,15 +1800,15 @@ export default function POSTab() {
               <button
                 type="button"
                 onClick={() => handleConfirmPayPendingWalkIn(false)}
-                disabled={(parseFloat(pendingPayCashInput) || 0) < parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0)}
+                disabled={isPayingPending || (parseFloat(pendingPayCashInput) || 0) < (pendingPayDue !== null ? pendingPayDue : parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0))}
                 className="py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all uppercase tracking-wider"
               >
-                <Coins className="w-4 h-4" /> Pay Now &amp; Confirm
+                <Coins className="w-4 h-4" /> {isPayingPending ? 'Saving…' : <>Pay Now &amp; Confirm</>}
               </button>
               <button
                 type="button"
                 onClick={() => handleConfirmPayPendingWalkIn(true)}
-                disabled={(parseFloat(pendingPayCashInput) || 0) < parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0)}
+                disabled={isPayingPending || (parseFloat(pendingPayCashInput) || 0) < (pendingPayDue !== null ? pendingPayDue : parseFloat(selectedPendingWalkInForPayment.total_amount || selectedPendingWalkInForPayment.grandTotal || 0))}
                 className="py-3 bg-emerald-800 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all uppercase tracking-wider"
               >
                 <Printer className="w-4 h-4" /> Pay Now &amp; Print

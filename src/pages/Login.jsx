@@ -56,16 +56,25 @@ export default function Login() {
         return;
       }
 
-      localStorage.setItem("user", JSON.stringify(data.user));
-      if (setCurrentUser) {
-        setCurrentUser(data.user);
-      }
-      if (data.token) {
-        localStorage.setItem("token", data.token);
+      const session = data.data && typeof data.data === "object" ? data.data : data;
+      const user = session.user || data.user;
+      const returnedToken = session.token || session.accessToken || session.access_token || data.token || data.accessToken || data.access_token;
+      const token = typeof returnedToken === "string" ? returnedToken.replace(/^Bearer\s+/i, "").trim() : "";
+      if (!user || !token) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        setError("The server did not return a valid sign-in session. Please try again.");
+        return;
       }
 
-      const roleLower = (data.user.role || "").toLowerCase();
-      const statusLower = (data.user.status || "").toLowerCase();
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      if (setCurrentUser) {
+        setCurrentUser(user);
+      }
+
+      const roleLower = (user.role || "").toLowerCase();
+      const statusLower = (user.status || "").toLowerCase();
 
       let targetPath = "/home";
       if (roleLower === "admin") {

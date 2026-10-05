@@ -164,11 +164,17 @@ export default function FacilitiesTab() {
         : (resortServices?.length ? resortServices : contextFacilities || []);
 
       const mapped = rawServices.map((s, idx) => {
-        const totalCap = parseInt(s.total_capacity || 10, 10);
         const name = s.service_name || s.name;
         const code = s.service_code || `DSVC-00${idx + 1}`;
-        const { count: inUseCount, activeGuests } = getInUseForFacility(name, code);
-        const availQty = Math.max(0, totalCap - inUseCount);
+        // Server numbers (database): guests on site incl. not-yet-checked-out ones, and what is still free today
+        const fromServer = s.in_use_for_date !== undefined;
+        const local = fromServer ? null : getInUseForFacility(name, code);
+        const totalCap = fromServer ? parseInt(s.capacity_for_date, 10) || 0 : parseInt(s.total_capacity || 10, 10);
+        const inUseCount = fromServer ? s.in_use_for_date : local.count;
+        const activeGuests = fromServer
+          ? (s.occupants || []).map((o) => ({ ref: o.bookingRef, guestName: o.clientName, qty: o.quantity, time: o.carriedOver ? `since ${o.bookingDate}` : o.status }))
+          : local.activeGuests;
+        const availQty = fromServer ? s.available_for_date : Math.max(0, totalCap - inUseCount);
 
         let liveStatus = 'Available';
         if (availQty === 0 && inUseCount > 0) {

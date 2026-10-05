@@ -22,6 +22,7 @@ import DailySalesTab from './tabs/DailySalesTab';
 import ServiceAvailabilityTab from './tabs/ServiceAvailabilityTab';
 import InventoryTab from './tabs/InventoryTab';
 import PendingBookingsTab from './tabs/PendingBookingsTab';
+import InspectionsTab from './tabs/InspectionsTab';
 import { MailOutboxModal } from '../MailBox';
 import { useState, useEffect } from 'react';
 import { useEcoTour } from '../../context/EcoTourContext';
@@ -269,6 +270,7 @@ export const StaffDashboard = () => {
           {activeTab === 'pending_bookings' && <PendingBookingsTab setActiveTab={setActiveTab} />}
 
           {/* Existing functional tabs & sub-keys */}
+          {activeTab === 'inspections' && <InspectionsTab />}
           {(activeTab === 'pos' || activeTab === 'walkin_pos' || activeTab === 'pos_today' || activeTab === 'pos_history') && <POSTab />}
           {(activeTab === 'facilities' || activeTab.startsWith('facilities_')) && <FacilitiesTab />}
           {(activeTab === 'availability' || activeTab === 'live_facilities' || activeTab === 'cottages') && <ServiceAvailabilityTab />}

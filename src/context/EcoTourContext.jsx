@@ -246,6 +246,9 @@ export const EcoTourProvider = ({ children }) => {
       localStorage.setItem('walkInTransactions', JSON.stringify(walkIns));
     }
   }, [walkIns]);
+  // Latest walk-ins for timers (the end-of-day closure runs from an interval)
+  const walkInsRef = useRef(walkIns);
+  walkInsRef.current = walkIns;
 
   // --- Audit Logs State ---
   const [auditLogs, setAuditLogs] = useState([]);
@@ -452,7 +455,10 @@ export const EcoTourProvider = ({ children }) => {
       // 4. Fetch Payments / Receipts directly from MySQL Database
       const resPayments = await fetch('http://localhost:5000/api/v1/payments');
       const dataPayments = await resPayments.json();
-      const serverReceipts = dataPayments.receipts || dataPayments.payments || [];
+      const paymentPayload = dataPayments.data || {};
+      const serverReceipts = dataPayments.receipts || dataPayments.payments ||
+        paymentPayload.receipts || paymentPayload.payments ||
+        (Array.isArray(paymentPayload) ? paymentPayload : []);
       if (dataPayments.success && Array.isArray(serverReceipts)) {
         setReceipts(serverReceipts);
         localStorage.setItem('receipts', JSON.stringify(serverReceipts));
@@ -1114,6 +1120,23 @@ export const EcoTourProvider = ({ children }) => {
     return Math.max(0, service.quantity - bookedCount);
   };
 
+  // Keep held walk-in orders in step with their reservation when it is paid or voided from another screen
+  useEffect(() => {
+    if (!walkIns.some(w => w.walk_in_status === 'PENDING')) return;
+    let changed = false;
+    const next = walkIns.map(w => {
+      if (w.walk_in_status !== 'PENDING' || !w.bookingRef) return w;
+      const b = (resortBookings || []).find(r => r.bookingRef === w.bookingRef);
+      if (!b) return w;
+      const st = String(b.status || '').toLowerCase();
+      if (/cancel|void|reject|expired/.test(st)) { changed = true; return { ...w, walk_in_status: 'VOIDED', payment_status: 'VOIDED' }; }
+      if (/paid|using|checked in|in service/.test(st) && !/unpaid|pending/.test(st)) { changed = true; return { ...w, walk_in_status: 'ACTIVE', payment_status: 'PAID' }; }
+      return w;
+    });
+    if (changed) setWalkIns(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resortBookings]);
+
   // Real-Time Walk-In Transaction Lifecycle Management
   const createWalkInTransaction = (data) => {
     const dObj = new Date();
@@ -1130,11 +1153,14 @@ export const EcoTourProvider = ({ children }) => {
     const amountReceived = isPendingOrder ? 0 : parseFloat(data.cashReceived || grandTotal);
     const changeAmount = isPendingOrder ? 0 : Math.max(0, amountReceived - grandTotal);
 
+    // The same reference is used for the server reservation, so a held order can be paid or voided there later
+    const bookingRef = data.bookingRef || `BK-${today.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+
     const newWalkIn = {
       id: Date.now(),
       walk_in_id: walkInId,
       booking_id: data.booking_id || null,
-      bookingRef: data.bookingRef || null,
+      bookingRef,
       customer_name: data.touristName || 'Walk-In Tourist',
       touristName: data.touristName || 'Walk-In Tourist',
       userNumber: userNum,
@@ -1203,7 +1229,6 @@ export const EcoTourProvider = ({ children }) => {
     setWalkIns(prev => [newWalkIn, ...prev]);
 
     // Create and store in resortBookings (Pending Bookings & Service Orders)
-    const bookingRef = data.bookingRef || `BK-${today.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
     const primaryService = data.items?.find(i => i.category === 'Cottage')?.name || data.items?.[0]?.name || 'Walk-In Day Pass & Cottage';
 
     const correspondingBooking = {
@@ -1259,6 +1284,7 @@ export const EcoTourProvider = ({ children }) => {
         if (resData.success && resData.data?.id) {
           // Use the database id so add-ons, facility assignment and status changes target the right reservation
           setResortBookings(prev => prev.map(b => b.bookingRef === bookingRef ? { ...b, id: resData.data.id, bookingType: resData.data.bookingType } : b));
+          setWalkIns(prev => prev.map(w => w.walk_in_id === walkInId ? { ...w, booking_id: resData.data.id } : w));
         } else if (resData.code === 'FULLY_BOOKED') {
           showAlert({ title: 'Walk-In Not Saved to Server', message: resData.message, details: 'The server refused this walk-in because the requested services are fully booked today. Please void it and adjust the order.', type: 'warning' });
         }
@@ -1433,29 +1459,78 @@ export const EcoTourProvider = ({ children }) => {
     return { receipt, addonAmount, previousTotal: data.previousTotal, newTotal: data.newTotal };
   };
 
-  // Pay and activate a previously pending Walk-In
-  const payWalkInTransaction =(idOrRef, cashGiven, staffName = null) => {
+  // Server reservation behind a walk-in (held orders are saved as "Pending Payment at Counter" reservations)
+  const walkInServerKey = (w) => {
+    if (!w) return null;
+    if (w.booking_id) return w.booking_id;
+    const linked = (resortBookings || []).find(b => b.walk_in_id && b.walk_in_id === w.walk_in_id);
+    return (linked && /^\d+$/.test(String(linked.id)) ? linked.id : null) || w.bookingRef || (linked && linked.bookingRef) || null;
+  };
+  const matchesWalkInBooking = (b, w) =>
+    (w.walk_in_id && b.walk_in_id === w.walk_in_id) ||
+    (w.bookingRef && b.bookingRef === w.bookingRef) ||
+    (w.booking_id && String(b.id) === String(w.booking_id)) ||
+    b.id === w.id;
+
+  // Collect payment for a held (unpaid) walk-in order. The server charges exactly what is still owed on the
+  // reservation, so the client pays once. Falls back to a local-only payment when the server is offline.
+  const payWalkInTransaction = async (idOrRef, cashGiven, staffName = null) => {
     const sName = staffName || currentUser?.name || 'Staff Cashier';
     const paidAt = new Date().toISOString();
     const dObj = new Date();
     const today = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, '0')}-${String(dObj.getDate()).padStart(2, '0')}`;
     const timeNow = dObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // Look up target in current state or localStorage fallback
     const saved = localStorage.getItem('walkInTransactions');
-    const localList = saved ? (() => { try { return JSON.parse(saved); } catch(e) { return []; } })() : [];
+    const localList = saved ? (() => { try { return JSON.parse(saved); } catch (e) { return []; } })() : [];
     const sourceList = (walkIns && walkIns.length > 0) ? walkIns : localList;
     const target = sourceList.find(w => w.id === idOrRef || w.walk_in_id === idOrRef || w.receiptNo === idOrRef);
+    if (!target) throw new Error('This held order could not be found. Refresh the page and try again.');
+    if (target.payment_status === 'PAID') throw Object.assign(new Error('This order is already paid.'), { alreadyPaid: true });
+    if (target.walk_in_status === 'VOIDED') throw new Error('This order was voided and can no longer be paid.');
 
-    if (!target) {
-      console.warn('payWalkInTransaction: target walk-in not found for', idOrRef);
-      return { walkIn: null, receipt: null };
+    let grandTotal = parseFloat(target.grandTotal || target.total_amount || 0);
+    let cashRec = parseFloat(cashGiven !== undefined && cashGiven !== null ? cashGiven : grandTotal);
+    let receiptNo = null;
+    let savedOnServer = false;
+    let paidElsewhere = false;
+
+    const serverKey = walkInServerKey(target);
+    if (serverKey) {
+      let res = null;
+      let data = {};
+      try {
+        const token = localStorage.getItem('token');
+        res = await fetch(`${API_BASE}/reservations/${encodeURIComponent(serverKey)}/payments`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ kind: 'FULL', cash_received: cashRec, staff_name: sName })
+        });
+        data = await res.json().catch(() => ({}));
+      } catch (e) {
+        console.warn('Held order paid locally, server offline:', e.message);
+      }
+      if (res) {
+        if (res.ok && data.success) {
+          grandTotal = parseFloat(data.data.amount);
+          cashRec = parseFloat(data.data.cashReceived);
+          receiptNo = data.data.receiptNo;
+          savedOnServer = true;
+        } else if (res.status === 400 && /already fully paid/i.test(data.message || '')) {
+          // Paid from another screen (Pending Bookings / Service Orders): just sync this list, never charge again
+          savedOnServer = true;
+          paidElsewhere = true;
+        } else if (res.status !== 404) {
+          throw new Error(data.message || `The server rejected the payment (HTTP ${res.status}).`);
+        }
+      }
     }
 
-    const grandTotal = parseFloat(target.grandTotal || target.total_amount || 0);
-    const cashRec = parseFloat(cashGiven !== undefined && cashGiven !== null ? cashGiven : grandTotal);
+    receiptNo = receiptNo || target.receiptNo || `OR-${today.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
     const changeAmt = Math.max(0, cashRec - grandTotal);
-    const receiptNo = target.receiptNo || `OR-${today.replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
 
     const updatedWalkIn = {
       ...target,
@@ -1463,16 +1538,36 @@ export const EcoTourProvider = ({ children }) => {
       walk_in_status: 'ACTIVE',
       paid_by: sName,
       paid_at: paidAt,
-      amount_received: cashRec,
-      change_amount: changeAmt,
-      receiptNo
+      ...(paidElsewhere ? {} : { amount_received: cashRec, change_amount: changeAmt, total_amount: grandTotal, grandTotal, receiptNo })
     };
+
+    setWalkIns(prev => {
+      const next = prev.map(w => (w.id === target.id || w.walk_in_id === target.walk_in_id) ? updatedWalkIn : w);
+      localStorage.setItem('walkInTransactions', JSON.stringify(next));
+      return next;
+    });
+
+    // Moves to Paid in Service Orders
+    setResortBookings(prev => {
+      const next = prev.map(b => matchesWalkInBooking(b, target)
+        ? { ...b, status: 'Paid', payment_status: 'Paid', paid_at: paidAt, paid_by: sName, estimatedTotal: grandTotal, grandTotal, totalPrice: grandTotal, amountPaid: grandTotal }
+        : b);
+      localStorage.setItem('resortBookings', JSON.stringify(next));
+      return next;
+    });
+
+    if (paidElsewhere) {
+      window.dispatchEvent(new CustomEvent('ecotour:sync'));
+      setTimeout(() => refreshAllLiveData(), 300);
+      return { walkIn: updatedWalkIn, receipt: null, paidElsewhere: true };
+    }
 
     const createdReceipt = {
       id: target.id,
       receiptNo,
       userNumber: target.userNumber,
       booking_id: target.booking_id || null,
+      bookingRef: target.bookingRef || null,
       touristName: target.customer_name || target.touristName,
       touristEmail: target.touristEmail || 'client@ecotourvista.com',
       touristContact: target.contact_number,
@@ -1485,110 +1580,72 @@ export const EcoTourProvider = ({ children }) => {
       status: 'Paid',
       staffName: sName,
       items: target.items || [],
+      alreadySaved: true,
       barangayShare: Math.round(grandTotal * (revenueShare.barangayPercent / 100)),
       municipalShare: Math.round(grandTotal * (revenueShare.municipalPercent / 100)),
       ownerShare: grandTotal - Math.round(grandTotal * (revenueShare.barangayPercent / 100)) - Math.round(grandTotal * (revenueShare.municipalPercent / 100))
     };
 
-    // 1. Update walkIns state & localStorage
-    setWalkIns(prev => {
-      const next = prev.map(w => (w.id === idOrRef || w.walk_in_id === idOrRef || w.receiptNo === idOrRef) ? updatedWalkIn : w);
-      localStorage.setItem('walkInTransactions', JSON.stringify(next));
-      return next;
-    });
-
-    // 2. Update resortBookings state & localStorage so it moves to Paid in Service Orders!
-    setResortBookings(prev => {
-      const next = prev.map(b => {
-        if (
-          b.id === target.id ||
-          b.walk_in_id === target.walk_in_id ||
-          b.bookingRef === target.bookingRef ||
-          (b.userNumber === target.userNumber && b.bookingDate === today)
-        ) {
-          return {
-            ...b,
-            status: 'Paid',
-            payment_status: 'Paid',
-            paid_at: paidAt,
-            paid_by: sName
-          };
-        }
-        return b;
-      });
-      localStorage.setItem('resortBookings', JSON.stringify(next));
-      return next;
-    });
-
-    // 3. Add receipt to state & localStorage
     setReceipts(prev => {
       const next = [createdReceipt, ...prev];
       localStorage.setItem('receipts', JSON.stringify(next));
       return next;
     });
 
-    // 4. Deduct facility & services availability
+    // Held orders did not occupy anything locally; they do now that they are paid
     if (target.items && Array.isArray(target.items)) {
       target.items.forEach(item => {
         const qty = item.quantity || 1;
+        const iName = (item.name || '').toLowerCase();
         setFacilities(fList => fList.map(f => {
           const fName = (f.name || '').toLowerCase();
-          const iName = (item.name || '').toLowerCase();
           if (fName.includes(iName) || iName.includes(fName)) {
             const newRented = (f.rentedQuantity || 0) + qty;
-            return {
-              ...f,
-              rentedQuantity: newRented,
-              status: newRented >= (f.totalQuantity || 10) ? 'Fully Booked' : 'Available'
-            };
+            return { ...f, rentedQuantity: newRented, status: newRented >= (f.totalQuantity || 10) ? 'Fully Booked' : 'Available' };
           }
           return f;
         }));
-
-        setResortServices(sList => sList.map(s => {
-          const sName = (s.service_name || s.name || '').toLowerCase();
-          const iName = (item.name || '').toLowerCase();
-          if (sName.includes(iName) || iName.includes(sName)) {
-            const totalCap = parseInt(s.total_capacity || 10, 10);
-            const currentAvail = s.available_qty !== undefined ? parseInt(s.available_qty, 10) : (s.available_quantity !== undefined ? parseInt(s.available_quantity, 10) : totalCap);
+        setResortServices(sList => sList.map(sv => {
+          const svName = (sv.service_name || sv.name || '').toLowerCase();
+          if (svName.includes(iName) || iName.includes(svName)) {
+            const totalCap = parseInt(sv.total_capacity || 10, 10);
+            const currentAvail = sv.available_qty !== undefined ? parseInt(sv.available_qty, 10) : (sv.available_quantity !== undefined ? parseInt(sv.available_quantity, 10) : totalCap);
             const updatedAvail = Math.max(0, currentAvail - qty);
-            return {
-              ...s,
-              available_qty: updatedAvail,
-              available_quantity: updatedAvail
-            };
+            return { ...sv, available_qty: updatedAvail, available_quantity: updatedAvail };
           }
-          return s;
+          return sv;
         }));
       });
     }
 
-    // 5. Persist to backend payments API
-    fetch('http://localhost:5000/api/v1/payments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        booking_id: updatedWalkIn.booking_id || null,
-        client_name: updatedWalkIn.customer_name,
-        staff_name: sName,
-        total_amount: grandTotal,
-        cash_received: cashRec,
-        payment_method: 'Cash',
-        items: updatedWalkIn.items || []
-      })
-    }).then(r => r.json()).then(d => {
-      if (d.success) {
-        setTimeout(() => refreshAllLiveData(), 300);
-      }
-    }).catch(e => console.warn('Payment DB sync note:', e.message));
+    // Offline / not on the server: keep the old stand-alone payment record so revenue is not lost
+    if (!savedOnServer) {
+      fetch(`${API_BASE}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          booking_id: null,
+          client_name: updatedWalkIn.customer_name,
+          staff_name: sName,
+          total_amount: grandTotal,
+          cash_received: cashRec,
+          payment_method: 'Cash',
+          items: updatedWalkIn.items || []
+        })
+      }).catch(e => console.warn('Payment DB sync note:', e.message));
+    }
 
-    return { walkIn: updatedWalkIn, receipt: createdReceipt };
+    window.dispatchEvent(new CustomEvent('ecotour:sync'));
+    setTimeout(() => refreshAllLiveData(), 300);
+
+    return { walkIn: updatedWalkIn, receipt: createdReceipt, savedOnServer };
   };
 
   // Void a Walk-In (pending or active) so client does not continue purchase
   const voidWalkInTransaction = (idOrRef, staffName = null, reason = 'Client decided not to continue purchase') => {
     const sName = staffName || currentUser?.name || 'Staff Member';
     const voidTime = new Date().toISOString();
+    const target = (walkIns || []).find(w => w.id === idOrRef || w.walk_in_id === idOrRef || w.receiptNo === idOrRef);
 
     setWalkIns(prev => {
       return prev.map(w => {
@@ -1660,7 +1717,8 @@ export const EcoTourProvider = ({ children }) => {
           b.id === idOrRef ||
           b.walk_in_id === idOrRef ||
           b.bookingRef === idOrRef ||
-          b.receiptNo === idOrRef
+          b.receiptNo === idOrRef ||
+          (target && matchesWalkInBooking(b, target))
         ) {
           return {
             ...b,
@@ -1673,12 +1731,38 @@ export const EcoTourProvider = ({ children }) => {
       localStorage.setItem('resortBookings', JSON.stringify(next));
       return next;
     });
+
+    // Release the reservation on the server too, so its cottages/services free up for other guests
+    const serverKey = walkInServerKey(target);
+    if (serverKey) {
+      fetch(`${API_BASE}/reservations/${encodeURIComponent(serverKey)}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'Cancelled' })
+      })
+        .then(() => { window.dispatchEvent(new CustomEvent('ecotour:sync')); setTimeout(() => refreshAllLiveData(), 300); })
+        .catch(e => console.warn('Void saved locally, server offline:', e.message));
+    }
+  };
+
+  // Record a walk-in check-out on the server (releases its facilities in the database)
+  const completeWalkInOnServer = (w) => {
+    const key = walkInServerKey(w);
+    if (!key) return Promise.resolve();
+    return fetch(`${API_BASE}/reservations/${encodeURIComponent(key)}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'Completed' })
+    })
+      .then(() => { window.dispatchEvent(new CustomEvent('ecotour:sync')); setTimeout(() => refreshAllLiveData(), 300); })
+      .catch(e => console.warn('Check-out saved locally, server offline:', e.message));
   };
 
   // Staff Manually Completes Walk-In -> Releases Services & Updates Status
   const completeWalkInTransaction = (idOrRef, staffName = null) => {
     const sName = staffName || currentUser?.name || 'Staff Member';
     const timeCompleted = new Date().toISOString();
+    const target = (walkIns || []).find(w => w.id === idOrRef || w.walk_in_id === idOrRef || w.receiptNo === idOrRef);
 
     setWalkIns(prev => {
       const next = prev.map(w => {
@@ -1748,7 +1832,8 @@ export const EcoTourProvider = ({ children }) => {
           b.id === idOrRef ||
           b.walk_in_id === idOrRef ||
           b.bookingRef === idOrRef ||
-          b.receiptNo === idOrRef
+          b.receiptNo === idOrRef ||
+          (target && matchesWalkInBooking(b, target))
         ) {
           return { ...b, status: 'Completed' };
         }
@@ -1757,64 +1842,48 @@ export const EcoTourProvider = ({ children }) => {
       localStorage.setItem('resortBookings', JSON.stringify(next));
       return next;
     });
+
+    if (target && target.walk_in_status !== 'COMPLETED') completeWalkInOnServer(target);
   };
 
-  // Automatic Daily Completion: Safety Mechanism for Operating Day Closure (10:00 PM / Midnight)
+  // Overnight stays (camping, rooms, overnight packages) are still in use after closing time
+  const isOvernightWalkIn = (w) => (w.items || []).some(it =>
+    /overnight|camping|tent|guest room|aircon kubo|\bnight\b/i.test(`${it.name || it.serviceName || ''} ${it.unit || ''}`)
+  );
+
+  // Automatic Daily Completion (after closing time): day-use walk-ins are checked out and saved to the database.
+  // Overnight guests are NOT auto-closed — they stay "in use" until staff check them out.
   const autoCompleteDailyWalkIns = () => {
-    const today = getPhilippineDateStr();
     const nowIso = new Date().toISOString();
+    const toClose = (walkInsRef.current || []).filter(w => w.walk_in_status === 'ACTIVE' && w.payment_status === 'PAID' && !isOvernightWalkIn(w));
+    if (toClose.length === 0) return;
+    const ids = new Set(toClose.map(w => w.walk_in_id));
 
     setWalkIns(prev => {
-      let hasAutoClosed = false;
-      const updated = prev.map(w => {
-        // Auto complete any ACTIVE + PAID walk-in for today or previous unclosed days
-        if (w.walk_in_status === 'ACTIVE' && w.payment_status === 'PAID') {
-          hasAutoClosed = true;
-
-          // Release services back into inventory
-          if (w.items && Array.isArray(w.items)) {
-            w.items.forEach(item => {
-              const qty = item.quantity || 1;
-              setResortServices(sList => sList.map(s => {
-                const servName = (s.service_name || s.name || '').toLowerCase();
-                const itName = (item.name || '').toLowerCase();
-                if (servName.includes(itName) || itName.includes(servName)) {
-                  const totalCap = parseInt(s.total_capacity || 10, 10);
-                  const currentAvail = s.available_qty !== undefined ? parseInt(s.available_qty, 10) : totalCap;
-                  const restored = Math.min(totalCap, currentAvail + qty);
-                  return { ...s, available_qty: restored, available_quantity: restored };
-                }
-                return s;
-              }));
-            });
-          }
-
-          // Audit log
-          fetch('http://localhost:5000/api/v1/audit_logs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'AUTO_DAILY_CLOSURE',
-              description: `System automatically completed Walk-In #${w.walk_in_id} for ${w.customer_name}. Reason: END-OF-DAY AUTOMATIC CLOSURE. Services released.`
-            })
-          }).catch(() => {});
-
-          return {
-            ...w,
-            walk_in_status: 'COMPLETED',
-            completion_type: 'AUTO_DAILY_CLOSURE',
-            completed_by: 'System (End-of-Day Automatic Closure)',
-            completed_at: nowIso
-          };
-        }
-        return w;
-      });
-
-      if (hasAutoClosed) {
-        console.log('[EcoTourVista] ✅ End-of-Day Auto-Closure executed. Active walk-ins safely marked COMPLETED.');
-      }
-      return updated;
+      const next = prev.map(w => ids.has(w.walk_in_id) && w.walk_in_status === 'ACTIVE'
+        ? { ...w, walk_in_status: 'COMPLETED', completion_type: 'AUTO_DAILY_CLOSURE', completed_by: 'System (End-of-Day Automatic Closure)', completed_at: nowIso }
+        : w);
+      localStorage.setItem('walkInTransactions', JSON.stringify(next));
+      return next;
     });
+    setResortBookings(prev => {
+      const next = prev.map(b => toClose.some(w => matchesWalkInBooking(b, w)) ? { ...b, status: 'Completed' } : b);
+      localStorage.setItem('resortBookings', JSON.stringify(next));
+      return next;
+    });
+
+    toClose.forEach(w => {
+      completeWalkInOnServer(w);
+      fetch(`${API_BASE}/audit_logs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'AUTO_DAILY_CLOSURE',
+          description: `System automatically completed Walk-In #${w.walk_in_id} for ${w.customer_name}. Reason: END-OF-DAY AUTOMATIC CLOSURE. Services released.`
+        })
+      }).catch(() => {});
+    });
+    console.log(`[EcoTourVista] ✅ End-of-Day Auto-Closure: ${toClose.length} day-use walk-in(s) completed.`);
   };
 
   // Run automatic daily completion check every 60s and on midnight

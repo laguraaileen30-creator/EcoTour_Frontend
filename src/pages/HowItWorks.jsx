@@ -204,15 +204,15 @@ export default function HowItWorks() {
               🌿 Ready to experience Cold Spring Resort?
             </span>
             <a
-              href="#about"
+              href="#packages"
               className="hiw-cta-btn"
               onClick={(e) => {
                 e.preventDefault();
-                document.getElementById("about")?.scrollIntoView({ behavior: "smooth" });
+                document.getElementById("packages")?.scrollIntoView({ behavior: "smooth" });
               }}
               style={{ background: "var(--accent, #10b981)", color: isLight ? "#fff" : "#04170e" }}
             >
-
+              Explore packages →
             </a>
           </div>
         </motion.div>
