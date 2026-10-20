@@ -68,8 +68,10 @@ export default function RevenuePaymentsTab() {
     resortBookings = [],
     revenueShare,
     currentUser,
-    refreshAllLiveData
+    refreshAllLiveData,
+    theme = 'dark',
   } = useEcoTour();
+  const isDark = theme === 'dark';
 
   // ── State ──────────────────────────────────────────────────
   const [period, setPeriod]           = useState('monthly');
@@ -93,18 +95,58 @@ export default function RevenuePaymentsTab() {
   });
   const [saveNote, setSaveNote] = useState('');
 
+  // ── Staff Daily Sales Tallies from MySQL database ───────────
+  const [dailyHistories, setDailyHistories] = useState([]);
+
+  const fetchDailyHistories = useCallback(async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/v1/reports/saved-daily-history');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.history)) {
+        setDailyHistories(data.history);
+      }
+    } catch (e) {
+      console.warn("Could not fetch daily histories:", e);
+    }
+  }, []);
+
+  const handleAcknowledgeTally = async (tallyRecord) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/v1/reports/acknowledge-daily-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ id: tallyRecord.id, date: tallyRecord.date })
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetchDailyHistories();
+        if (refreshAllLiveData) refreshAllLiveData();
+      } else {
+        alert(data.message || 'Failed to acknowledge tally.');
+      }
+    } catch (err) {
+      alert(err.message || 'Error acknowledging tally.');
+    }
+  };
+
   // ── Auto-refresh every 15 s ────────────────────────────────
   const handleRefresh = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
     try {
       if (refreshAllLiveData) await refreshAllLiveData();
+      await fetchDailyHistories();
       setLastRefreshed(new Date());
     } finally {
       if (manual) setRefreshing(false);
     }
-  }, [refreshAllLiveData]);
+  }, [refreshAllLiveData, fetchDailyHistories]);
 
   useEffect(() => {
+    fetchDailyHistories();
     intervalRef.current = setInterval(() => handleRefresh(), 15000);
     const onReset = () => handleRefresh();
     window.addEventListener('ecotour:daily-reset', onReset);
@@ -112,7 +154,7 @@ export default function RevenuePaymentsTab() {
       clearInterval(intervalRef.current);
       window.removeEventListener('ecotour:daily-reset', onReset);
     };
-  }, [handleRefresh]);
+  }, [handleRefresh, fetchDailyHistories]);
 
   // ── Unified Live Transactions Ledger ───────────────────────
   const unifiedTransactions = useMemo(() => {
@@ -283,39 +325,83 @@ export default function RevenuePaymentsTab() {
 
   const orNo = (r) => r.receiptNo || `OR-${r.id}`;
 
-  return (
-    <div className="space-y-6 max-w-[1600px] mx-auto text-white p-2 sm:p-4">
+  // ── theme-aware class helpers ─────────────────────────────────────────────
+  const C = {
+    headerBg:   isDark ? 'bg-[#0c1f16] border-emerald-500/20' : 'bg-white border-emerald-200',
+    heading:    isDark ? 'text-white' : 'text-gray-900',
+    subtext:    isDark ? 'text-slate-400' : 'text-gray-500',
+    iconBox:    isDark ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400' : 'bg-emerald-100 border-emerald-300 text-emerald-600',
+    periodPill: isDark ? 'bg-[#07150e] border-emerald-900/60' : 'bg-emerald-50 border-emerald-300',
+    pillInact:  isDark ? 'text-slate-400 hover:text-emerald-300' : 'text-emerald-600 hover:text-emerald-900 hover:bg-emerald-100',
+    todayBadge: isDark ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/25' : 'text-emerald-700 bg-emerald-50 border-emerald-300',
+    select:     isDark ? 'bg-emerald-950/40 border-emerald-800 text-slate-200' : 'bg-white border-emerald-300 text-gray-800',
+    refreshBtn: isDark ? 'bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border-emerald-700/60' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300',
+    syncTxt:    isDark ? 'text-emerald-400/70' : 'text-emerald-600',
+    // card / section
+    cardBg:     isDark ? 'bg-[#071f14] border-emerald-500/30' : 'bg-white border-emerald-200',
+    snapBg:     isDark ? 'bg-[#0a2216] border-emerald-500/20' : 'bg-emerald-50 border-emerald-200',
+    cardInner:  isDark ? 'card' : 'card',
+    // kpi values
+    valWhite:   isDark ? 'text-white' : 'text-gray-900',
+    valEmerald: isDark ? 'text-emerald-300' : 'text-emerald-700',
+    valAmber:   isDark ? 'text-emerald-300' : 'text-emerald-600',
+    // table
+    tblHead:    isDark ? 'border-emerald-800/40 text-emerald-400' : 'border-emerald-200 text-emerald-700',
+    tblRow:     isDark ? 'hover:bg-emerald-950/30' : 'hover:bg-emerald-50/60',
+    tblOrNo:    isDark ? 'text-emerald-300' : 'text-emerald-700',
+    tblName:    isDark ? 'text-white' : 'text-gray-900',
+    tblSub:     isDark ? 'text-slate-400' : 'text-gray-400',
+    tblDate:    isDark ? 'text-slate-200' : 'text-gray-700',
+    tblPax:     isDark ? 'text-emerald-400' : 'text-emerald-600',
+    tblAmt:     isDark ? 'text-white' : 'text-gray-900',
+    methodTag:  isDark ? 'bg-emerald-950 border-emerald-700/50 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-700',
+    statusTag:  isDark ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-emerald-100 text-emerald-700 border-emerald-300',
+    viewBtn:    isDark ? 'bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 border-emerald-700/50' : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300',
+    searchInput:isDark ? 'bg-[#04150e] border-emerald-900/60 text-emerald-100 placeholder:text-emerald-500/40' : 'bg-white border-emerald-300 text-gray-800 placeholder:text-gray-400',
+    methodSel:  isDark ? 'bg-[#04150e] border-emerald-900/60 text-emerald-300' : 'bg-white border-emerald-300 text-gray-700',
+    sectionBdr: isDark ? 'border-emerald-800/40' : 'border-emerald-100',
+    sectionHd:  isDark ? 'text-emerald-300' : 'text-emerald-800',
+    breakCard:  isDark ? 'bg-[#0a2216] border-emerald-500/20' : 'bg-emerald-50 border-emerald-200',
+    breakLbl:   isDark ? 'text-slate-400' : 'text-gray-500',
+    breakVal:   isDark ? 'text-emerald-300' : 'text-emerald-700',
+    shareSlider:'accent-emerald-400',
+    saveCfg:    'px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-all',
+    noData:     isDark ? 'text-slate-400' : 'text-gray-400',
+  };
 
-      {/* ── HEADER ─────────────────────────────────────────── */}
-      <div className="bg-[#0c1f16] p-5 rounded-3xl border border-emerald-500/20 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+  return (
+    <div className={`space-y-6 max-w-[1600px] mx-auto p-2 sm:p-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+
+      {/* ── HEADER ───────────────────────────────────────────── */}
+      <div className={`p-5 rounded-3xl border shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 ${C.headerBg}`}>
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+          <div className={`w-11 h-11 rounded-2xl border flex items-center justify-center ${C.iconBox}`}>
             <Coins className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="font-extrabold text-white text-lg">Revenue &amp; Financial Payments</h3>
-            <p className="text-xs text-slate-400">
+            <h3 className={`font-extrabold text-lg ${C.heading}`}>Revenue &amp; Financial Payments</h3>
+            <p className={`text-xs ${C.subtext}`}>
               Live cash collections · Statutory distribution (70/20/10) · Verified receipts ledger
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 text-[10px] text-emerald-400/70 font-semibold">
+          <div className={`flex items-center gap-1.5 text-[10px] font-semibold ${C.syncTxt}`}>
             <Clock className="w-3 h-3" />
             <span>Synced: {lastRefreshed.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} (PHT)</span>
           </div>
           <button
             onClick={() => handleRefresh(true)}
             disabled={refreshing}
-            className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+            className={`px-3 py-1.5 border rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-50 ${C.refreshBtn}`}
           >
             <RefreshCw className="w-3.5 h-3.5" style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
             {refreshing ? 'Syncing…' : 'Refresh'}
           </button>
           <button
             onClick={() => window.print()}
-            className="px-3 py-1.5 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+            className={`px-3 py-1.5 border rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${C.refreshBtn}`}
           >
             <Printer className="w-3.5 h-3.5" /> Print Ledger
           </button>
@@ -324,8 +410,8 @@ export default function RevenuePaymentsTab() {
 
       {/* ── PERIOD SELECTOR ────────────────────────────────── */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">View Period:</span>
-        <div className="flex items-center gap-1 bg-[#07150e] p-1 rounded-xl border border-emerald-900/60">
+        <span className={`text-xs font-bold uppercase tracking-wider ${C.subtext}`}>View Period:</span>
+        <div className={`flex items-center gap-1 p-1 rounded-xl border ${C.periodPill}`}>
           {PERIODS.map(p => (
             <button
               key={p.key}
@@ -333,7 +419,7 @@ export default function RevenuePaymentsTab() {
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 period === p.key
                   ? 'bg-emerald-500 text-slate-950 font-black shadow'
-                  : 'text-slate-400 hover:text-emerald-300'
+                  : C.pillInact
               }`}
             >
               {p.label}
@@ -341,190 +427,141 @@ export default function RevenuePaymentsTab() {
           ))}
         </div>
         {period === 'today' && (
-          <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/25 px-2 py-1 rounded-lg">
+          <span className={`text-[10px] font-bold border px-2 py-1 rounded-lg ${C.todayBadge}`}>
             📅 {new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila', weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </span>
         )}
         <div className="flex gap-2 ml-auto">
-          <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="bg-emerald-950/40 border border-emerald-800 text-slate-200 text-xs px-2 py-1.5 rounded-lg outline-none focus:border-emerald-500">
+          <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className={`border text-xs px-2 py-1.5 rounded-lg outline-none focus:border-emerald-500 ${C.select}`}>
             <option value="">Year</option>
             {Array.from({length: 11}, (_, i) => 2020 + i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
           </select>
-          <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="bg-emerald-950/40 border border-emerald-800 text-slate-200 text-xs px-2 py-1.5 rounded-lg outline-none focus:border-emerald-500">
+          <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className={`border text-xs px-2 py-1.5 rounded-lg outline-none focus:border-emerald-500 ${C.select}`}>
             <option value="">Month</option>
             {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => <option key={i} value={(i + 1).toString().padStart(2, '0')}>{m}</option>)}
           </select>
-          <select value={filterDay} onChange={e => setFilterDay(e.target.value)} className="bg-emerald-950/40 border border-emerald-800 text-slate-200 text-xs px-2 py-1.5 rounded-lg outline-none focus:border-emerald-500">
+          <select value={filterDay} onChange={e => setFilterDay(e.target.value)} className={`border text-xs px-2 py-1.5 rounded-lg outline-none focus:border-emerald-500 ${C.select}`}>
             <option value="">Day</option>
             {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d.toString().padStart(2, '0')}>{d}</option>)}
           </select>
           {(filterYear || filterMonth || filterDay) && (
-            <button onClick={() => { setFilterYear(''); setFilterMonth(''); setFilterDay(''); }} className="text-xs font-bold text-rose-400 px-2">Clear</button>
+            <button onClick={() => { setFilterYear(''); setFilterMonth(''); setFilterDay(''); }} className="text-xs font-bold text-rose-500 px-2">Clear</button>
           )}
         </div>
       </div>
 
-      {/* ── KPI STAT CARDS ─────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-
-        {/* Gross Revenue */}
-        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg lg:col-span-1">
-          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
-            <span>Gross Revenue</span>
-            <TrendingUp className="w-3.5 h-3.5" />
-          </div>
-          <div className="text-2xl font-black text-white font-mono">{formatCurrency(totalGross)}</div>
-          <span className="text-[10px] text-slate-400 block mt-0.5">{periodLabel} · {periodReceipts.length} receipt{periodReceipts.length !== 1 ? 's' : ''}</span>
-          {period !== 'today' && (
-            <span className="text-[10px] text-emerald-300 font-bold block mt-1">Today: {formatCurrency(todayGross)}</span>
-          )}
-        </div>
-
-        {/* Visitors */}
-        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
-          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
-            <span>Visitors</span>
-            <Users className="w-3.5 h-3.5" />
-          </div>
-          <div className="text-2xl font-black text-white font-mono">{totalVisitors}</div>
-          <span className="text-[10px] text-slate-400 block mt-0.5">{periodLabel} · total pax</span>
-        </div>
-
-        {/* Resort Owner Share */}
-        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
-          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
-            <span>Park Maintenance ({shares.ownerPct}%)</span>
-            <Building className="w-3.5 h-3.5" />
-          </div>
-          <div className="text-2xl font-black text-emerald-300 font-mono">{formatCurrency(ownerAmount)}</div>
-          <span className="text-[10px] text-slate-400 block mt-0.5">Operating &amp; maintenance fund</span>
-        </div>
-
-        {/* Barangay Share */}
-        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
-          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
-            <span>Barangay Zamora ({shares.barangayPct}%)</span>
-            <ShieldCheck className="w-3.5 h-3.5" />
-          </div>
-          <div className="text-2xl font-black text-emerald-300 font-mono">{formatCurrency(barangayAmount)}</div>
-          <span className="text-[10px] text-slate-400 block mt-0.5">Community environmental share</span>
-        </div>
-
-        {/* Municipal Share */}
-        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
-          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
-            <span>Guide Association ({shares.municipalPct}%)</span>
-            <Percent className="w-3.5 h-3.5" />
-          </div>
-          <div className="text-2xl font-black text-emerald-300 font-mono">{formatCurrency(municipalAmount)}</div>
-          <span className="text-[10px] text-slate-400 block mt-0.5">Local tour guides &amp; LGU</span>
-        </div>
-      </div>
-
-      {/* ── REVENUE SHARING CONFIG + CATEGORY BREAKDOWN ──── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
-        {/* Configure Shares */}
-        <div className="card space-y-4 lg:col-span-1">
-          <div className="border-b border-emerald-800/40 pb-2">
-            <h4 className="font-bold text-emerald-300 text-sm flex items-center gap-2">
-              <Percent className="w-4 h-4 text-emerald-400" /> Revenue Sharing Distribution
-            </h4>
-            <p className="text-xs text-slate-400">Statutory split of all collected entrance and resort fees</p>
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <div className="flex justify-between text-xs font-semibold mb-1">
-                <span>Park Maintenance (Owner)</span>
-                <span className="text-emerald-400 font-mono">{shares.ownerPct}%</span>
-              </div>
-              <input
-                type="range" min="0" max="100" value={shares.ownerPct}
-                onChange={e => setShares(s => ({ ...s, ownerPct: Number(e.target.value) }))}
-                className="w-full accent-emerald-400 cursor-pointer"
-              />
+      {/* ── STAFF DAILY SALES TALLIES & CASH REMITTANCES ──────────── */}
+      <div className="card space-y-4">
+        <div className={`flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b pb-3 ${C.sectionBdr}`}>
+          <div className="flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-2xl border flex items-center justify-center ${C.iconBox}`}>
+              <Coins className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex justify-between text-xs font-semibold mb-1">
-                <span>Barangay Environmental Share</span>
-                <span className="text-emerald-400 font-mono">{shares.barangayPct}%</span>
+              <div className="flex items-center gap-2">
+                <h4 className={`font-bold text-sm flex items-center gap-2 ${C.sectionHd}`}>
+                  Staff Daily Sales Tallies &amp; Cash Remittances
+                </h4>
+                {dailyHistories.some(h => !h.status?.includes('Verified')) && (
+                  <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full animate-pulse">
+                    {dailyHistories.filter(h => !h.status?.includes('Verified')).length} Pending Verification
+                  </span>
+                )}
               </div>
-              <input
-                type="range" min="0" max="100" value={shares.barangayPct}
-                onChange={e => setShares(s => ({ ...s, barangayPct: Number(e.target.value) }))}
-                className="w-full accent-emerald-400 cursor-pointer"
-              />
-            </div>
-            <div>
-              <div className="flex justify-between text-xs font-semibold mb-1">
-                <span>Municipal &amp; Guide Association</span>
-                <span className="text-emerald-400 font-mono">{shares.municipalPct}%</span>
-              </div>
-              <input
-                type="range" min="0" max="100" value={shares.municipalPct}
-                onChange={e => setShares(s => ({ ...s, municipalPct: Number(e.target.value) }))}
-                className="w-full accent-emerald-400 cursor-pointer"
-              />
+              <p className={`text-xs ${C.subtext}`}>
+                Live end-of-shift daily sales computations &amp; cash turnover submitted by staff cashiers for administrative review
+              </p>
             </div>
           </div>
-
-          <div className="pt-2 flex items-center justify-between">
-            <span className={`text-xs font-bold ${Number(shares.ownerPct) + Number(shares.barangayPct) + Number(shares.municipalPct) === 100 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              Total: {Number(shares.ownerPct) + Number(shares.barangayPct) + Number(shares.municipalPct)}%
-            </span>
-            <button
-              onClick={handleSaveShares}
-              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold cursor-pointer transition-all"
-            >
-              Save Configuration
-            </button>
-          </div>
-          {saveNote && <div className="text-xs text-emerald-400 font-bold text-center">{saveNote}</div>}
+          <button
+            onClick={() => fetchDailyHistories()}
+            className={`px-3 py-1.5 border rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${C.refreshBtn}`}
+            title="Refresh submitted tallies from staff"
+          >
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh Tallies
+          </button>
         </div>
 
-        {/* Category Breakdown */}
-        <div className="card space-y-3 lg:col-span-2">
-          <div className="border-b border-emerald-800/40 pb-2 flex justify-between items-center">
-            <h4 className="font-bold text-emerald-300 text-sm flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-emerald-400" /> Revenue Stream Breakdown ({periodLabel})
-            </h4>
-            <span className="text-xs font-bold text-emerald-400 font-mono">Total: {formatCurrency(totalGross)}</span>
+        {dailyHistories.length === 0 ? (
+          <div className={`py-8 text-center text-xs ${C.noData}`}>
+            No daily sales tallies have been submitted by staff cashiers yet.
           </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-            <div className="p-3 bg-[#0a2216] rounded-xl border border-emerald-500/20">
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Entrance Fees</span>
-              <strong className="text-base font-black text-emerald-300 font-mono block mt-1">{formatCurrency(entranceRevenue)}</strong>
-              <small className="text-[10px] text-slate-400">{totalGross > 0 ? Math.round((entranceRevenue / totalGross) * 100) : 0}% of gross</small>
-            </div>
-            <div className="p-3 bg-[#0a2216] rounded-xl border border-emerald-500/20">
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Cottages &amp; Rooms</span>
-              <strong className="text-base font-black text-emerald-300 font-mono block mt-1">{formatCurrency(cottageRevenue)}</strong>
-              <small className="text-[10px] text-slate-400">{totalGross > 0 ? Math.round((cottageRevenue / totalGross) * 100) : 0}% of gross</small>
-            </div>
-            <div className="p-3 bg-[#0a2216] rounded-xl border border-emerald-500/20">
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Rented Amenities</span>
-              <strong className="text-base font-black text-emerald-300 font-mono block mt-1">{formatCurrency(amenitiesRevenue)}</strong>
-              <small className="text-[10px] text-slate-400">{totalGross > 0 ? Math.round((amenitiesRevenue / totalGross) * 100) : 0}% of gross</small>
-            </div>
-            <div className="p-3 bg-[#0a2216] rounded-xl border border-emerald-500/20">
-              <span className="text-[10px] text-slate-400 uppercase font-bold block">Other Services</span>
-              <strong className="text-base font-black text-emerald-300 font-mono block mt-1">{formatCurrency(otherRevenue)}</strong>
-              <small className="text-[10px] text-slate-400">{totalGross > 0 ? Math.round((otherRevenue / totalGross) * 100) : 0}% of gross</small>
-            </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="border-b border-emerald-800/40 text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider">
+                  <th className="py-2.5 px-3">Operating Date</th>
+                  <th className="py-2.5 px-3">Submitting Cashier</th>
+                  <th className="py-2.5 px-3 text-right">Cash Remittance</th>
+                  <th className="py-2.5 px-3 text-center">Visitors (Pax)</th>
+                  <th className="py-2.5 px-3 text-center">Transactions</th>
+                  <th className="py-2.5 px-3">Remarks &amp; Notes</th>
+                  <th className="py-2.5 px-3 text-center">Status</th>
+                  <th className="py-2.5 px-3 text-right">Admin Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-900/30">
+                {dailyHistories.map((h, i) => (
+                  <tr key={h.id || h.date || i} className={`${C.tblRow} transition-all`}>
+                    <td className="py-3 px-3 font-mono font-bold text-emerald-400">{h.date}</td>
+                    <td className="py-3 px-3 font-semibold">
+                      <div className="flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>{h.cashier_name || h.saved_by || 'Staff Cashier'}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-3 text-right font-mono font-extrabold text-emerald-400 text-sm">
+                      ₱{parseFloat(h.total_cash_revenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono font-bold text-slate-200">
+                      {h.total_visitors || 0} pax
+                    </td>
+                    <td className="py-3 px-3 text-center font-mono text-slate-300">
+                      {h.total_transactions || '—'}
+                    </td>
+                    <td className="py-3 px-3 text-slate-300 text-xs max-w-xs truncate" title={h.notes}>
+                      {h.notes || 'End of shift daily tally'}
+                    </td>
+                    <td className="py-3 px-3 text-center">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
+                        h.status?.includes('Verified')
+                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                          : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                      }`}>
+                        {h.status || 'Submitted'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-3 text-right">
+                      {h.status?.includes('Verified') ? (
+                        <span className="text-[11px] font-bold text-emerald-400 inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleAcknowledgeTally(h)}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition-all shadow-md inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Acknowledge &amp; Verify
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── OFFICIAL RECEIPTS & AUDIT LEDGER TABLE ──────────── */}
       <div className="card space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-emerald-800/40 pb-3">
+        <div className={`flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b pb-3 ${C.sectionBdr}`}>
           <div>
-            <h4 className="font-bold text-emerald-300 text-sm flex items-center gap-2">
+            <h4 className={`font-bold text-sm flex items-center gap-2 ${C.sectionHd}`}>
               <Receipt className="w-4 h-4 text-emerald-400" /> Official Receipts &amp; Verified Audit Ledger
             </h4>
-            <p className="text-xs text-slate-400">
+            <p className={`text-xs ${C.subtext}`}>
               Complete chronological ledger of all cash collections from Walk-In Gate POS and Advance Reservations
             </p>
           </div>
@@ -539,7 +576,7 @@ export default function RevenuePaymentsTab() {
                 placeholder="Search OR No., Guest, Ref..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="pl-8 pr-3 py-1.5 rounded-xl bg-[#04150e] border border-emerald-900/60 text-xs text-emerald-100 placeholder:text-emerald-500/40 outline-none w-48"
+                className={`pl-8 pr-3 py-1.5 rounded-xl border text-xs outline-none w-48 ${C.searchInput}`}
               />
             </div>
 
@@ -547,7 +584,7 @@ export default function RevenuePaymentsTab() {
             <select
               value={selectedMethod}
               onChange={e => setSelectedMethod(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-[#04150e] border border-emerald-900/60 text-xs text-emerald-300 outline-none cursor-pointer"
+              className={`px-3 py-1.5 rounded-xl border text-xs outline-none cursor-pointer ${C.methodSel}`}
             >
               <option value="all">All Cash Channels</option>
               <option value="walkin">Gate Walk-In POS</option>
@@ -556,6 +593,8 @@ export default function RevenuePaymentsTab() {
 
           </div>
         </div>
+
+
 
         {/* Table */}
         <div className="overflow-x-auto">
@@ -631,7 +670,159 @@ export default function RevenuePaymentsTab() {
                 ))
               )}
             </tbody>
+            {filteredReceipts.length > 0 && (
+              <tfoot className="bg-emerald-50 dark:bg-[#0a2216] border-t border-emerald-200 dark:border-emerald-500/50">
+                <tr>
+                  <td colSpan={5} className="py-4 px-3 text-right font-extrabold text-emerald-800 dark:text-emerald-300 uppercase text-[11px] tracking-wider">
+                    {searchQuery.trim() ? `Total for "${searchQuery}" (${filteredReceipts.length} records):` : `Total (${filteredReceipts.length} records):`}
+                  </td>
+                  <td className="py-4 px-3 font-mono font-black text-emerald-900 dark:text-emerald-400 text-base">
+                    {formatCurrency(filteredReceipts.reduce((sum, r) => sum + parseFloat(r.grandTotal || 0), 0))}
+                  </td>
+                  <td colSpan={2}></td>
+                </tr>
+              </tfoot>
+            )}
           </table>
+        </div>
+      </div>
+
+      {/* ── KPI STAT CARDS ─────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+
+        {/* Gross Revenue */}
+        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg lg:col-span-1">
+          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
+            <span>Gross Revenue</span>
+            <TrendingUp className="w-3.5 h-3.5" />
+          </div>
+          <div className="text-2xl font-black text-white font-mono">{formatCurrency(totalGross)}</div>
+          <span className="text-[10px] text-slate-400 block mt-0.5">{periodLabel} · {periodReceipts.length} receipt{periodReceipts.length !== 1 ? 's' : ''}</span>
+          {period !== 'today' && (
+            <span className="text-[10px] text-emerald-300 font-bold block mt-1">Today: {formatCurrency(todayGross)}</span>
+          )}
+        </div>
+
+        {/* Visitors */}
+        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
+          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
+            <span>Visitors</span>
+            <Users className="w-3.5 h-3.5" />
+          </div>
+          <div className="text-2xl font-black text-white font-mono">{totalVisitors}</div>
+          <span className="text-[10px] text-slate-400 block mt-0.5">{periodLabel} · total pax</span>
+        </div>
+
+        {/* Resort Owner Share */}
+        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
+          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
+            <span>Park Maintenance ({shares.ownerPct}%)</span>
+            <Building className="w-3.5 h-3.5" />
+          </div>
+          <div className="text-2xl font-black text-emerald-300 font-mono">{formatCurrency(ownerAmount)}</div>
+          <span className="text-[10px] text-slate-400 block mt-0.5">Operating &amp; maintenance fund</span>
+        </div>
+
+        {/* Barangay Share */}
+        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
+          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
+            <span>Barangay Zamora ({shares.barangayPct}%)</span>
+            <ShieldCheck className="w-3.5 h-3.5" />
+          </div>
+          <div className="text-2xl font-black text-emerald-300 font-mono">{formatCurrency(barangayAmount)}</div>
+          <span className="text-[10px] text-slate-400 block mt-0.5">Community environmental share</span>
+        </div>
+
+        {/* Municipal Share */}
+        <div className="p-4 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
+          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-1">
+            <span>Guide Association ({shares.municipalPct}%)</span>
+            <Percent className="w-3.5 h-3.5" />
+          </div>
+          <div className="text-2xl font-black text-emerald-300 font-mono">{formatCurrency(municipalAmount)}</div>
+          <span className="text-[10px] text-slate-400 block mt-0.5">Local tour guides &amp; LGU</span>
+        </div>
+      </div>
+
+      {/* ── REVENUE SHARING CONFIG + CATEGORY BREAKDOWN ──────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+        {/* Configure Shares */}
+        <div className="card space-y-4 lg:col-span-1">
+          <div className={`border-b pb-2 ${C.sectionBdr}`}>
+            <h4 className={`font-bold text-sm flex items-center gap-2 ${C.sectionHd}`}>
+              <Percent className="w-4 h-4 text-emerald-400" /> Revenue Sharing Distribution
+            </h4>
+            <p className={`text-xs ${C.subtext}`}>Statutory split of all collected entrance and resort fees</p>
+          </div>
+
+          <div className="space-y-3">
+            <div>
+              <div className={`flex justify-between text-xs font-semibold mb-1 ${isDark ? '' : 'text-gray-700'}`}>
+                <span>Park Maintenance (Owner)</span>
+                <span className="text-emerald-500 font-mono">{shares.ownerPct}%</span>
+              </div>
+              <input type="range" min="0" max="100" value={shares.ownerPct}
+                onChange={e => setShares(s => ({ ...s, ownerPct: Number(e.target.value) }))}
+                className={`w-full cursor-pointer ${C.shareSlider}`} />
+            </div>
+            <div>
+              <div className={`flex justify-between text-xs font-semibold mb-1 ${isDark ? '' : 'text-gray-700'}`}>
+                <span>Barangay Environmental Share</span>
+                <span className="text-emerald-500 font-mono">{shares.barangayPct}%</span>
+              </div>
+              <input type="range" min="0" max="100" value={shares.barangayPct}
+                onChange={e => setShares(s => ({ ...s, barangayPct: Number(e.target.value) }))}
+                className={`w-full cursor-pointer ${C.shareSlider}`} />
+            </div>
+            <div>
+              <div className={`flex justify-between text-xs font-semibold mb-1 ${isDark ? '' : 'text-gray-700'}`}>
+                <span>Municipal &amp; Guide Association</span>
+                <span className="text-emerald-500 font-mono">{shares.municipalPct}%</span>
+              </div>
+              <input type="range" min="0" max="100" value={shares.municipalPct}
+                onChange={e => setShares(s => ({ ...s, municipalPct: Number(e.target.value) }))}
+                className={`w-full cursor-pointer ${C.shareSlider}`} />
+            </div>
+          </div>
+
+          <div className="pt-2 flex items-center justify-between">
+            <span className={`text-xs font-bold ${
+              Number(shares.ownerPct) + Number(shares.barangayPct) + Number(shares.municipalPct) === 100
+                ? 'text-emerald-500' : 'text-rose-500'
+            }`}>
+              Total: {Number(shares.ownerPct) + Number(shares.barangayPct) + Number(shares.municipalPct)}%
+            </span>
+            <button onClick={handleSaveShares} className={C.saveCfg}>Save Configuration</button>
+          </div>
+          {saveNote && <div className="text-xs text-emerald-500 font-bold text-center">{saveNote}</div>}
+        </div>
+
+        {/* Category Breakdown */}
+        <div className="card space-y-3 lg:col-span-2">
+          <div className={`border-b pb-2 flex justify-between items-center ${C.sectionBdr}`}>
+            <h4 className={`font-bold text-sm flex items-center gap-2 ${C.sectionHd}`}>
+              <DollarSign className="w-4 h-4 text-emerald-400" /> Revenue Stream Breakdown ({periodLabel})
+            </h4>
+            <span className="text-xs font-bold text-emerald-500 font-mono">Total: {formatCurrency(totalGross)}</span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+            {[
+              { label: 'Entrance Fees',    value: entranceRevenue },
+              { label: 'Cottages & Rooms', value: cottageRevenue  },
+              { label: 'Rented Amenities', value: amenitiesRevenue},
+              { label: 'Other Services',   value: otherRevenue    },
+            ].map(({ label, value }) => (
+              <div key={label} className={`p-3 rounded-xl border ${C.breakCard}`}>
+                <span className={`text-[10px] uppercase font-bold block ${C.breakLbl}`}>{label}</span>
+                <strong className={`text-base font-black font-mono block mt-1 ${C.breakVal}`}>{formatCurrency(value)}</strong>
+                <small className={`text-[10px] ${C.breakLbl}`}>
+                  {totalGross > 0 ? Math.round((value / totalGross) * 100) : 0}% of gross
+                </small>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

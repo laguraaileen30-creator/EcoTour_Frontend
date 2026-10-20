@@ -1,16 +1,45 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Coins, CreditCard, TrendingUp, Users, Calendar, Wallet, CheckCircle2,
   Ticket, Home, Utensils, Droplets, ShieldCheck, Calculator, Star, Sparkles,
-  Printer, RefreshCw, Layers
+  Printer, RefreshCw, Layers, Send, X, Clock, FileText, Check
 } from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
 import { getPhilippineDateStr, getPhilippineFormattedDate } from '../../../utils/phTime';
 
 export default function DailySalesTab() {
-  const { receipts = [], walkIns = [], getDailyTallySummary, refreshAllLiveData } = useEcoTour();
+  const { receipts = [], walkIns = [], currentUser, showAlert, getDailyTallySummary, refreshAllLiveData, theme } = useEcoTour();
+  const isLight = theme === 'light';
   const todayStr = getPhilippineDateStr();
   const [selectedDate, setSelectedDate] = useState(todayStr);
+
+  // Saved / submitted daily histories from backend MySQL
+  const [savedHistories, setSavedHistories] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [submissionNote, setSubmissionNote] = useState('');
+  const [shiftName, setShiftName] = useState('Full Day Shift');
+  const [cashTurnoverInput, setCashTurnoverInput] = useState('');
+
+  const fetchSavedHistories = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/v1/reports/saved-daily-history');
+      const data = await res.json();
+      if (data.success && Array.isArray(data.history)) {
+        const map = {};
+        data.history.forEach(h => {
+          map[h.date] = h;
+        });
+        setSavedHistories(map);
+      }
+    } catch (e) {
+      console.warn('Saved daily history note:', e.message);
+    }
+  };
+
+  useEffect(() => {
+    fetchSavedHistories();
+  }, []);
 
   // Collect all real unique dates that have transactions
   const availableDates = useMemo(() => {
@@ -63,9 +92,74 @@ export default function DailySalesTab() {
   }, [availableDates, getDailyTallySummary, todayStr, receipts, walkIns]);
 
   const isPeakDay = selectedDate === peakDate && maxRev > 0;
+  const currentSubmission = savedHistories[selectedDate];
 
   const handlePrintTally = () => {
     window.print();
+  };
+
+  const handleOpenSubmitModal = () => {
+    setCashTurnoverInput(String(tally.totalCashRevenue || 0));
+    setSubmissionNote('');
+    setShowSubmitModal(true);
+  };
+
+  const handleSubmitTally = async () => {
+    setIsSubmitting(true);
+    try {
+      const cashier = currentUser?.name || `${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || 'Staff Cashier';
+      const actualRemitted = parseFloat(cashTurnoverInput) || tally.totalCashRevenue || 0;
+
+      const payload = {
+        date: selectedDate,
+        total_visitors: tally.totalVisitors || 0,
+        entrance_revenue: tally.entranceRevenue || 0,
+        service_revenue: tally.serviceRevenue || 0,
+        total_cash_revenue: actualRemitted,
+        park_share: Math.round(actualRemitted * 0.70),
+        barangay_share: Math.round(actualRemitted * 0.20),
+        municipal_share: Math.round(actualRemitted * 0.10),
+        cashier_name: cashier,
+        saved_by: cashier,
+        notes: submissionNote.trim() ? `[${shiftName}] ${submissionNote.trim()}` : `[${shiftName}] Cash drawer count verified and remitted to Admin.`,
+        status: 'Submitted to Admin',
+        total_transactions: tally.totalTransactions || tally.receipts?.length || 0,
+      };
+
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/v1/reports/save-daily-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setShowSubmitModal(false);
+        await fetchSavedHistories();
+        if (refreshAllLiveData) refreshAllLiveData();
+        window.dispatchEvent(new CustomEvent('ecotour:daily-reset'));
+
+        if (showAlert) {
+          showAlert({
+            title: 'Daily Tally Submitted to Admin!',
+            message: `Tally for ${selectedDate} (₱${actualRemitted.toLocaleString('en-US', { minimumFractionDigits: 2 })}) has been transmitted to Admin for review & reconciliation.`,
+            type: 'success'
+          });
+        } else {
+          alert('Daily tally submitted to Admin successfully!');
+        }
+      } else {
+        throw new Error(data.message || 'Failed to submit tally.');
+      }
+    } catch (err) {
+      alert(err.message || 'Error transmitting daily tally to Admin.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -78,7 +172,18 @@ export default function DailySalesTab() {
             ₱
           </div>
           <div>
-            <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-[3px] block">CASHIER DAILY TALLY TERMINAL</span>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-[3px] block">CASHIER DAILY TALLY TERMINAL</span>
+              {currentSubmission && (
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  currentSubmission.status?.includes('Verified')
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}>
+                  ✓ {currentSubmission.status}
+                </span>
+              )}
+            </div>
             <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
               Everyday Sales Computation &amp; Daily Tally
             </h2>
@@ -91,7 +196,7 @@ export default function DailySalesTab() {
         {/* Date Switcher & Actions */}
         <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
           <button
-            onClick={() => { if (refreshAllLiveData) refreshAllLiveData(); }}
+            onClick={() => { if (refreshAllLiveData) refreshAllLiveData(); fetchSavedHistories(); }}
             className="p-2.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/50 rounded-xl text-emerald-300 transition-all cursor-pointer"
             title="Refresh Live Data"
           >
@@ -100,10 +205,19 @@ export default function DailySalesTab() {
 
           <button
             onClick={handlePrintTally}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-700 hover:bg-emerald-600 border border-emerald-400/40 rounded-xl text-white text-xs font-bold transition-all cursor-pointer shadow-md"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-900/60 hover:bg-emerald-800 border border-emerald-700/50 rounded-xl text-white text-xs font-bold transition-all cursor-pointer shadow-md"
             title="Print Shift Tally Report"
           >
-            <Printer className="w-4 h-4" /> Print Daily Report
+            <Printer className="w-4 h-4" /> Print
+          </button>
+
+          <button
+            onClick={handleOpenSubmitModal}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border border-emerald-400/50 rounded-xl text-white text-xs font-extrabold transition-all cursor-pointer shadow-lg active:scale-95"
+            title="Submit this tally & cash turnover directly to Admin"
+          >
+            <Send className="w-4 h-4" />
+            {currentSubmission ? 'Update / Re-submit Tally' : 'Submit Tally to Admin'}
           </button>
 
           <div className="flex items-center gap-2 bg-black/60 border border-emerald-500/40 rounded-xl px-3 py-1.5">
@@ -360,6 +474,291 @@ export default function DailySalesTab() {
         </div>
       </div>
 
+      {/* MODAL: SUBMIT DAILY SALES TALLY TO ADMIN */}
+      {showSubmitModal && (
+        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fadeIn ${
+          isLight ? 'bg-slate-900/60' : 'bg-black/80'
+        }`}>
+          <div
+            className={`daily-tally-modal rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-5 transition-all ${
+              isLight
+                ? 'bg-white text-slate-900 border border-emerald-200/90 shadow-2xl shadow-emerald-950/10'
+                : 'bg-[#071810] text-white border border-emerald-500/40 shadow-2xl'
+            }`}
+            style={{
+              backgroundColor: isLight ? '#ffffff' : '#071810',
+              color: isLight ? '#0f172a' : '#ffffff',
+            }}
+          >
+            {/* Modal Header */}
+            <div className={`flex justify-between items-center pb-3 border-b ${
+              isLight ? 'border-emerald-100' : 'border-emerald-900/60'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-extrabold text-xl shrink-0 ${
+                  isLight
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                    : 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                }`}>
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3
+                    className="font-extrabold text-base tracking-tight"
+                    style={{ color: isLight ? '#064e3b' : '#ffffff' }}
+                  >
+                    Submit Daily Tally to Admin
+                  </h3>
+                  <p
+                    className="text-[11px]"
+                    style={{ color: isLight ? '#475569' : '#94a3b8' }}
+                  >
+                    Official cash drawer turnover &amp; shift reconciliation
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSubmitModal(false)}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isLight
+                    ? 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'
+                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                }`}
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Shift & Remittance Details Summary (4 Dynamic Cards) */}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div
+                className={`p-3 rounded-xl border transition-colors ${
+                  isLight
+                    ? 'bg-emerald-50/70 border-emerald-200/80 shadow-xs'
+                    : 'bg-black/40 border-emerald-900/50'
+                }`}
+                style={{
+                  backgroundColor: isLight ? '#f0fdf4' : 'rgba(0, 0, 0, 0.45)',
+                  borderColor: isLight ? '#bbf7d0' : 'rgba(6, 78, 59, 0.5)',
+                }}
+              >
+                <span
+                  className="text-[10px] font-bold block uppercase tracking-wider"
+                  style={{ color: isLight ? '#047857' : '#94a3b8' }}
+                >
+                  Operating Date
+                </span>
+                <span
+                  className="font-mono font-extrabold text-sm block mt-0.5"
+                  style={{ color: isLight ? '#065f46' : '#6ee7b7' }}
+                >
+                  {selectedDate}
+                </span>
+              </div>
+
+              <div
+                className={`p-3 rounded-xl border transition-colors ${
+                  isLight
+                    ? 'bg-emerald-50/70 border-emerald-200/80 shadow-xs'
+                    : 'bg-black/40 border-emerald-900/50'
+                }`}
+                style={{
+                  backgroundColor: isLight ? '#f0fdf4' : 'rgba(0, 0, 0, 0.45)',
+                  borderColor: isLight ? '#bbf7d0' : 'rgba(6, 78, 59, 0.5)',
+                }}
+              >
+                <span
+                  className="text-[10px] font-bold block uppercase tracking-wider"
+                  style={{ color: isLight ? '#047857' : '#94a3b8' }}
+                >
+                  Submitting Cashier
+                </span>
+                <span
+                  className="font-bold text-sm truncate block mt-0.5"
+                  style={{ color: isLight ? '#0f172a' : '#ffffff' }}
+                >
+                  {currentUser?.name || `${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || 'Staff Cashier'}
+                </span>
+              </div>
+
+              <div
+                className={`p-3 rounded-xl border transition-colors ${
+                  isLight
+                    ? 'bg-emerald-50/70 border-emerald-200/80 shadow-xs'
+                    : 'bg-black/40 border-emerald-900/50'
+                }`}
+                style={{
+                  backgroundColor: isLight ? '#f0fdf4' : 'rgba(0, 0, 0, 0.45)',
+                  borderColor: isLight ? '#bbf7d0' : 'rgba(6, 78, 59, 0.5)',
+                }}
+              >
+                <span
+                  className="text-[10px] font-bold block uppercase tracking-wider"
+                  style={{ color: isLight ? '#047857' : '#94a3b8' }}
+                >
+                  Entrance Cash
+                </span>
+                <span
+                  className="font-mono font-bold text-sm block mt-0.5"
+                  style={{ color: isLight ? '#0f172a' : '#ffffff' }}
+                >
+                  ₱{tally.entranceRevenue.toLocaleString()}{' '}
+                  <span className={`text-[11px] font-normal ${isLight ? 'text-slate-500' : 'text-slate-300'}`}>
+                    ({tally.totalVisitors} pax)
+                  </span>
+                </span>
+              </div>
+
+              <div
+                className={`p-3 rounded-xl border transition-colors ${
+                  isLight
+                    ? 'bg-emerald-50/70 border-emerald-200/80 shadow-xs'
+                    : 'bg-black/40 border-emerald-900/50'
+                }`}
+                style={{
+                  backgroundColor: isLight ? '#f0fdf4' : 'rgba(0, 0, 0, 0.45)',
+                  borderColor: isLight ? '#bbf7d0' : 'rgba(6, 78, 59, 0.5)',
+                }}
+              >
+                <span
+                  className="text-[10px] font-bold block uppercase tracking-wider"
+                  style={{ color: isLight ? '#047857' : '#94a3b8' }}
+                >
+                  Services Cash
+                </span>
+                <span
+                  className="font-mono font-bold text-sm block mt-0.5"
+                  style={{ color: isLight ? '#0f172a' : '#ffffff' }}
+                >
+                  ₱{tally.serviceRevenue.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Shift & Remittance Inputs */}
+            <div className="space-y-3.5">
+              <div>
+                <label
+                  className="text-xs font-bold block mb-1"
+                  style={{ color: isLight ? '#334155' : '#cbd5e1' }}
+                >
+                  Cashier Shift
+                </label>
+                <select
+                  value={shiftName}
+                  onChange={(e) => setShiftName(e.target.value)}
+                  className={`w-full rounded-xl px-3 py-2 text-xs outline-none transition-all ${
+                    isLight
+                      ? 'bg-white border border-slate-300 text-slate-800 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 shadow-xs'
+                      : 'bg-emerald-950/60 border border-emerald-700/60 text-emerald-200 focus:border-emerald-400'
+                  }`}
+                  style={{
+                    backgroundColor: isLight ? '#ffffff' : undefined,
+                    color: isLight ? '#0f172a' : undefined,
+                  }}
+                >
+                  <option value="Full Day Shift">Full Day Shift</option>
+                  <option value="Morning Shift (8AM - 4PM)">Morning Shift (8AM - 4PM)</option>
+                  <option value="Evening Shift (4PM - 10PM)">Evening Shift (4PM - 10PM)</option>
+                </select>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <label
+                    className="text-xs font-bold"
+                    style={{ color: isLight ? '#334155' : '#cbd5e1' }}
+                  >
+                    Actual Cash Turnover / Remittance (₱)
+                  </label>
+                  <span
+                    className="text-[10px] font-bold font-mono"
+                    style={{ color: isLight ? '#047857' : '#34d399' }}
+                  >
+                    System Computed: ₱{tally.totalCashRevenue.toLocaleString()}
+                  </span>
+                </div>
+                <div className="relative">
+                  <span
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 font-mono font-bold select-none text-base"
+                    style={{ color: isLight ? '#059669' : '#34d399' }}
+                  >
+                    ₱
+                  </span>
+                  <input
+                    type="number"
+                    step="any"
+                    value={cashTurnoverInput}
+                    onChange={(e) => setCashTurnoverInput(e.target.value)}
+                    className={`w-full rounded-xl pl-8 pr-4 py-2 font-mono font-extrabold text-base outline-none transition-all ${
+                      isLight
+                        ? 'bg-white border border-slate-300 text-emerald-800 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 shadow-xs'
+                        : 'bg-black/60 border border-emerald-500/50 text-emerald-300 focus:border-emerald-400'
+                    }`}
+                    style={{
+                      backgroundColor: isLight ? '#ffffff' : undefined,
+                      color: isLight ? '#047857' : undefined,
+                    }}
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label
+                  className="text-xs font-bold block mb-1"
+                  style={{ color: isLight ? '#334155' : '#cbd5e1' }}
+                >
+                  Cashier Turnover Remarks &amp; Notes
+                </label>
+                <textarea
+                  value={submissionNote}
+                  onChange={(e) => setSubmissionNote(e.target.value)}
+                  placeholder="e.g. End-of-day physical cash counted and balanced with system tally. Ready for turnover."
+                  className={`w-full rounded-xl p-3 text-xs outline-none min-h-[70px] resize-none transition-all ${
+                    isLight
+                      ? 'bg-white border border-slate-300 text-slate-800 placeholder:text-slate-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-500 shadow-xs'
+                      : 'bg-black/50 border border-emerald-900/60 text-slate-200 placeholder:text-slate-500 focus:border-emerald-400'
+                  }`}
+                  style={{
+                    backgroundColor: isLight ? '#ffffff' : undefined,
+                    color: isLight ? '#0f172a' : undefined,
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer Actions */}
+            <div className={`pt-2 flex justify-end gap-2.5 border-t ${
+              isLight ? 'border-emerald-100' : 'border-emerald-900/60'
+            }`}>
+              <button
+                type="button"
+                onClick={() => setShowSubmitModal(false)}
+                disabled={isSubmitting}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  isLight
+                    ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 shadow-2xs'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmitTally}
+                disabled={isSubmitting}
+                className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 rounded-xl text-xs font-extrabold text-white shadow-lg shadow-emerald-900/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <Send className="w-3.5 h-3.5" />
+                {isSubmitting ? 'Transmitting to Admin…' : 'Confirm & Submit to Admin'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

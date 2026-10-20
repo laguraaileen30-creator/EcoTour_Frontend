@@ -84,12 +84,69 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
     ? (paymentKind === 'FEE' ? feeOutstanding(selectedBookingForPayment) : balanceOf(selectedBookingForPayment))
     : 0;
 
+  // Catering status checker (3-minute lock to avoid staff collisions)
+  const getCaterStatus = (b) => {
+    if (!b?.cateredBy) return { isCateredByOther: false, isCateredByMe: false, catererName: '' };
+    const myName = (currentUser?.name || `${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || 'Staff').toLowerCase();
+    const caterer = String(b.cateredBy).trim().toLowerCase();
+    const isMe = caterer === myName;
+    if (b.cateredAt) {
+      const elapsedSec = (Date.now() - new Date(b.cateredAt).getTime()) / 1000;
+      if (elapsedSec > 180) {
+        return { isCateredByOther: false, isCateredByMe: false, catererName: '' };
+      }
+    }
+    return {
+      isCateredByOther: !isMe,
+      isCateredByMe: isMe,
+      catererName: b.cateredBy
+    };
+  };
+
   // kind: 'FEE' = reservation fee (downpayment) only, 'BALANCE' = everything still owed
-  const openPaymentModal = (booking, kind = 'BALANCE') => {
-    setSelectedBookingForPayment(booking);
-    setPaymentKind(kind);
-    const due = kind === 'FEE' ? feeOutstanding(booking) : balanceOf(booking);
-    setCashReceivedInput(due ? String(due) : '');
+  const openPaymentModal = async (booking, kind = 'BALANCE') => {
+    const myName = currentUser?.name || `${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || 'Staff Cashier';
+    const targetId = booking.id || booking.bookingRef || booking.bookingNumber;
+    try {
+      // Claim the booking on the server to prevent multiple staff from catering simultaneously
+      const res = await apiJson(`/reservations/${encodeURIComponent(targetId)}/cater`, {
+        method: 'POST',
+        auth: true,
+        body: { staff_name: myName }
+      });
+      if (res && res.success) {
+        setSelectedBookingForPayment(booking);
+        setPaymentKind(kind);
+        const due = kind === 'FEE' ? feeOutstanding(booking) : balanceOf(booking);
+        setCashReceivedInput(due ? String(due) : '');
+        if (refreshAllLiveData) refreshAllLiveData();
+      }
+    } catch (err) {
+      showAlert({
+        title: 'Client Currently Being Assisted',
+        message: err.message || 'This client is currently being assisted at another counter to avoid duplicate payments.',
+        type: 'warning'
+      });
+      if (refreshAllLiveData) refreshAllLiveData();
+    }
+  };
+
+  const closePaymentModal = async () => {
+    if (selectedBookingForPayment) {
+      const myName = currentUser?.name || `${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || 'Staff Cashier';
+      const targetId = selectedBookingForPayment.id || selectedBookingForPayment.bookingRef || selectedBookingForPayment.bookingNumber;
+      try {
+        await apiJson(`/reservations/${encodeURIComponent(targetId)}/uncater`, {
+          method: 'POST',
+          auth: true,
+          body: { staff_name: myName }
+        });
+      } catch (e) {
+        console.warn('Uncater error:', e);
+      }
+      if (refreshAllLiveData) refreshAllLiveData();
+    }
+    setSelectedBookingForPayment(null);
   };
 
   // Email the client (account email) asking them to continue or cancel within 24 hours
@@ -109,16 +166,16 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
       const res = await apiJson(`/reservations/${encodeURIComponent(booking.id || booking.bookingRef)}/request-confirmation`, { method: 'POST', auth: true });
       const d = res.data || {};
       const deadline = `Deadline: ${new Date(d.deadline).toLocaleString('en-US', { timeZone: 'Asia/Manila', dateStyle: 'medium', timeStyle: 'short' })} (PHT)`;
-      const needsActivation = /activat/i.test(d.notice || '');
+      const channelName = d.channel === 'smtp' ? 'Gmail SMTP' : d.channel === 'formsubmit' ? 'FormSubmit' : 'Email Dispatch';
       showAlert({
-        title: d.delivered ? 'Confirmation email sent' : needsActivation ? 'Client must activate FormSubmit first' : 'Email not delivered yet',
-        message: d.delivered
-          ? `Sent via ${d.channel === 'smtp' ? 'Gmail' : 'FormSubmit'} to ${d.email}. The client has 24 hours to continue or cancel.`
-          : needsActivation
-            ? `FormSubmit sent ${d.email} a one-time "Activate Form" email. Ask the client to click it, then press "Resend 24h email".`
-            : `The email to ${d.email} could not be delivered. The 24-hour window has still started.`,
-        details: [deadline, d.notice ? `FormSubmit: ${d.notice}` : null, d.previewUrl ? `Preview copy: ${d.previewUrl}` : null].filter(Boolean).join('\n'),
-        type: d.delivered ? 'success' : 'warning',
+        title: d.delivered ? 'Confirmation Email Dispatched' : 'Confirmation Window Started',
+        message: `24-hour confirmation request initiated for ${d.email}. The client has 24 hours to continue or cancel their reservation.`,
+        details: [
+          deadline,
+          d.previewUrl ? `Preview copy: ${d.previewUrl}` : null,
+          d.notice && !d.notice.includes('did not respond') ? d.notice : null
+        ].filter(Boolean).join('\n'),
+        type: 'success',
       });
       if (refreshAllLiveData) refreshAllLiveData();
     } catch (e) {
@@ -152,7 +209,7 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
         touristName: b.clientName || b.fullName || b.touristName || 'Client Visitor',
         userNumber: b.userNumber,
         bookingRef: b.bookingRef || b.bookingNumber,
-        items: [{ name: d.kind === 'FEE' ? 'Reservation fee (downpayment)' : (d.balanceDue > 0 ? 'Partial payment' : 'Balance payment'), quantity: 1, unitPrice: d.amount, price: d.amount }],
+        items: [{ name: d.kind === 'FEE' ? 'Reservation fee (50% downpayment)' : (d.balanceDue > 0 ? 'Partial payment' : 'Full payment (balance settled)'), quantity: 1, unitPrice: d.amount, price: d.amount }],
         grandTotal: d.amount,
         cashReceived: d.cashReceived,
         change: d.change,
@@ -301,6 +358,7 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
             const grandTotal = parseFloat(b.estimatedTotal || b.grandTotal || b.totalPrice || 0);
             const refCode = b.bookingRef || b.bookingNumber || `REF-${b.id}`;
             const dupDetected = isPossibleDuplicate(b);
+            const caterStatus = getCaterStatus(b);
 
             return (
               <div
@@ -316,10 +374,36 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
                   {/* CARD HEADER */}
                   <div className="flex justify-between items-start pb-3" style={{ borderBottom: '1px solid var(--line)' }}>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-[10px] font-mono font-bold tracking-wider block" style={{ color: 'var(--accent)' }}>
                           BOOKING REF: {refCode}
                         </span>
+                        {caterStatus.isCateredByOther && (
+                          <span
+                            className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-1.5 shadow-sm animate-pulse"
+                            style={{
+                              background: 'rgba(245,158,11,0.22)',
+                              color: '#fbbf24',
+                              border: '1px solid rgba(245,158,11,0.6)',
+                            }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                            🔒 Being Assisted by {caterStatus.catererName}
+                          </span>
+                        )}
+                        {caterStatus.isCateredByMe && (
+                          <span
+                            className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase inline-flex items-center gap-1.5 shadow-sm"
+                            style={{
+                              background: 'rgba(16,185,129,0.2)',
+                              color: '#34d399',
+                              border: '1px solid rgba(16,185,129,0.5)',
+                            }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            🟢 Currently Assisting
+                          </span>
+                        )}
                         {dupDetected && (
                           <span
                             className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase inline-flex items-center gap-1 shadow-sm"
@@ -343,16 +427,29 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
                       </div>
                     </div>
 
-                    <span
-                      className="px-3 py-1 text-[10px] font-extrabold rounded-full flex items-center gap-1 uppercase shrink-0"
-                      style={{
-                        background: 'rgba(251,191,36,0.15)',
-                        color: '#fbbf24',
-                        border: '1px solid rgba(251,191,36,0.4)',
-                      }}
-                    >
-                      <Clock className="w-3 h-3 animate-pulse" /> Pending Cash
-                    </span>
+                    {b.feeStatus === 'PAID' || (b.paymentStatus || b.payment_status || '').toLowerCase().includes('50%') || (b.status || '').toLowerCase().includes('50%') ? (
+                      <span
+                        className="px-3 py-1 text-[10px] font-extrabold rounded-full flex items-center gap-1 uppercase shrink-0 shadow-sm"
+                        style={{
+                          background: 'rgba(34,197,94,0.18)',
+                          color: '#22c55e',
+                          border: '1px solid rgba(34,197,94,0.45)',
+                        }}
+                      >
+                        <CheckCircle2 className="w-3 h-3" /> Paid 50% (Downpayment)
+                      </span>
+                    ) : (
+                      <span
+                        className="px-3 py-1 text-[10px] font-extrabold rounded-full flex items-center gap-1 uppercase shrink-0"
+                        style={{
+                          background: 'rgba(251,191,36,0.15)',
+                          color: '#fbbf24',
+                          border: '1px solid rgba(251,191,36,0.4)',
+                        }}
+                      >
+                        <Clock className="w-3 h-3 animate-pulse" /> Pending Cash
+                      </span>
+                    )}
                   </div>
 
                   {/* VISIT & COTTAGE DETAILS */}
@@ -457,24 +554,37 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
                         {emailingId === (b.id || b.bookingRef) ? 'Sending…' : b.confirmationStatus === 'AWAITING_CLIENT' ? 'Resend 24h email' : 'Email client to confirm'}
                       </button>
                     )}
-                    {feeOutstanding(b) > 0 && (
+                    {feeOutstanding(b) > 0 ? (
                       <button
                         onClick={() => openPaymentModal(b, 'FEE')}
-                        className="px-3 py-2 text-[11px] font-extrabold rounded-xl cursor-pointer transition-all inline-flex items-center gap-1"
+                        disabled={caterStatus.isCateredByOther}
+                        className={`px-3 py-2 text-[11px] font-extrabold rounded-xl transition-all inline-flex items-center gap-1 ${
+                          caterStatus.isCateredByOther ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                        }`}
                         style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.45)', color: 'var(--accent)' }}
-                        title="Collect the reservation fee (downpayment) in cash"
+                        title={caterStatus.isCateredByOther ? `Currently being assisted by ${caterStatus.catererName}` : "Collect the 50% reservation fee (downpayment) in cash"}
                       >
-                        <Coins className="w-3.5 h-3.5" /> Record reservation fee
+                        <Coins className="w-3.5 h-3.5" /> {caterStatus.isCateredByOther ? `🔒 Assisted by ${caterStatus.catererName}` : 'Record 50% reservation fee'}
                       </button>
+                    ) : (
+                      <span
+                        className="px-3 py-1.5 text-[11px] font-extrabold rounded-xl inline-flex items-center gap-1"
+                        style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.4)', color: '#22c55e' }}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" /> 50% Fee Paid
+                      </span>
                     )}
                     <button
                       onClick={() => handleCancelBooking(b)}
-                      className="px-3 py-2 text-rose-300 hover:text-white text-[11px] font-bold rounded-xl cursor-pointer transition-all inline-flex items-center gap-1"
+                      disabled={caterStatus.isCateredByOther}
+                      className={`px-3 py-2 text-rose-300 hover:text-white text-[11px] font-bold rounded-xl transition-all inline-flex items-center gap-1 ${
+                        caterStatus.isCateredByOther ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                      }`}
                       style={{
                         background: 'rgba(239,68,68,0.15)',
                         border: '1px solid rgba(239,68,68,0.4)',
                       }}
-                      title="Cancel booking to prevent double payment or void duplicate submissions"
+                      title={caterStatus.isCateredByOther ? `Currently being assisted by ${caterStatus.catererName}` : "Cancel booking to prevent double payment or void duplicate submissions"}
                     >
                       <XCircle className="w-3.5 h-3.5" />
                       {dupDetected ? 'Cancel Duplicate' : 'Void / Cancel'}
@@ -482,12 +592,16 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
 
                     <button
                       onClick={() => openPaymentModal(b, 'BALANCE')}
-                      className="flex-1 sm:flex-none px-4 py-2 text-slate-950 font-black text-xs rounded-xl shadow-lg cursor-pointer transition-all flex items-center justify-center gap-1.5 uppercase"
+                      disabled={caterStatus.isCateredByOther}
+                      className={`flex-1 sm:flex-none px-4 py-2 font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-1.5 uppercase ${
+                        caterStatus.isCateredByOther ? 'opacity-40 cursor-not-allowed bg-slate-500 text-white' : 'cursor-pointer text-slate-950'
+                      }`}
                       style={{
-                        background: 'var(--accent)',
+                        background: caterStatus.isCateredByOther ? '#64748b' : 'var(--accent)',
                       }}
+                      title={caterStatus.isCateredByOther ? `Currently being assisted by ${caterStatus.catererName}` : "Accept balance or full payment"}
                     >
-                      <Coins className="w-4 h-4" /> {feeOutstanding(b) > 0 ? 'Accept Full Payment' : 'Accept Balance'}
+                      <Coins className="w-4 h-4" /> {caterStatus.isCateredByOther ? `🔒 Assisted by ${caterStatus.catererName}` : (feeOutstanding(b) > 0 ? 'Accept Full Payment' : 'Accept Balance')}
                     </button>
                   </div>
                 </div>
@@ -537,7 +651,7 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
                 </div>
               </div>
               <button
-                onClick={() => setSelectedBookingForPayment(null)}
+                onClick={closePaymentModal}
                 className="p-1 rounded-full cursor-pointer"
                 style={{ color: 'var(--muted)' }}
               >
@@ -607,7 +721,7 @@ export default function PendingBookingsTab({ setActiveTab, onSelectBookingForPOS
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setSelectedBookingForPayment(null)}
+                onClick={closePaymentModal}
                 className="px-4 py-2.5 font-bold rounded-xl text-xs cursor-pointer transition-all"
                 style={{
                   background: isLight ? 'rgba(0,0,0,0.06)' : '#1e293b',

@@ -1,58 +1,250 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Calendar, AlertCircle, DollarSign, Activity, FileText, Users } from 'lucide-react';
+import {
+  ResponsiveContainer, BarChart, Bar, LineChart, Line,
+  AreaChart, Area, ComposedChart, PieChart, Pie, Cell,
+  XAxis, YAxis, Tooltip, CartesianGrid, Legend
+} from 'recharts';
+import {
+  DollarSign, Activity, FileText, Users, CalendarDays,
+  BarChart3, PieChart as PieIcon, Printer, RefreshCw, Search, Clock,
+  User, CheckCircle2, AlertCircle, X
+} from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
 import { apiJson } from '../../../utils/catalog';
 import { getPhilippineDateStr } from '../../../utils/phTime';
+import './ReportsTab.css';
 
-const isPaidStatus = (status) => {
-  const normalized = String(status || '').trim().toLowerCase();
-  return normalized === 'paid' || normalized.startsWith('paid ') ||
-    normalized === 'completed' || normalized === 'settled' || normalized === 'fully paid' ||
-    normalized === 'success' || normalized === 'succeeded' ||
-    normalized.includes('checked in') || normalized.includes('using');
+// ─────────────── helpers ───────────────────────────────────────────────────
+const getInitials = (name) => {
+  if (!name) return 'G';
+  const parts = String(name).trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
-const isCancelledStatus = (status) => /cancel|void|reject|expire/i.test(String(status || ''));
-const asAmount = (...values) => {
-  const amount = values.find(value => value !== undefined && value !== null && value !== '');
-  const parsed = Number(amount);
-  return Number.isFinite(parsed) ? parsed : 0;
+const isPaidStatus = (s) => {
+  const v = String(s || '').trim().toLowerCase();
+  return v === 'paid' || v.startsWith('paid ') || v === 'completed' ||
+    v === 'settled' || v === 'fully paid' || v === 'success' ||
+    v === 'succeeded' || v.includes('checked in') || v.includes('using');
 };
 
-const recordTokens = (record) => [
-  record.receiptNo, record.receipt_no, record.receipt_number,
-  record.payment_ref, record.payment_reference,
-  record.bookingRef, record.booking_ref, record.bookingNumber, record.booking_number,
-  record.booking_id, record.reservation_id
-].filter(value => value !== undefined && value !== null && value !== '')
-  .map(value => String(value).trim().toLowerCase());
+const isCancelledStatus = (s) => /cancel|void|reject|expire/i.test(String(s || ''));
+
+const asAmount = (...vals) => {
+  const v = vals.find(x => x !== undefined && x !== null && x !== '');
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const recordTokens = (r) =>
+  [r.receiptNo, r.receipt_no, r.receipt_number, r.payment_ref,
+    r.payment_reference, r.bookingRef, r.booking_ref,
+    r.bookingNumber, r.booking_number, r.booking_id, r.reservation_id]
+    .filter(x => x !== undefined && x !== null && x !== '')
+    .map(x => String(x).trim().toLowerCase());
+
+// Safe category resolver that handles arrays, JSON strings, or fallback text
+const resolveCategory = (record) => {
+  try {
+    let items = record?.items;
+    if (typeof items === 'string') {
+      try {
+        items = JSON.parse(items);
+      } catch {
+        items = [];
+      }
+    }
+    if (Array.isArray(items) && items.some(it => /cottage|room|kubo/i.test(it?.name || ''))) {
+      return 'Accommodation';
+    }
+    const label = `${record?.serviceName || ''} ${record?.packageName || ''} ${record?.specificType || ''} ${record?.category || ''}`;
+    if (/cottage|room|kubo/i.test(label)) {
+      return 'Accommodation';
+    }
+  } catch (err) {
+    console.warn('resolveCategory fallback:', err);
+  }
+  return 'Resort Services';
+};
+
+const fmt = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val || 0);
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// Sub-Tab definitions
+const SUB_TABS = [
+  { key: 'graphical',    label: 'Graphical Reports',        icon: BarChart3 },
+  { key: 'ledger',       label: 'Transaction Ledger',       icon: FileText },
+];
+
+// Timeframe period filters
+const PERIODS = [
+  { key: 'today',       label: 'Today',        icon: '📅' },
+  { key: 'weekly',      label: 'This Week',    icon: '📆' },
+  { key: 'monthly',     label: 'Monthly',      icon: '📊' },
+  { key: 'semi-yearly', label: 'Semi-Yearly',  icon: '📈' },
+  { key: 'yearly',      label: 'Yearly',       icon: '🌐' },
+];
+
+const CATEGORY_COLORS = ['#22c55e', '#38bdf8', '#fbbf24', '#a855f7', '#f43f5e', '#14b8a6'];
 
 export default function ReportsTab() {
-  const { resortBookings = [], receipts = [], walkIns = [] } = useEcoTour();
+  const { resortBookings = [], receipts = [], walkIns = [], userAccounts = [], theme = 'dark', refreshAllLiveData } = useEcoTour();
+  const isDark = theme === 'dark';
 
-  const [filterYear, setFilterYear] = useState(getPhilippineDateStr().slice(0, 4));
-  const [filterMonth, setFilterMonth] = useState('');
-  const [filterDate, setFilterDate] = useState('');
-  const [damages, setDamages] = useState([]);
-  const [damageError, setDamageError] = useState('');
+  const todayStr     = getPhilippineDateStr();
+  const currentYear  = todayStr.slice(0, 4);
+  const currentMonth = todayStr.slice(5, 7);
+
+  // Active Sub-Tab
+  const [activeSubTab, setActiveSubTab] = useState('graphical');
+
+  // Timeframe filter state
+  const [period,       setPeriod]       = useState('monthly');
+  const [filterYear,   setFilterYear]   = useState(currentYear);
+  const [filterMonth,  setFilterMonth]  = useState(currentMonth);
+  const [filterHalf,   setFilterHalf]   = useState('1'); // '1' = Jan-Jun, '2' = Jul-Dec
+  const [refreshing,   setRefreshing]   = useState(false);
+
+  // Damages & Inspections from Server
+  const [damages,      setDamages]      = useState([]);
+  const [inspections,  setInspections]  = useState([]);
+  const [damageError,  setDamageError]  = useState('');
+
+  // Search & Pagination in Ledger
+  const [ledgerSearch, setLedgerSearch] = useState('');
+
+  // ── Load damages & inspections ──────────────────────────────────────────
+  const fetchAuxData = async () => {
+    try {
+      const d = await apiJson('/damages', { auth: true });
+      setDamages(d.reports || d.data?.reports || (Array.isArray(d.data) ? d.data : []));
+    } catch (e) {
+      setDamageError(e.message || 'Unable to load damage reports.');
+    }
+
+    try {
+      const ins = await apiJson('/inspections', { auth: true });
+      setInspections(ins.inspections || ins.data?.inspections || (Array.isArray(ins.data) ? ins.data : []));
+    } catch (e) {
+      console.warn('Inspections auxiliary note:', e.message);
+    }
+  };
 
   useEffect(() => {
-    let active = true;
-    const fetchDamages = async () => {
-      try {
-        const data = await apiJson('/damages', { auth: true });
-        if (active) setDamages(data.reports || data.data?.reports || (Array.isArray(data.data) ? data.data : []));
-      } catch (err) {
-        if (active) setDamageError(err.message || 'Unable to load damage reports.');
-      }
-    };
-    fetchDamages();
-    return () => { active = false; };
+    fetchAuxData();
   }, []);
 
-  // Payment records are the source of collected revenue. Bookings and walk-ins fill
-  // in unpaid balances or payments that have not yet produced a receipt record.
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    if (refreshAllLiveData) await refreshAllLiveData();
+    await fetchAuxData();
+    setRefreshing(false);
+  };
+
+  // ── Lookup map for user accounts (to match client names, fname, mname, lname) ──
+  const userMap = useMemo(() => {
+    const map = new Map();
+    userAccounts.forEach(u => {
+      const uid = u.user_id || u.id;
+      if (uid) map.set(String(uid), u);
+      if (u.user_number) map.set(String(u.user_number).toLowerCase(), u);
+      if (u.email) map.set(String(u.email).toLowerCase(), u);
+      const fullName = `${u.fname || ''} ${u.mname || ''} ${u.lname || ''}`.trim().toLowerCase();
+      if (fullName) map.set(fullName, u);
+      const shortName = `${u.fname || ''} ${u.lname || ''}`.trim().toLowerCase();
+      if (shortName) map.set(shortName, u);
+      const revName = `${u.lname || ''} ${u.fname || ''}`.trim().toLowerCase();
+      if (revName) map.set(revName, u);
+    });
+    return map;
+  }, [userAccounts]);
+
+  const enrichClientDetails = (r, defaultClient = 'Guest') => {
+    const uid = r.user_id || r.userId || r.client_id;
+    let u = uid ? userMap.get(String(uid)) : null;
+    if (!u && (r.userNumber || r.user_number)) {
+      u = userMap.get(String(r.userNumber || r.user_number).toLowerCase());
+    }
+    if (!u && (r.clientEmail || r.email || r.touristEmail)) {
+      u = userMap.get(String(r.clientEmail || r.email || r.touristEmail).toLowerCase());
+    }
+    const rawClient = String(
+      r.clientName || r.client_name || r.fullName || r.touristName ||
+      r.tourist_name || r.customer_name || defaultClient
+    ).trim();
+
+    if (!u && rawClient && rawClient.toLowerCase() !== 'guest' && rawClient.toLowerCase() !== 'walk-in') {
+      u = userMap.get(rawClient.toLowerCase());
+    }
+
+    let fname = u?.fname || r.fname || r.first_name || '';
+    let mname = u?.mname || r.mname || r.middle_name || '';
+    let lname = u?.lname || r.lname || r.last_name || '';
+
+    if (!fname && !lname && rawClient) {
+      const parts = rawClient.split(/\s+/);
+      if (parts.length === 1) {
+        fname = parts[0];
+      } else if (parts.length === 2) {
+        fname = parts[0];
+        lname = parts[1];
+      } else {
+        fname = parts[0];
+        mname = parts.slice(1, -1).join(' ');
+        lname = parts[parts.length - 1];
+      }
+    }
+
+    const clientDisplayName = u
+      ? `${u.fname || ''} ${u.mname ? u.mname + ' ' : ''}${u.lname || ''}`.trim()
+      : rawClient;
+
+    const userNumber = u?.user_number || r.userNumber || r.user_number || '';
+    const email = u?.email || r.clientEmail || r.email || r.touristEmail || '';
+    const accountId = u?.user_id || u?.id || (userNumber ? String(userNumber).toLowerCase() : clientDisplayName.toLowerCase());
+
+    return {
+      client: clientDisplayName,
+      fname,
+      mname,
+      lname,
+      userNumber,
+      email,
+      accountId
+    };
+  };
+
+  // ── Date filter boundaries ──────────────────────────────────────────────
+  const dateFilter = useMemo(() => {
+    switch (period) {
+      case 'today':
+        return { year: currentYear, month: currentMonth, day: todayStr.slice(8, 10), half: null };
+      case 'weekly': {
+        const now = new Date(todayStr);
+        const dayOfWeek = now.getDay();
+        const start = new Date(now);
+        start.setDate(now.getDate() - dayOfWeek);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        return { start: start.toISOString().split('T')[0], end: end.toISOString().split('T')[0] };
+      }
+      case 'monthly':
+        return { year: filterYear, month: filterMonth, day: null, half: null };
+      case 'semi-yearly':
+        return { year: filterYear, month: null, day: null, half: filterHalf };
+      case 'yearly':
+        return { year: filterYear, month: null, day: null, half: null };
+      default:
+        return { year: filterYear, month: null, day: null, half: null };
+    }
+  }, [period, filterYear, filterMonth, filterHalf, currentYear, currentMonth, todayStr]);
+
+  // ── Flatten all transactions with category classification ───────────────
   const allTransactions = useMemo(() => {
     const txs = [];
     const paymentTokens = new Set();
@@ -60,122 +252,265 @@ export default function ReportsTab() {
     const bookingTokens = new Set();
 
     receipts.forEach(r => {
-      const key = r.receiptNo || r.receipt_no || r.receipt_number ||
-        r.payment_ref || r.payment_reference || `RC-${r.id}`;
+      const bookingRef = r.bookingRef || r.booking_ref || r.bookingNumber || r.booking_number || '';
+      const receiptNo = r.receiptNo || r.receipt_no || r.receipt_number || r.payment_ref || `RC-${r.id}`;
+      const displayKey = bookingRef || receiptNo;
       const date = (r.date || r.payment_date || r.paid_at || r.transaction_date || r.created_at || '').split('T')[0];
       if (!date) return;
       const tokens = recordTokens(r);
-      tokens.forEach(token => paymentTokens.add(token));
+      tokens.forEach(t => paymentTokens.add(t));
       if (isPaidStatus(r.status || r.payment_status || 'Paid')) {
-        const amount = asAmount(r.grandTotal, r.total_amount, r.amount_paid, r.amount);
-        tokens.forEach(token => paidAmountByToken.set(token, (paidAmountByToken.get(token) || 0) + amount));
+        const amt = asAmount(r.grandTotal, r.total_amount, r.amount_paid, r.amount);
+        tokens.forEach(t => paidAmountByToken.set(t, (paidAmountByToken.get(t) || 0) + amt));
       }
+
+      const clientInfo = enrichClientDetails(r, 'Guest');
+      const category = resolveCategory(r);
+      const status = r.status || r.payment_status || 'Paid';
+      const amount = asAmount(r.grandTotal, r.total_amount, r.amount_paid, r.amount);
+      const visitors = asAmount(r.totalVisitors, r.total_visitors, r.guest_count, 1);
+
       txs.push({
-        id: `RC-${r.id || key}`,
+        id: `RC-${r.id || receiptNo}`,
         date,
-        booking: key,
-        client: r.clientName || r.client_name || r.touristName || r.tourist_name || r.customer_name || 'Guest',
+        booking: displayKey,
+        bookingRef,
+        receiptNo,
+        client: clientInfo.client,
+        fname: clientInfo.fname,
+        mname: clientInfo.mname,
+        lname: clientInfo.lname,
+        userNumber: clientInfo.userNumber,
+        email: clientInfo.email,
+        accountId: clientInfo.accountId,
         type: 'Payment',
-        amount: asAmount(r.grandTotal, r.total_amount, r.amount_paid, r.amount),
-        visitors: asAmount(r.totalVisitors, r.total_visitors, r.guest_count, 1),
-        status: r.status || r.payment_status || 'Paid',
-        source: 'receipt'
+        category,
+        amount,
+        visitors,
+        status,
+        source: 'receipt',
+        searchTokens: [
+          displayKey,
+          bookingRef,
+          receiptNo,
+          clientInfo.client,
+          clientInfo.fname,
+          clientInfo.mname,
+          clientInfo.lname,
+          clientInfo.userNumber,
+          clientInfo.email,
+          'Payment',
+          category,
+          status
+        ].filter(Boolean).map(x => String(x).toLowerCase()).join(' ')
       });
     });
 
-    resortBookings.forEach(b => recordTokens(b).forEach(token => bookingTokens.add(token)));
+    resortBookings.forEach(b => recordTokens(b).forEach(t => bookingTokens.add(t)));
 
     walkIns.forEach(w => {
-      const key = w.receiptNo || w.receipt_number || `WI-${w.walk_in_id || w.id}`;
+      const key = w.receiptNo || w.receipt_number || w.bookingRef || `WI-${w.walk_in_id || w.id}`;
       const date = (w.transaction_date || w.payment_date || w.operating_date || w.created_at || w.date || '').split('T')[0];
-      const linkedToReceipt = recordTokens(w).some(token => paymentTokens.has(token));
-      const linkedBooking = recordTokens(w).some(token => bookingTokens.has(token));
-      if (!date || linkedToReceipt || linkedBooking) return;
+      if (!date || recordTokens(w).some(t => paymentTokens.has(t)) || recordTokens(w).some(t => bookingTokens.has(t))) return;
+
+      const clientInfo = enrichClientDetails(w, 'Walk-In');
+      const amount = asAmount(w.total_amount, w.grandTotal, w.amount_paid, w.amount);
+      const visitors = asAmount(w.guest_count, w.totalVisitors, w.total_visitors, 1);
+      const status = w.payment_status || w.status || 'Pending';
+
       txs.push({
         id: `WI-${w.id || w.walk_in_id}`,
         date,
         booking: key,
-        client: w.customer_name || w.touristName || w.tourist_name || 'Walk-In',
+        bookingRef: w.bookingRef || '',
+        receiptNo: w.receiptNo || w.receipt_number || '',
+        client: clientInfo.client,
+        fname: clientInfo.fname,
+        mname: clientInfo.mname,
+        lname: clientInfo.lname,
+        userNumber: clientInfo.userNumber,
+        email: clientInfo.email,
+        accountId: clientInfo.accountId,
         type: 'Walk-In',
-        amount: asAmount(w.total_amount, w.grandTotal, w.amount_paid, w.amount),
-        visitors: asAmount(w.guest_count, w.totalVisitors, w.total_visitors, 1),
-        status: w.payment_status || w.status || 'Pending',
-        source: 'walkin'
+        category: 'Walk-In Entry',
+        amount,
+        visitors,
+        status,
+        source: 'walkin',
+        searchTokens: [
+          key,
+          w.bookingRef,
+          w.receiptNo,
+          clientInfo.client,
+          clientInfo.fname,
+          clientInfo.mname,
+          clientInfo.lname,
+          clientInfo.userNumber,
+          clientInfo.email,
+          'Walk-In',
+          'Walk-In Entry',
+          status
+        ].filter(Boolean).map(x => String(x).toLowerCase()).join(' ')
       });
     });
 
     resortBookings.forEach(b => {
-      const reference = b.bookingNumber || b.booking_number || b.bookingRef || b.booking_ref || `BK-${b.id}`;
+      const reference = b.bookingNumber || b.booking_number || b.bookingRef || `BK-${b.id}`;
       const tokens = recordTokens(b);
-      const linkedToReceipt = tokens.some(token => paymentTokens.has(token));
-      const linkedPayment = Math.max(0, ...tokens.map(token => paidAmountByToken.get(token) || 0));
+      const linkedToReceipt = tokens.some(t => paymentTokens.has(t));
+      const linkedPayment = Math.max(0, ...tokens.map(t => paidAmountByToken.get(t) || 0));
       if (linkedToReceipt && isPaidStatus(b.status)) return;
       const date = (b.reservationDate || b.bookingDate || b.booking_date || b.created_at || '').split('T')[0];
       if (!date) return;
-      const bookingTotal = asAmount(b.total_amount, b.grandTotal, b.estimatedTotal, b.totalPrice, b.amount_due);
-      const remaining = Math.max(0, bookingTotal - linkedPayment);
-      const status = isPaidStatus(b.status) || (bookingTotal > 0 && remaining === 0) ? 'Paid' : (b.status || 'Pending');
+      const total = asAmount(b.total_amount, b.grandTotal, b.estimatedTotal, b.totalPrice, b.amount_due);
+      const remaining = Math.max(0, total - linkedPayment);
+      const status = isPaidStatus(b.status) || (total > 0 && remaining === 0) ? 'Paid' : (b.status || 'Pending');
+
+      const isCottage = /cottage|room|kubo|accommodat/i.test(b.specificType || b.serviceName || b.packageName || '');
+      const category = isCottage ? 'Accommodation' : 'Resort Services';
+      const clientInfo = enrichClientDetails(b, 'Guest');
+      const visitors = linkedToReceipt ? 0 : asAmount(b.numberOfGuests, b.totalVisitors, b.total_visitors, 1);
+
       txs.push({
         id: `BK-${b.id || reference}`,
         date,
         booking: reference,
-        client: b.clientName || b.client_name || b.fullName || b.touristName || 'Guest',
+        bookingRef: reference,
+        receiptNo: '',
+        client: clientInfo.client,
+        fname: clientInfo.fname,
+        mname: clientInfo.mname,
+        lname: clientInfo.lname,
+        userNumber: clientInfo.userNumber,
+        email: clientInfo.email,
+        accountId: clientInfo.accountId,
         type: 'Reservation',
+        category,
         amount: remaining,
-        visitors: linkedToReceipt ? 0 : asAmount(b.numberOfGuests, b.totalVisitors, b.total_visitors, 1),
+        visitors,
         status,
-        source: 'booking'
+        source: 'booking',
+        searchTokens: [
+          reference,
+          clientInfo.client,
+          clientInfo.fname,
+          clientInfo.mname,
+          clientInfo.lname,
+          clientInfo.userNumber,
+          clientInfo.email,
+          'Reservation',
+          category,
+          status
+        ].filter(Boolean).map(x => String(x).toLowerCase()).join(' ')
       });
     });
 
     damages.forEach(d => {
-      const dateStr = (d.created_at || d.reported_at || d.date || '').split('T')[0];
-      if (!dateStr) return;
+      const date = (d.created_at || d.reported_at || d.date || '').split('T')[0];
+      if (!date) return;
+      const key = d.booking_number || d.bookingRef || `DMG-${d.id}`;
+      const clientInfo = enrichClientDetails(d, 'Client');
+      const amount = asAmount(d.final_fee, d.recommended_fee);
+      const status = d.status || 'Pending';
+
       txs.push({
         id: `DMG-${d.id}`,
-        date: dateStr,
-        booking: d.booking_number || d.booking_ref || `DMG-${d.id}`,
-        client: d.client_name || d.customer_name || 'Client',
+        date,
+        booking: key,
+        bookingRef: key,
+        receiptNo: '',
+        client: clientInfo.client,
+        fname: clientInfo.fname,
+        mname: clientInfo.mname,
+        lname: clientInfo.lname,
+        userNumber: clientInfo.userNumber,
+        email: clientInfo.email,
+        accountId: clientInfo.accountId,
         type: 'Damage Fee',
-        amount: asAmount(d.final_fee, d.recommended_fee),
+        category: 'Damage Recovery',
+        amount,
         visitors: 0,
-        status: d.status || 'Pending',
-        source: 'damage'
+        status,
+        source: 'damage',
+        searchTokens: [
+          key,
+          clientInfo.client,
+          clientInfo.fname,
+          clientInfo.mname,
+          clientInfo.lname,
+          clientInfo.userNumber,
+          clientInfo.email,
+          'Damage Fee',
+          'Damage Recovery',
+          status
+        ].filter(Boolean).map(x => String(x).toLowerCase()).join(' ')
       });
     });
 
     return txs.sort((a, b) => b.date.localeCompare(a.date));
-  }, [resortBookings, walkIns, receipts, damages]);
+  }, [resortBookings, walkIns, receipts, damages, userMap]);
 
-  // Filter transactions based on selected date
+  // ── Filtered Transactions based on current period ────────────────────────
   const filteredTxs = useMemo(() => {
     return allTransactions.filter(t => {
-      const [y, m, d] = t.date.split('-');
-      if (filterYear && y !== filterYear) return false;
-      if (filterMonth && m !== filterMonth) return false;
-      if (filterDate && d !== filterDate) return false;
+      const [y, m, d] = String(t.date || '').split('-');
+      if (dateFilter.start && dateFilter.end) {
+        return t.date >= dateFilter.start && t.date <= dateFilter.end;
+      }
+      if (dateFilter.year && y !== dateFilter.year) return false;
+      if (dateFilter.month && m !== dateFilter.month) return false;
+      if (dateFilter.day && d !== dateFilter.day) return false;
+      if (dateFilter.half) {
+        const mn = parseInt(m, 10);
+        if (dateFilter.half === '1' && (mn < 1 || mn > 6)) return false;
+        if (dateFilter.half === '2' && (mn < 7 || mn > 12)) return false;
+      }
       return true;
     });
-  }, [allTransactions, filterYear, filterMonth, filterDate]);
+  }, [allTransactions, dateFilter]);
 
-  // Compute Summary Cards
+  // ── Core KPI & Statistical Calculations ─────────────────────────────────
   const stats = useMemo(() => {
-    let paidAmount = 0;
-    let pendingPayments = 0;
-    let damageFees = 0;
-    let totalVisitors = 0;
+    let paidAmount = 0, pendingPayments = 0, damageFees = 0, totalVisitors = 0;
+    let completedCount = 0, cancelledCount = 0, totalTracked = 0;
+    let singleDayMax = { date: '', amount: 0 };
+    const dayTotals = new Map();
+
+    let walkInRevenue = 0, onlineRevenue = 0;
+    const paxBuckets = { solo: 0, couple: 0, family: 0, group: 0 };
 
     filteredTxs.forEach(t => {
-      if (t.source !== 'damage' && !isCancelledStatus(t.status)) totalVisitors += t.visitors || 0;
+      totalTracked += 1;
+      const isPaid = isPaidStatus(t.status);
+      const isCancelled = isCancelledStatus(t.status);
+
+      if (isCancelled) cancelledCount += 1;
+      else if (isPaid) completedCount += 1;
+
+      if (t.source !== 'damage' && !isCancelled) {
+        totalVisitors += t.visitors || 0;
+        const pax = t.visitors || 1;
+        if (pax === 1) paxBuckets.solo += 1;
+        else if (pax === 2) paxBuckets.couple += 1;
+        else if (pax <= 5) paxBuckets.family += 1;
+        else paxBuckets.group += 1;
+      }
 
       if (t.source === 'damage') {
-        if (String(t.status).toLowerCase() === 'approved') {
-          damageFees += t.amount;
-        }
+        if (String(t.status).toLowerCase() === 'approved') damageFees += t.amount;
       } else {
-        if (isPaidStatus(t.status)) {
+        if (isPaid) {
           paidAmount += t.amount;
-        } else if (!isCancelledStatus(t.status)) {
+          if (t.source === 'walkin') walkInRevenue += t.amount;
+          else onlineRevenue += t.amount;
+
+          // Track single day records
+          const curr = (dayTotals.get(t.date) || 0) + t.amount;
+          dayTotals.set(t.date, curr);
+          if (curr > singleDayMax.amount) {
+            singleDayMax = { date: t.date, amount: curr };
+          }
+        } else if (!isCancelled) {
           pendingPayments += t.amount;
         }
       }
@@ -183,240 +518,890 @@ export default function ReportsTab() {
 
     const totalBookings = resortBookings.filter(b => {
       const date = (b.reservationDate || b.bookingDate || b.booking_date || b.created_at || '').split('T')[0];
-      const [year, month, day] = date.split('-');
-      return date && !isCancelledStatus(b.status) &&
-        (!filterYear || year === filterYear) &&
-        (!filterMonth || month === filterMonth) &&
-        (!filterDate || day === filterDate);
+      if (!date || isCancelledStatus(b.status)) return false;
+      if (dateFilter.start && dateFilter.end) {
+        return date >= dateFilter.start && date <= dateFilter.end;
+      }
+      const [y, m, d] = date.split('-');
+      if (dateFilter.year && y !== dateFilter.year) return false;
+      if (dateFilter.month && m !== dateFilter.month) return false;
+      if (dateFilter.day && d !== dateFilter.day) return false;
+      if (dateFilter.half) {
+        const mn = parseInt(m, 10);
+        if (dateFilter.half === '1' && (mn < 1 || mn > 6)) return false;
+        if (dateFilter.half === '2' && (mn < 7 || mn > 12)) return false;
+      }
+      return true;
     }).length;
 
-    return { totalBookings, paidAmount, pendingPayments, damageFees, totalVisitors };
-  }, [filteredTxs, resortBookings, filterYear, filterMonth, filterDate]);
+    // Advanced Statistical Metrics
+    const arpb = totalBookings > 0 ? paidAmount / totalBookings : (completedCount > 0 ? paidAmount / completedCount : 0);
+    const arpu = totalVisitors > 0 ? paidAmount / totalVisitors : 0;
+    const completionRate = totalTracked > 0 ? (completedCount / totalTracked) * 100 : 100;
+    const cancellationRate = totalTracked > 0 ? (cancelledCount / totalTracked) * 100 : 0;
+    const walkInRatio = (walkInRevenue + onlineRevenue) > 0 ? (walkInRevenue / (walkInRevenue + onlineRevenue)) * 100 : 0;
 
-  // Compute Graph Data
-  const chartData = useMemo(() => {
-    if (filterMonth) {
-      // Daily breakdown for the selected month
-      const daysInMonth = filterYear ? new Date(parseInt(filterYear), parseInt(filterMonth), 0).getDate() : 31;
-      const data = Array.from({ length: daysInMonth }, (_, i) => {
-        const dayStr = (i + 1).toString().padStart(2, '0');
-        return {
-          name: `${filterMonth}/${dayStr}`,
-          revenue: 0
-        };
+    return {
+      totalBookings,
+      paidAmount,
+      pendingPayments,
+      damageFees,
+      totalVisitors,
+      arpb,
+      arpu,
+      completionRate,
+      cancellationRate,
+      singleDayMax,
+      walkInRevenue,
+      onlineRevenue,
+      walkInRatio,
+      paxBuckets
+    };
+  }, [filteredTxs, resortBookings, dateFilter]);
+
+  // ── Dual-Axis Time Series Chart Data (Revenue & Visitors) ────────────────
+  const timeSeriesChartData = useMemo(() => {
+    if (period === 'today') {
+      const hourly = Array.from({ length: 24 }, (_, i) => ({
+        name: `${i.toString().padStart(2, '0')}:00`,
+        revenue: 0,
+        visitors: 0
+      }));
+      let hasTimestamps = false;
+
+      receipts.forEach(r => {
+        const dt = (r.date || r.payment_date || r.paid_at || r.created_at || '');
+        const dateOnly = dt.split('T')[0];
+        if (dateOnly !== todayStr) return;
+        if (!isPaidStatus(r.status || r.payment_status || 'Paid')) return;
+        const timePart = dt.includes('T') ? dt.split('T')[1] : '';
+        const hour = timePart ? parseInt(timePart.slice(0, 2), 10) : -1;
+        const amt = asAmount(r.grandTotal, r.total_amount, r.amount_paid, r.amount);
+        const pax = asAmount(r.totalVisitors, r.total_visitors, r.guest_count, 1);
+        if (hour >= 0 && hour < 24) {
+          hourly[hour].revenue += amt;
+          hourly[hour].visitors += pax;
+          hasTimestamps = true;
+        }
+      });
+
+      if (!hasTimestamps) {
+        const currentHour = new Date().getHours();
+        filteredTxs.forEach(t => {
+          if (t.source !== 'damage' && isPaidStatus(t.status)) {
+            hourly[currentHour].revenue += t.amount;
+            hourly[currentHour].visitors += t.visitors;
+          }
+        });
+      }
+
+      return hourly.slice(0, Math.min(24, new Date().getHours() + 3));
+    }
+
+    if (period === 'weekly') {
+      const startBase = dateFilter.start ? new Date(`${dateFilter.start}T00:00:00`) : new Date();
+      const days = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(startBase);
+        d.setDate(startBase.getDate() + i);
+        const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return { name: `${DAY_NAMES[d.getDay()]} (${dStr.slice(5)})`, dateStr: dStr, revenue: 0, visitors: 0 };
       });
 
       filteredTxs.forEach(t => {
-        const isPaid = t.source !== 'damage' && isPaidStatus(t.status);
-        if (isPaid) {
-          const d = parseInt(t.date.split('-')[2], 10);
-          if (d >= 1 && d <= daysInMonth) {
-            data[d - 1].revenue += t.amount;
+        if (t.source !== 'damage' && isPaidStatus(t.status)) {
+          const match = days.find(day => day.dateStr === t.date);
+          if (match) {
+            match.revenue += t.amount;
+            match.visitors += t.visitors || 0;
           }
         }
       });
-      return data;
-    } else {
-      // Monthly breakdown for the selected year
-      const data = [
-        { name: 'Jan', revenue: 0 }, { name: 'Feb', revenue: 0 }, { name: 'Mar', revenue: 0 },
-        { name: 'Apr', revenue: 0 }, { name: 'May', revenue: 0 }, { name: 'Jun', revenue: 0 },
-        { name: 'Jul', revenue: 0 }, { name: 'Aug', revenue: 0 }, { name: 'Sep', revenue: 0 },
-        { name: 'Oct', revenue: 0 }, { name: 'Nov', revenue: 0 }, { name: 'Dec', revenue: 0 }
-      ];
+      return days;
+    }
 
+    if (period === 'monthly') {
+      const yr = parseInt(filterYear, 10) || parseInt(currentYear, 10) || new Date().getFullYear();
+      const mo = parseInt(filterMonth, 10) || parseInt(currentMonth, 10) || (new Date().getMonth() + 1);
+      const daysInMonth = Math.max(28, Math.min(31, new Date(yr, mo, 0).getDate() || 30));
+      const data = Array.from({ length: daysInMonth }, (_, i) => ({
+        name: `${mo}/${i + 1}`,
+        revenue: 0,
+        visitors: 0
+      }));
       filteredTxs.forEach(t => {
-        const isPaid = t.source !== 'damage' && isPaidStatus(t.status);
-        if (isPaid) {
-          const m = parseInt(t.date.split('-')[1], 10);
-          if (m >= 1 && m <= 12) {
-            data[m - 1].revenue += t.amount;
+        if (t.source !== 'damage' && isPaidStatus(t.status)) {
+          const parts = String(t.date || '').split('-');
+          const day = parseInt(parts[2], 10);
+          if (day >= 1 && day <= daysInMonth) {
+            data[day - 1].revenue += t.amount;
+            data[day - 1].visitors += t.visitors || 0;
           }
         }
       });
       return data;
     }
-  }, [filteredTxs, filterYear, filterMonth]);
 
-  const formatCurrency = (val) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(val);
+    if (period === 'semi-yearly') {
+      const startMonth = filterHalf === '1' ? 0 : 6;
+      return Array.from({ length: 6 }, (_, i) => {
+        const mIdx = startMonth + i;
+        const mStr = (mIdx + 1).toString().padStart(2, '0');
+        let revenue = 0, visitors = 0;
+        allTransactions.forEach(t => {
+          const [y, m] = String(t.date || '').split('-');
+          if (dateFilter.year && y !== dateFilter.year) return;
+          if (m === mStr && t.source !== 'damage' && isPaidStatus(t.status)) {
+            revenue += t.amount;
+            visitors += t.visitors || 0;
+          }
+        });
+        return { name: MONTH_NAMES[mIdx], revenue, visitors };
+      });
+    }
+
+    // Yearly
+    const data = MONTH_NAMES.map(name => ({ name, revenue: 0, visitors: 0 }));
+    filteredTxs.forEach(t => {
+      if (t.source !== 'damage' && isPaidStatus(t.status)) {
+        const parts = String(t.date || '').split('-');
+        const m = parseInt(parts[1], 10);
+        if (m >= 1 && m <= 12) {
+          data[m - 1].revenue += t.amount;
+          data[m - 1].visitors += t.visitors || 0;
+        }
+      }
+    });
+    return data;
+  }, [period, filteredTxs, filterYear, filterMonth, filterHalf, receipts, todayStr, allTransactions, dateFilter]);
+
+  // ── Category Distribution (Pie / Donut Chart) ───────────────────────────
+  const categoryChartData = useMemo(() => {
+    const map = new Map();
+    filteredTxs.forEach(t => {
+      if (isPaidStatus(t.status) || (t.source === 'damage' && String(t.status).toLowerCase() === 'approved')) {
+        const cat = t.category || (t.source === 'damage' ? 'Damage Recovery' : 'General Services');
+        map.set(cat, (map.get(cat) || 0) + t.amount);
+      }
+    });
+
+    const entries = Array.from(map.entries()).map(([name, value]) => ({ name, value }));
+    if (entries.length === 0) {
+      return [{ name: 'No Data', value: 1 }];
+    }
+    return entries.sort((a, b) => b.value - a.value);
+  }, [filteredTxs]);
+
+  // ── Day-of-Week Occupancy Patterns (Statistical Chart) ───────────────────
+  const dayOfWeekChartData = useMemo(() => {
+    const days = DAY_NAMES.map(name => ({ name, revenue: 0, visitors: 0 }));
+    filteredTxs.forEach(t => {
+      if (t.source !== 'damage' && isPaidStatus(t.status)) {
+        const parts = String(t.date || '').split('-');
+        if (parts.length === 3) {
+          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+          const dayIdx = d.getDay();
+          if (dayIdx >= 0 && dayIdx < 7) {
+            days[dayIdx].revenue += t.amount;
+            days[dayIdx].visitors += t.visitors || 0;
+          }
+        }
+      }
+    });
+    return days;
+  }, [filteredTxs]);
+
+  // ── Filtered Ledger Records with Multi-Token Client Search ──────────────
+  const ledgerRecords = useMemo(() => {
+    const q = ledgerSearch.toLowerCase().trim();
+    // When no search query is typed, use filteredTxs (which respects the current period)
+    if (!q) return filteredTxs;
+
+    // When searching by client name, first/middle/last name, or booking ref,
+    // search across ALL transactions so the user gets the complete account history!
+    const queryTokens = q.split(/\s+/).filter(Boolean);
+    return allTransactions.filter(t => {
+      const target = (t.searchTokens || `${t.booking} ${t.client} ${t.type} ${t.status}`).toLowerCase();
+      return queryTokens.every(tok => target.includes(tok));
+    });
+  }, [allTransactions, filteredTxs, ledgerSearch]);
+
+  // ── Compute Cumulative Account Totals for the Transaction Ledger ──────────
+  const ledgerTotals = useMemo(() => {
+    let totalAmount = 0;
+    let paidAmount = 0;
+    let pendingAmount = 0;
+    let totalVisitors = 0;
+    const clientAccountsMap = new Map();
+
+    ledgerRecords.forEach(t => {
+      const amt = Number(t.amount) || 0;
+      totalAmount += amt;
+
+      const isPaid = isPaidStatus(t.status) || String(t.status).toLowerCase() === 'approved';
+      const isCancelled = isCancelledStatus(t.status);
+
+      if (isPaid) {
+        paidAmount += amt;
+      } else if (!isCancelled) {
+        pendingAmount += amt;
+      }
+
+      if (t.source !== 'damage' && !isCancelled) {
+        totalVisitors += Number(t.visitors) || 0;
+      }
+
+      const accKey = String(t.accountId || t.client || 'guest').trim().toLowerCase();
+      if (!clientAccountsMap.has(accKey)) {
+        clientAccountsMap.set(accKey, {
+          client: t.client,
+          userNumber: t.userNumber,
+          email: t.email,
+          recordsCount: 0,
+          totalAmount: 0,
+          paidAmount: 0,
+          pendingAmount: 0,
+        });
+      }
+      const acc = clientAccountsMap.get(accKey);
+      acc.recordsCount += 1;
+      acc.totalAmount += amt;
+      if (isPaid) acc.paidAmount += amt;
+      else if (!isCancelled) acc.pendingAmount += amt;
+    });
+
+    const uniqueAccounts = Array.from(clientAccountsMap.values());
+    const isSingleAccount = uniqueAccounts.length === 1 && ledgerRecords.length > 0;
+    const primaryAccount = isSingleAccount ? uniqueAccounts[0] : null;
+
+    return {
+      totalAmount,
+      paidAmount,
+      pendingAmount,
+      totalVisitors,
+      uniqueAccountsCount: uniqueAccounts.length,
+      isSingleAccount,
+      primaryAccount,
+      recordsCount: ledgerRecords.length,
+    };
+  }, [ledgerRecords]);
+
+  const yearOptions = Array.from({ length: 11 }, (_, i) => (2020 + i).toString());
 
   return (
-    <div className="space-y-6 max-w-[1400px] mx-auto text-white p-2 sm:p-4">
-      {/* HEADER & FILTERS */}
-      <div className="bg-[#0c1f16] p-5 rounded-3xl border border-emerald-500/20 shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h3 className="font-extrabold text-white text-lg">Admin Reports & Analytics</h3>
-          <p className="text-xs text-slate-400">Actual database records and analytics</p>
-        </div>
+    <div className="reports-tab-container">
+      <div className="reports-card">
+        {/* --- HEADER --- */}
+        <div className="reports-header">
+          <div className="reports-title-group">
+            <div className="reports-icon-chip">
+              <BarChart3 size={24} />
+            </div>
+            <div className="reports-title-text">
+              <h2>
+                Reports &amp; Analytics
+                <span className="reports-period-chip" style={{ fontSize: 11, background: 'rgba(74,222,128,0.12)', color: '#4ade80' }}>
+                  Live Data
+                </span>
+              </h2>
+              <p>Graphical revenue trends, visitor volume distribution, and complete transaction ledger.</p>
+            </div>
+          </div>
 
-        <div className="flex gap-3 flex-wrap">
-          <div className="flex flex-col">
-            <label className="text-[10px] text-emerald-400 font-bold uppercase mb-1">Year</label>
-            <select 
-              value={filterYear} 
-              onChange={e => setFilterYear(e.target.value)} 
-              className="bg-emerald-950/40 border border-emerald-800 text-slate-200 text-sm px-3 py-2 rounded-lg outline-none focus:border-emerald-500"
-            >
-              <option value="">All Years</option>
-              {Array.from({length: 11}, (_, i) => 2020 + i).map(y => <option key={y} value={y.toString()}>{y}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col">
-            <label className="text-[10px] text-emerald-400 font-bold uppercase mb-1">Month</label>
-            <select 
-              value={filterMonth} 
-              onChange={e => {
-                setFilterMonth(e.target.value);
-                if (!e.target.value) setFilterDate('');
-              }} 
-              className="bg-emerald-950/40 border border-emerald-800 text-slate-200 text-sm px-3 py-2 rounded-lg outline-none focus:border-emerald-500"
-            >
-              <option value="">All Months</option>
-              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, i) => (
-                <option key={i} value={(i + 1).toString().padStart(2, '0')}>{m}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col">
-            <label className="text-[10px] text-emerald-400 font-bold uppercase mb-1">Date</label>
-            <select 
-              value={filterDate} 
-              onChange={e => setFilterDate(e.target.value)} 
-              disabled={!filterMonth}
-              className="bg-emerald-950/40 border border-emerald-800 text-slate-200 text-sm px-3 py-2 rounded-lg outline-none focus:border-emerald-500 disabled:opacity-50"
-            >
-              <option value="">All Dates</option>
-              {Array.from({length: 31}, (_, i) => i + 1).map(d => <option key={d} value={d.toString().padStart(2, '0')}>{d}</option>)}
-            </select>
+          <div className="reports-header-actions">
+            <button className="reports-btn reports-btn-ghost" onClick={() => window.print()} title="Print or save as PDF">
+              <Printer size={15} /> Print Summary
+            </button>
+            <button className="reports-btn reports-btn-primary" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+              {refreshing ? 'Syncing…' : 'Refresh Metrics'}
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* SUMMARY CARDS */}
-      {damageError && (
-        <div role="alert" className="rounded-xl border border-rose-500/40 bg-rose-950/30 px-4 py-3 text-sm text-rose-200">
-          Damage reports could not be loaded: {damageError}
+        {/* --- MAIN MODULE NAVIGATION PILLS --- */}
+        <div className="reports-nav-pills">
+          {SUB_TABS.map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.key}
+                className={`reports-nav-btn ${activeSubTab === tab.key ? 'active' : ''}`}
+                onClick={() => setActiveSubTab(tab.key)}
+              >
+                <Icon size={15} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
-      )}
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="p-5 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
-          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-2">
-            <span>Total Bookings</span>
-            <Calendar className="w-4 h-4" />
+        {/* --- PERIOD & DATE FILTER TOOLBAR --- */}
+        <div className="reports-filter-bar">
+          <div className="reports-period-buttons">
+            {PERIODS.map(p => (
+              <button
+                key={p.key}
+                className={`reports-period-chip ${period === p.key ? 'active' : ''}`}
+                onClick={() => setPeriod(p.key)}
+              >
+                <span>{p.icon}</span> <span>{p.label}</span>
+              </button>
+            ))}
           </div>
-          <div className="text-3xl font-black text-white">{stats.totalBookings}</div>
-        </div>
 
-        <div className="p-5 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
-          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-2">
-            <span>Collected Revenue</span>
-            <Activity className="w-4 h-4" />
+          <div className="reports-date-selectors">
+            {period === 'today' && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#4ade80' }}>
+                Today: {todayStr}
+              </span>
+            )}
+
+            {(period === 'monthly' || period === 'semi-yearly' || period === 'yearly') && (
+              <select
+                value={filterYear}
+                onChange={e => setFilterYear(e.target.value)}
+                className="reports-select"
+              >
+                {yearOptions.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            )}
+
+            {period === 'monthly' && (
+              <select
+                value={filterMonth}
+                onChange={e => setFilterMonth(e.target.value)}
+                className="reports-select"
+              >
+                {MONTH_NAMES.map((m, i) => (
+                  <option key={i} value={(i + 1).toString().padStart(2, '0')}>{m}</option>
+                ))}
+              </select>
+            )}
+
+            {period === 'semi-yearly' && (
+              <select
+                value={filterHalf}
+                onChange={e => setFilterHalf(e.target.value)}
+                className="reports-select"
+              >
+                <option value="1">1st Half (Jan – Jun)</option>
+                <option value="2">2nd Half (Jul – Dec)</option>
+              </select>
+            )}
           </div>
-          <div className="text-2xl font-black text-emerald-300">{formatCurrency(stats.paidAmount)}</div>
         </div>
 
-        <div className="p-5 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
-          <div className="flex justify-between items-center text-emerald-400 text-[10px] font-bold uppercase tracking-wider mb-2">
-            <span>Visitors</span>
-            <Users className="w-4 h-4" />
+        {/* --- TOP SUMMARY KPIS --- */}
+        <div className="reports-kpis-grid">
+          <div className="reports-kpi-card">
+            <div className="reports-kpi-top">
+              <span className="reports-kpi-label">Realized Revenue</span>
+              <div className="reports-kpi-icon" style={{ background: 'rgba(74,222,128,0.15)', color: '#4ade80' }}>
+                <DollarSign size={18} />
+              </div>
+            </div>
+            <div className="reports-kpi-val" style={{ color: '#4ade80' }}>
+              {fmt(stats.paidAmount)}
+            </div>
+            <div className="reports-kpi-sub">
+              <span>Settled cashflow</span>
+            </div>
           </div>
-          <div className="text-3xl font-black text-white">{stats.totalVisitors}</div>
-        </div>
 
-        <div className="p-5 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
-          <div className="flex justify-between items-center text-rose-400 text-[10px] font-bold uppercase tracking-wider mb-2">
-            <span>Pending Payments</span>
-            <AlertCircle className="w-4 h-4" />
+          <div className="reports-kpi-card">
+            <div className="reports-kpi-top">
+              <span className="reports-kpi-label">Total Visitors</span>
+              <div className="reports-kpi-icon" style={{ background: 'rgba(56,189,248,0.15)', color: '#38bdf8' }}>
+                <Users size={18} />
+              </div>
+            </div>
+            <div className="reports-kpi-val" style={{ color: '#38bdf8' }}>
+              {stats.totalVisitors.toLocaleString()}
+            </div>
+            <div className="reports-kpi-sub">
+              <span>Guests recorded</span>
+            </div>
           </div>
-          <div className="text-2xl font-black text-rose-300">{formatCurrency(stats.pendingPayments)}</div>
-        </div>
 
-        <div className="p-5 bg-[#071f14] rounded-2xl border border-emerald-500/30 shadow-lg">
-          <div className="flex justify-between items-center text-amber-400 text-[10px] font-bold uppercase tracking-wider mb-2">
-            <span>Approved Damage Fees</span>
-            <DollarSign className="w-4 h-4" />
+          <div className="reports-kpi-card">
+            <div className="reports-kpi-top">
+              <span className="reports-kpi-label">Avg / Visitor (ARPU)</span>
+              <div className="reports-kpi-icon" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24' }}>
+                <Activity size={18} />
+              </div>
+            </div>
+            <div className="reports-kpi-val" style={{ color: '#fbbf24' }}>
+              {fmt(stats.arpu)}
+            </div>
+            <div className="reports-kpi-sub">
+              <span>Per-guest spend</span>
+            </div>
           </div>
-          <div className="text-2xl font-black text-amber-300">{formatCurrency(stats.damageFees)}</div>
-          <p className="mt-1 text-[10px] text-slate-400">Assessed fees; not counted as collected revenue</p>
-        </div>
-      </div>
 
-      {/* GRAPH */}
-      <div className="bg-[#071f14] p-5 rounded-2xl border border-emerald-500/30 shadow-lg">
-        <h4 className="text-emerald-400 font-bold mb-4 uppercase tracking-wide text-sm flex items-center gap-2">
-          <Activity className="w-4 h-4" />
-          {filterMonth ? 'Daily Revenue' : 'Monthly Revenue'} 
-          {filterYear && ` (${filterYear})`}
-        </h4>
-        <div style={{ width: '100%', height: 350 }}>
-          <ResponsiveContainer>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#064e3b" vertical={false} />
-              <XAxis dataKey="name" stroke="#34d399" tick={{fill: '#34d399', fontSize: 12}} />
-              <YAxis stroke="#34d399" tick={{fill: '#34d399', fontSize: 12}} tickFormatter={(value) => `₱${value}`} />
-              <Tooltip 
-                cursor={{fill: '#064e3b', opacity: 0.4}} 
-                contentStyle={{backgroundColor: '#022c22', borderColor: '#059669', color: '#fff', borderRadius: 8}}
-                itemStyle={{color: '#34d399', fontWeight: 'bold'}}
-                formatter={(value) => formatCurrency(value)}
-              />
-              <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <div className="reports-kpi-card">
+            <div className="reports-kpi-top">
+              <span className="reports-kpi-label">Pipeline Receivables</span>
+              <div className="reports-kpi-icon" style={{ background: 'rgba(244,63,94,0.15)', color: '#fb7185' }}>
+                <Clock size={18} />
+              </div>
+            </div>
+            <div className="reports-kpi-val" style={{ color: '#fb7185' }}>
+              {fmt(stats.pendingPayments)}
+            </div>
+            <div className="reports-kpi-sub">
+              <span>Uncollected balances</span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* RECENT TRANSACTIONS TABLE */}
-      <div className="bg-[#071f14] p-5 rounded-2xl border border-emerald-500/30 shadow-lg">
-        <h4 className="text-emerald-400 font-bold mb-4 uppercase tracking-wide text-sm flex items-center gap-2">
-          <FileText className="w-4 h-4" />
-          Recent Transactions
-        </h4>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-emerald-800/50">
-                <th className="py-3 px-4 text-emerald-500 font-bold">Date</th>
-                <th className="py-3 px-4 text-emerald-500 font-bold">Booking / Ref</th>
-                <th className="py-3 px-4 text-emerald-500 font-bold">Client</th>
-                <th className="py-3 px-4 text-emerald-500 font-bold">Type</th>
-                <th className="py-3 px-4 text-emerald-500 font-bold text-right">Amount</th>
-                <th className="py-3 px-4 text-emerald-500 font-bold text-center">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredTxs.slice(0, 50).map((t, idx) => (
-                <tr key={idx} className="border-b border-emerald-900/30 hover:bg-emerald-900/20 transition-colors">
-                  <td className="py-3 px-4 text-slate-300">{t.date}</td>
-                  <td className="py-3 px-4 text-emerald-400 font-mono">{t.booking}</td>
-                  <td className="py-3 px-4 text-slate-200">{t.client}</td>
-                  <td className="py-3 px-4 text-slate-400">{t.type}</td>
-                  <td className="py-3 px-4 text-right font-bold text-emerald-300">{formatCurrency(t.amount)}</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
-                      String(t.status).toLowerCase().includes('paid') || t.status === 'Approved' ? 'bg-emerald-500/20 text-emerald-400' :
-                      String(t.status).toLowerCase().includes('cancel') || t.status === 'Rejected' ? 'bg-rose-500/20 text-rose-400' :
-                      'bg-amber-500/20 text-amber-400'
-                    }`}>
-                      {t.status}
+        {/* ====================================================================
+            SUB-TAB 1: GRAPHICAL REPORTS
+            ==================================================================== */}
+        {activeSubTab === 'graphical' && (
+          <div className="reports-charts-grid">
+            {/* 1. Dual-Axis Revenue & Visitor Footfall Composed Chart */}
+            <div className="reports-chart-panel">
+              <div className="reports-panel-head">
+                <span className="reports-panel-title">
+                  <BarChart3 size={18} /> Revenue Flow &amp; Visitor Volume
+                </span>
+                <span style={{ fontSize: 11, color: '#9fbfad' }}>
+                  {period.toUpperCase()} TIMELINE
+                </span>
+              </div>
+
+              <div style={{ width: '100%', height: 320 }}>
+                <ResponsiveContainer>
+                  <ComposedChart data={timeSeriesChartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#064e3b' : '#d1fae5'} vertical={false} />
+                    <XAxis dataKey="name" stroke={isDark ? '#34d399' : '#059669'} tick={{ fontSize: 11 }} />
+                    <YAxis
+                      yAxisId="left"
+                      stroke={isDark ? '#34d399' : '#059669'}
+                      tickFormatter={v => `₱${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`}
+                      tick={{ fontSize: 11 }}
+                      width={60}
+                    />
+                    <YAxis
+                      yAxisId="right"
+                      orientation="right"
+                      stroke="#38bdf8"
+                      tick={{ fontSize: 11 }}
+                      width={36}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: isDark ? '#022c22' : '#ffffff',
+                        borderColor: '#059669',
+                        borderRadius: 12,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+                      }}
+                      formatter={(val, name) => [name === 'revenue' ? fmt(val) : `${val} visitors`, name === 'revenue' ? 'Revenue' : 'Visitors']}
+                    />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="revenue" name="Revenue (₱)" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={45} />
+                    <Line yAxisId="right" type="monotone" dataKey="visitors" name="Visitors" stroke="#38bdf8" strokeWidth={3} dot={{ r: 4 }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* 2. Category Revenue Breakdown Donut Chart */}
+            <div className="reports-chart-panel">
+              <div className="reports-panel-head">
+                <span className="reports-panel-title">
+                  <PieIcon size={18} /> Revenue by Stream Category
+                </span>
+                <span style={{ fontSize: 11, color: '#9fbfad' }}>DISTRIBUTION</span>
+              </div>
+
+              <div style={{ width: '100%', height: 240 }}>
+                <ResponsiveContainer>
+                  <PieChart>
+                    <Pie
+                      data={categoryChartData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={4}
+                    >
+                      {categoryChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: isDark ? '#022c22' : '#ffffff',
+                        borderColor: '#059669',
+                        borderRadius: 12
+                      }}
+                      formatter={(v) => [fmt(v), 'Share']}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                {categoryChartData.map((cat, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#9fbfad' }}>
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: CATEGORY_COLORS[idx % CATEGORY_COLORS.length] }} />
+                      {cat.name}
                     </span>
-                  </td>
-                </tr>
-              ))}
-              {filteredTxs.length === 0 && (
-                <tr>
-                  <td colSpan="6" className="py-8 text-center text-emerald-600">No transactions found for the selected period.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          {filteredTxs.length > 50 && (
-            <div className="text-center py-4 text-xs text-emerald-600">Showing 50 most recent records.</div>
-          )}
-        </div>
-      </div>
+                    <strong style={{ fontWeight: 700 }}>{fmt(cat.value)}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
 
+            {/* 3. Day of Week Operating Patterns */}
+            <div className="reports-chart-panel" style={{ gridColumn: '1 / -1' }}>
+              <div className="reports-panel-head">
+                <span className="reports-panel-title">
+                  <CalendarDays size={18} /> Day-of-Week Operating Patterns &amp; Peak Footfall
+                </span>
+                <span style={{ fontSize: 11, color: '#9fbfad' }}>SUNDAY – SATURDAY OCCUPANCY</span>
+              </div>
+
+              <div style={{ width: '100%', height: 240 }}>
+                <ResponsiveContainer>
+                  <BarChart data={dayOfWeekChartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#064e3b' : '#d1fae5'} vertical={false} />
+                    <XAxis dataKey="name" stroke={isDark ? '#34d399' : '#059669'} />
+                    <YAxis
+                      stroke={isDark ? '#34d399' : '#059669'}
+                      tickFormatter={v => `₱${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`}
+                      width={60}
+                    />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: isDark ? '#022c22' : '#ffffff', borderColor: '#059669', borderRadius: 12 }}
+                      formatter={v => [fmt(v), 'Revenue']}
+                    />
+                    <Bar dataKey="revenue" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={50} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ====================================================================
+            SUB-TAB 2: TRANSACTIONS AUDIT LEDGER
+            ==================================================================== */}
+        {activeSubTab === 'ledger' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ position: 'relative', minWidth: 320, flex: 1, maxWidth: 540 }}>
+                <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#4ade80' }} />
+                <input
+                  type="text"
+                  placeholder="Search Booking / Ref, Client name, First, Middle, Last Name..."
+                  value={ledgerSearch}
+                  onChange={e => setLedgerSearch(e.target.value)}
+                  className="reports-select"
+                  style={{ width: '100%', paddingLeft: 34, paddingRight: ledgerSearch ? 36 : 12 }}
+                />
+                {ledgerSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setLedgerSearch('')}
+                    style={{
+                      position: 'absolute',
+                      right: 10,
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#9fbfad',
+                      cursor: 'pointer',
+                      padding: 4,
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Clear search"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {ledgerSearch && (
+                  <span style={{ fontSize: 12, color: '#4ade80', fontWeight: 700 }}>
+                    Filter: "{ledgerSearch}"
+                  </span>
+                )}
+                <span style={{ fontSize: 12, color: '#9fbfad' }}>
+                  Showing {Math.min(ledgerRecords.length, 100)} of {ledgerRecords.length} records
+                </span>
+              </div>
+            </div>
+
+            <div className="reports-table-wrap">
+              <table className="reports-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Booking / Ref</th>
+                    <th>Client</th>
+                    <th>Type</th>
+                    <th>Category</th>
+                    <th style={{ textAlign: 'right' }}>Amount</th>
+                    <th style={{ textAlign: 'center' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ledgerRecords.slice(0, 100).map((t, i) => (
+                    <tr key={t.id || i}>
+                      <td>{t.date}</td>
+                      <td style={{ fontFamily: 'monospace', color: '#86efac', fontWeight: 700 }}>
+                        {t.booking}
+                        {t.receiptNo && t.receiptNo !== t.booking && (
+                          <div style={{ fontSize: 10, color: '#9fbfad', fontWeight: 500, fontFamily: 'sans-serif' }}>
+                            OR: {t.receiptNo}
+                          </div>
+                        )}
+                      </td>
+                      <td>
+                        <div
+                          className="client-avatar-chip"
+                          onClick={() => setLedgerSearch(t.client)}
+                          title={`Click to isolate ${t.client}'s account`}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <div className="client-avatar-circle">
+                            {getInitials(t.client)}
+                          </div>
+                          <div>
+                            <strong style={{ fontWeight: 700, color: '#ecfdf5', display: 'block' }}>
+                              {t.client}
+                            </strong>
+                            {t.userNumber && (
+                              <span style={{ fontSize: 10, color: '#9fbfad' }}>
+                                {t.userNumber}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ color: '#9fbfad' }}>{t.type}</td>
+                      <td>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.06)' }}>
+                          {t.category}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 800, color: '#4ade80' }}>
+                        {fmt(t.amount)}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 800,
+                          padding: '3px 8px',
+                          borderRadius: 999,
+                          textTransform: 'uppercase',
+                          background: isPaidStatus(t.status) || t.status === 'Approved' ? 'rgba(74,222,128,0.15)' : isCancelledStatus(t.status) ? 'rgba(244,63,94,0.15)' : 'rgba(245,158,11,0.15)',
+                          color: isPaidStatus(t.status) || t.status === 'Approved' ? '#4ade80' : isCancelledStatus(t.status) ? '#fb7185' : '#fbbf24'
+                        }}>
+                          {t.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {ledgerRecords.length === 0 && (
+                    <tr>
+                      <td colSpan={7} style={{ textAlign: 'center', padding: 48, color: '#9fbfad' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                          <Search size={28} style={{ opacity: 0.5, color: '#4ade80' }} />
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#ecfdf5' }}>
+                            No transactions found matching "{ledgerSearch}"
+                          </span>
+                          <span style={{ fontSize: 12 }}>
+                            Try searching by client first name, last name, middle name, or booking reference number.
+                          </span>
+                          <button
+                            type="button"
+                            className="reports-clear-btn"
+                            style={{ marginTop: 8 }}
+                            onClick={() => setLedgerSearch('')}
+                          >
+                            Clear Search Filter
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+
+                {ledgerRecords.length > 0 && (
+                  <tfoot>
+                    <tr className="reports-table-total-row">
+                      <td colSpan={2} style={{ textAlign: 'left', fontWeight: 800 }}>
+                        {ledgerTotals.isSingleAccount
+                          ? `TOTAL FOR ACCOUNT (${ledgerTotals.primaryAccount?.client}):`
+                          : `GRAND TOTAL (${ledgerTotals.recordsCount} records):`}
+                      </td>
+                      <td style={{ fontWeight: 700 }}>
+                        {ledgerTotals.isSingleAccount
+                          ? ledgerTotals.primaryAccount?.client
+                          : `${ledgerTotals.uniqueAccountsCount} Client Accounts`}
+                      </td>
+                      <td colSpan={2} style={{ textAlign: 'right', color: '#9fbfad', fontSize: 12 }}>
+                        Paid: <strong style={{ color: '#4ade80' }}>{fmt(ledgerTotals.paidAmount)}</strong>
+                        {ledgerTotals.pendingAmount > 0 && (
+                          <span style={{ marginLeft: 8 }}>
+                            • Pending: <strong style={{ color: '#fbbf24' }}>{fmt(ledgerTotals.pendingAmount)}</strong>
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 900, color: '#4ade80', fontSize: 14 }}>
+                        {fmt(ledgerTotals.totalAmount)}
+                      </td>
+                      <td style={{ textAlign: 'center', fontSize: 11 }}>
+                        {ledgerTotals.pendingAmount === 0 ? (
+                          <span style={{ color: '#4ade80', fontWeight: 800 }}>FULLY SETTLED</span>
+                        ) : (
+                          <span style={{ color: '#fbbf24', fontWeight: 800 }}>
+                            {fmt(ledgerTotals.pendingAmount)} DUE
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+
+            {/* --- AFTER ALL BELOW: CUMULATIVE ACCOUNT TOTALS SUMMARY CARD --- */}
+            <div className="reports-ledger-summary-card">
+              <div className="reports-ledger-summary-header">
+                <div className="reports-ledger-summary-title">
+                  <div className="client-avatar-chip">
+                    <div className="client-avatar-circle" style={{ width: 44, height: 44, fontSize: 16 }}>
+                      {ledgerTotals.isSingleAccount
+                        ? getInitials(ledgerTotals.primaryAccount?.client)
+                        : <Users size={20} />}
+                    </div>
+                  </div>
+                  <div>
+                    <h4>
+                      {ledgerTotals.isSingleAccount ? (
+                        <>
+                          Account Summary: <span style={{ color: '#4ade80' }}>{ledgerTotals.primaryAccount?.client}</span>
+                        </>
+                      ) : (
+                        <>Consolidated Ledger Summary</>
+                      )}
+                      <span style={{
+                        fontSize: 11,
+                        padding: '3px 10px',
+                        borderRadius: 999,
+                        background: ledgerTotals.isSingleAccount ? 'rgba(74, 222, 128, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                        color: ledgerTotals.isSingleAccount ? '#4ade80' : '#38bdf8',
+                        fontWeight: 800
+                      }}>
+                        {ledgerTotals.isSingleAccount
+                          ? 'Single Account View'
+                          : `${ledgerTotals.uniqueAccountsCount} Accounts Consolidated`}
+                      </span>
+                    </h4>
+                    <p>
+                      {ledgerTotals.isSingleAccount ? (
+                        <>
+                          {ledgerTotals.primaryAccount?.userNumber && (
+                            <>Account No: <strong style={{ color: '#ecfdf5' }}>{ledgerTotals.primaryAccount.userNumber}</strong> • </>
+                          )}
+                          {ledgerTotals.primaryAccount?.email && (
+                            <>{ledgerTotals.primaryAccount.email} • </>
+                          )}
+                          Showing all recorded transactions and cumulative balance for this account ({ledgerTotals.recordsCount} {ledgerTotals.recordsCount === 1 ? 'transaction' : 'transactions'})
+                        </>
+                      ) : (
+                        <>
+                          Aggregated balance and totals across {ledgerTotals.recordsCount} transactions ({ledgerTotals.uniqueAccountsCount} client accounts)
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                {ledgerSearch && (
+                  <button
+                    type="button"
+                    className="reports-clear-btn"
+                    onClick={() => setLedgerSearch('')}
+                    title="Reset search to view all transactions"
+                  >
+                    <X size={13} /> Clear Search ({ledgerSearch})
+                  </button>
+                )}
+              </div>
+
+              <div className="reports-ledger-summary-metrics">
+                <div className="reports-ledger-metric-item">
+                  <span className="label">
+                    {ledgerTotals.isSingleAccount ? 'Total Account Bill / Volume' : 'Total Transaction Value'}
+                  </span>
+                  <span className="val" style={{ color: '#4ade80' }}>
+                    {fmt(ledgerTotals.totalAmount)}
+                  </span>
+                  <span className="sub">
+                    {ledgerTotals.isSingleAccount
+                      ? `Cumulative sum across all ${ledgerTotals.recordsCount} records`
+                      : `Total volume of ${ledgerTotals.recordsCount} transaction items`}
+                  </span>
+                </div>
+
+                <div className="reports-ledger-metric-item">
+                  <span className="label">Total Settled / Paid</span>
+                  <span className="val" style={{ color: '#38bdf8' }}>
+                    {fmt(ledgerTotals.paidAmount)}
+                  </span>
+                  <span className="sub">
+                    <CheckCircle2 size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: -1 }} />
+                    Completed and verified payments
+                  </span>
+                </div>
+
+                <div className="reports-ledger-metric-item">
+                  <span className="label">Pending / Remaining Balance</span>
+                  <span className="val" style={{ color: ledgerTotals.pendingAmount > 0 ? '#fbbf24' : '#9fbfad' }}>
+                    {fmt(ledgerTotals.pendingAmount)}
+                  </span>
+                  <span className="sub">
+                    {ledgerTotals.pendingAmount > 0 ? (
+                      <>
+                        <AlertCircle size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: -1, color: '#fbbf24' }} />
+                        Outstanding balance to collect
+                      </>
+                    ) : (
+                      'Zero remaining balance (Fully paid)'
+                    )}
+                  </span>
+                </div>
+
+                <div className="reports-ledger-metric-item">
+                  <span className="label">Total Guests / Footfall</span>
+                  <span className="val" style={{ color: '#ecfdf5' }}>
+                    {ledgerTotals.totalVisitors}{' '}
+                    <span style={{ fontSize: 13, fontWeight: 500, color: '#9fbfad' }}>
+                      guests
+                    </span>
+                  </span>
+                  <span className="sub">
+                    {ledgerTotals.isSingleAccount
+                      ? (ledgerTotals.pendingAmount === 0 ? 'Account is completely settled' : 'Unpaid balance pending checkout')
+                      : `Tracked visitors across ${ledgerTotals.recordsCount} records`}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

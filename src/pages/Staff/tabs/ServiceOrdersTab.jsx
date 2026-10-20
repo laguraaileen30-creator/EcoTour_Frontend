@@ -85,10 +85,66 @@ export default function ServiceOrdersTab() {
     return b.balanceDue !== undefined ? parseFloat(b.balanceDue) : Math.max(0, total - parseFloat(b.amountPaid || 0));
   };
 
-  const openPaymentModal = (booking) => {
-    setSelectedBookingForPayment(booking);
-    const due = balanceOf(booking);
-    setCashReceivedInput(due ? String(due) : '');
+  // Catering status checker (3-minute lock to avoid staff collisions)
+  const getCaterStatus = (b) => {
+    if (!b?.cateredBy) return { isCateredByOther: false, isCateredByMe: false, catererName: '' };
+    const myName = (currentUser?.name || `${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || 'Staff').toLowerCase();
+    const caterer = String(b.cateredBy).trim().toLowerCase();
+    const isMe = caterer === myName;
+    if (b.cateredAt) {
+      const elapsedSec = (Date.now() - new Date(b.cateredAt).getTime()) / 1000;
+      if (elapsedSec > 180) {
+        return { isCateredByOther: false, isCateredByMe: false, catererName: '' };
+      }
+    }
+    return {
+      isCateredByOther: !isMe,
+      isCateredByMe: isMe,
+      catererName: b.cateredBy
+    };
+  };
+
+  const openPaymentModal = async (booking) => {
+    const myName = currentUser?.name || `${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || 'Staff Member';
+    const targetId = booking.id || booking.bookingRef || booking.bookingNumber;
+    try {
+      const res = await apiJson(`/reservations/${encodeURIComponent(targetId)}/cater`, {
+        method: 'POST',
+        auth: true,
+        body: { staff_name: myName }
+      });
+      if (res && res.success) {
+        setSelectedBookingForPayment(booking);
+        const due = balanceOf(booking);
+        setCashReceivedInput(due ? String(due) : '');
+        if (refreshAllLiveData) refreshAllLiveData();
+      }
+    } catch (err) {
+      showAlert({
+        title: 'Client Currently Being Assisted',
+        message: err.message || 'This client is currently being assisted at another counter to avoid duplicate payments.',
+        type: 'warning'
+      });
+      if (refreshAllLiveData) refreshAllLiveData();
+    }
+  };
+
+  const closePaymentModal = async () => {
+    if (selectedBookingForPayment) {
+      const myName = currentUser?.name || `${currentUser?.fname || ''} ${currentUser?.lname || ''}`.trim() || 'Staff Member';
+      const targetId = selectedBookingForPayment.id || selectedBookingForPayment.bookingRef || selectedBookingForPayment.bookingNumber;
+      try {
+        await apiJson(`/reservations/${encodeURIComponent(targetId)}/uncater`, {
+          method: 'POST',
+          auth: true,
+          body: { staff_name: myName }
+        });
+      } catch (e) {
+        console.warn('Uncater error:', e);
+      }
+      if (refreshAllLiveData) refreshAllLiveData();
+    }
+    setSelectedBookingForPayment(null);
   };
 
   const handleCancelBooking = async (booking) => {
@@ -517,6 +573,7 @@ export default function ServiceOrdersTab() {
                   const refCode = b.bookingRef || b.bookingNumber || `REF-${b.id}`;
                   const bookingDateVal = b.reservationDate || b.bookingDate || todayStr;
                   const isTodayBooking = bookingDateVal === todayStr;
+                  const caterStatus = getCaterStatus(b);
 
                   return (
                     <tr
@@ -531,9 +588,21 @@ export default function ServiceOrdersTab() {
                         <strong className="block text-xs font-bold" style={{ color: 'var(--text)' }}>
                           {b.clientName || b.fullName || b.touristName || 'Client Guest'}
                         </strong>
-                        <span className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>
-                          {b.userNumber || b.client_id || 'CLT-2026-901'}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="text-[10px] font-mono" style={{ color: 'var(--accent)' }}>
+                            {b.userNumber || b.client_id || 'CLT-2026-901'}
+                          </span>
+                          {caterStatus.isCateredByOther && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase inline-flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> 🔒 Being Assisted by {caterStatus.catererName}
+                            </span>
+                          )}
+                          {caterStatus.isCateredByMe && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> 🟢 Currently Assisting
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 font-mono font-bold text-xs" style={{ color: 'var(--text)' }}>
@@ -589,24 +658,31 @@ export default function ServiceOrdersTab() {
                           <div className="inline-flex items-center gap-1.5">
                             <button
                               onClick={() => handleCancelBooking(b)}
-                              className="px-2.5 py-1.5 text-rose-300 hover:text-white text-[10px] font-bold rounded-xl cursor-pointer transition-all inline-flex items-center gap-1"
+                              disabled={caterStatus.isCateredByOther}
+                              className={`px-2.5 py-1.5 text-rose-300 hover:text-white text-[10px] font-bold rounded-xl transition-all inline-flex items-center gap-1 ${
+                                caterStatus.isCateredByOther ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                              }`}
                               style={{
                                 background: 'rgba(239,68,68,0.15)',
                                 border: '1px solid rgba(239,68,68,0.4)',
                               }}
-                              title="Cancel / Void duplicate or unconfirmed reservation to prevent double payment"
+                              title={caterStatus.isCateredByOther ? `Currently being assisted by ${caterStatus.catererName}` : "Cancel / Void duplicate or unconfirmed reservation"}
                             >
                               <XCircle className="w-3 h-3" /> Void
                             </button>
                             <button
                               onClick={() => openPaymentModal(b)}
-                              className="px-3 py-1.5 text-white text-[10px] font-extrabold rounded-xl cursor-pointer transition-all shadow inline-flex items-center gap-1"
+                              disabled={caterStatus.isCateredByOther}
+                              className={`px-3 py-1.5 text-white text-[10px] font-extrabold rounded-xl transition-all shadow inline-flex items-center gap-1 ${
+                                caterStatus.isCateredByOther ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'
+                              }`}
                               style={{
-                                background: '#16a34a',
+                                background: caterStatus.isCateredByOther ? '#64748b' : '#16a34a',
                                 border: '1px solid rgba(134,239,172,0.4)',
                               }}
+                              title={caterStatus.isCateredByOther ? `Currently being assisted by ${caterStatus.catererName}` : "Confirm Cash Payment"}
                             >
-                              <Coins className="w-3 h-3" /> Confirm Payment
+                              <Coins className="w-3 h-3" /> {caterStatus.isCateredByOther ? `🔒 Assisted by ${caterStatus.catererName}` : 'Confirm Payment'}
                             </button>
                           </div>
                         )}
@@ -810,7 +886,7 @@ export default function ServiceOrdersTab() {
                 </div>
               </div>
               <button
-                onClick={() => setSelectedBookingForPayment(null)}
+                onClick={closePaymentModal}
                 className="w-8 h-8 rounded-full flex items-center justify-center cursor-pointer"
                 style={{ background: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.08)', color: 'var(--text)' }}
               >
@@ -937,7 +1013,7 @@ export default function ServiceOrdersTab() {
             <div className="flex gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setSelectedBookingForPayment(null)}
+                onClick={closePaymentModal}
                 className="flex-1 py-3 font-bold text-xs rounded-2xl cursor-pointer transition-all"
                 style={{
                   background: isLight ? 'var(--panel)' : '#1e293b',

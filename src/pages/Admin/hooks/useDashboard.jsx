@@ -5,7 +5,18 @@ import { useEcoTour } from '../../../context/EcoTourContext';
 const DashboardContext = createContext(null);
 
 const useDashboardState = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam) return tabParam;
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      if (pathParts[0] === 'admin' && pathParts[1] && pathParts[1] !== 'dashboard') {
+        return pathParts[1];
+      }
+    } catch {}
+    return 'dashboard';
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const ecoTour = useEcoTour();
 

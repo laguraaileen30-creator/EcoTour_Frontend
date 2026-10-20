@@ -33,7 +33,7 @@ export const TIMELINE_STAGES = [
   },
 ];
 
-export const getStageIndex = (statusStr) => {
+export const getStageIndex = (statusStr, reservation = null) => {
   const s = (statusStr || '').toLowerCase().trim();
   
   // 0. If it is cancelled / voided / void / rejected, it is not in active 0..3 progression
@@ -41,22 +41,28 @@ export const getStageIndex = (statusStr) => {
     return -1;
   }
   
-  // 1. If it contains pending / waiting / unpaid, it is ALWAYS Stage 0 (Pending Payment)
-  if (s.includes('pending') || s.includes('waiting') || s.includes('unpaid')) {
-    return 0;
-  }
-  
-  // 2. If it is completed / finished / checked-out, it is Stage 3 (Completed)
+  // 1. If it is completed / finished / checked-out, it is Stage 3 (Completed)
   if (s.includes('completed') || s.includes('finished') || s.includes('checked-out') || s.includes('checked out') || s.includes('done') || s.includes('vacated')) {
     return 3;
   }
   
-  // 3. If it is actively using services / checked in / ongoing, it is Stage 2 (Using Services)
+  // 2. If it is actively using services / checked in / ongoing, it is Stage 2 (Using Services)
   if (s.includes('using') || s.includes('active') || s.includes('checked-in') || s.includes('checked in') || s.includes('check-in') || s.includes('check in') || s.includes('ongoing') || s.includes('in-service')) {
     return 2;
   }
   
-  // 4. If it is paid / approved / confirmed / verified, it is Stage 1 (Paid)
+  // 3. If 50% paid or fee paid, it has progressed past Stage 0 to Stage 1 (Paid / Downpayment)
+  const is50 = reservation && (reservation.feeStatus === 'PAID' || String(reservation.paymentStatus || reservation.payment_status || '').toLowerCase().includes('50%'));
+  if (s.includes('50%') || is50) {
+    return 1;
+  }
+
+  // 4. If it contains pending / waiting / unpaid, it is ALWAYS Stage 0 (Pending Payment)
+  if (s.includes('pending') || s.includes('waiting') || s.includes('unpaid')) {
+    return 0;
+  }
+  
+  // 5. If it is paid / approved / confirmed / verified, it is Stage 1 (Paid)
   if (s.includes('paid') || s.includes('approved') || s.includes('confirmed') || s.includes('verified') || s.includes('settled')) {
     return 1;
   }
@@ -72,7 +78,7 @@ export default function VerticalReservationTimeline({
   userRole = 'client', // 'client' | 'staff' | 'admin'
   compact = false,
 }) {
-  const activeStageIdx = getStageIndex(currentStatus);
+  const activeStageIdx = getStageIndex(currentStatus, reservation);
   const isVoidedOrCancelled = activeStageIdx === -1 || (currentStatus || '').toLowerCase().includes('cancel') || (currentStatus || '').toLowerCase().includes('void');
 
   if (isVoidedOrCancelled) {
@@ -173,9 +179,11 @@ export default function VerticalReservationTimeline({
 
                 <p className="etv-timeline-sublabel">{stage.sublabel}</p>
                 <p className="etv-timeline-desc">
-                  {idx === 1 && isDone && reservation?.grandTotal
-                    ? `Payment confirmed: ₱${parseFloat(reservation.grandTotal || reservation.totalPrice || 0).toLocaleString()}.00`
-                    : stage.desc}
+                  {idx === 1 && reservation && (reservation.feeStatus === 'PAID' || String(reservation.paymentStatus || '').toLowerCase().includes('50%')) && parseFloat(reservation.amountPaid || 0) < parseFloat(reservation.estimatedTotal || reservation.grandTotal || reservation.totalPrice || 0)
+                    ? `50% downpayment recorded (₱${parseFloat(reservation.amountPaid || reservation.reservationFee || 0).toLocaleString()}.00). Balance due on arrival.`
+                    : (idx === 1 && (isDone || isCurrent) && reservation?.grandTotal
+                      ? `Full payment confirmed: ₱${parseFloat(reservation.grandTotal || reservation.totalPrice || 0).toLocaleString()}.00`
+                      : stage.desc)}
                 </p>
 
                 {/* INTERACTIVE ACTIONS (Staff & Client only — Admin is strictly View-Only Monitoring) */}

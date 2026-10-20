@@ -269,14 +269,37 @@ export const StaffDashboard = () => {
           {activeTab === 'inventory' && <InventoryTab />}
           {activeTab === 'pending_bookings' && <PendingBookingsTab setActiveTab={setActiveTab} />}
 
-          {/* Existing functional tabs & sub-keys */}
-          {activeTab === 'inspections' && <InspectionsTab />}
+          {/* UNIFIED: Bills & Services (Above) + Facility Inspections & Damage (Below) */}
+          {(activeTab === 'service_orders' || activeTab === 'inspections' || activeTab.startsWith('service_orders_') || activeTab === 'bookings') && (
+            <div className="space-y-10">
+              {/* Top / Above: Bills & Services */}
+              <section id="bills-and-services-section">
+                <ServiceOrdersTab setActiveTab={setActiveTab} />
+              </section>
+
+              {/* Seamless Elegant Section Divider */}
+              <div className="relative py-4 print:hidden">
+                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                  <div className="w-full border-t border-emerald-500/20" />
+                </div>
+                <div className="relative flex justify-center">
+                  <span className="px-5 py-2 rounded-full text-xs font-black tracking-wider uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 backdrop-blur-md shadow-sm flex items-center gap-2">
+                    <span className="text-sm">🌿</span> Facility Inspections &amp; Damage
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom / Below: Facility Inspections & Damage */}
+              <section id="facility-inspections-section">
+                <InspectionsTab />
+              </section>
+            </div>
+          )}
           {(activeTab === 'pos' || activeTab === 'walkin_pos' || activeTab === 'pos_today' || activeTab === 'pos_history') && <POSTab />}
           {(activeTab === 'facilities' || activeTab.startsWith('facilities_')) && <FacilitiesTab />}
           {(activeTab === 'availability' || activeTab === 'live_facilities' || activeTab === 'cottages') && <ServiceAvailabilityTab />}
           {(activeTab === 'daily_sales' || activeTab === 'daily_reports') && <DailySalesTab />}
           {activeTab === 'returns' && <ReturnsTab />}
-          {(activeTab === 'service_orders' || activeTab.startsWith('service_orders_') || activeTab === 'bookings') && <ServiceOrdersTab setActiveTab={setActiveTab} />}
           {(activeTab === 'receipts' || activeTab.startsWith('receipts_') || activeTab === 'receipts_menu') && <ReceiptsTab />}
           {(activeTab === 'staff_profile' || activeTab.startsWith('staff_profile_')) && <ProfileTab />}
           {(activeTab === 'notifications' || activeTab.startsWith('notifications_')) && <ProfileTab notificationsFilter={activeTab} />}

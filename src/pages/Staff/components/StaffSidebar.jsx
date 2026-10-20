@@ -12,8 +12,7 @@ const STAFF_MENU_ITEMS = [
   { key: 'overview', label: 'Staff Dashboard', icon: LayoutDashboard },
   { key: 'walkin_pos', label: 'Walk-In Order Terminal (POS)', icon: Footprints },
   { key: 'pending_bookings', label: 'Pending Client Bookings', icon: Ticket },
-  { key: 'inspections', label: 'Facility Inspections & Damage', icon: Trees },
-  { key: 'service_orders', label: 'Bills & Services', icon: Calendar },
+  { key: 'service_orders', label: 'Bills, Services & Inspections', icon: Calendar },
   { key: 'availability', label: 'Service Availability & Facility Map', icon: Trees },
   { key: 'daily_sales', label: 'My Daily Sales Tally', icon: Coins },
   { key: 'staff_profile', label: 'My Profile, Attendance & Notifications', icon: User },
@@ -64,7 +63,11 @@ export default function StaffSidebar({ activeTab, setActiveTab }) {
             const IconComp = item.icon;
             const hasChildren = item.children && item.children.length > 0;
             const isOpen = openMenus[item.key];
-            const isParentActive = activeTab === item.key || (item.key === 'staff_profile' && String(activeTab).startsWith('notifications')) || (item.children && item.children.some((c) => c.key === activeTab));
+            const isParentActive =
+              activeTab === item.key ||
+              (item.key === 'service_orders' && (activeTab === 'inspections' || activeTab === 'bookings' || String(activeTab).startsWith('service_orders_'))) ||
+              (item.key === 'staff_profile' && String(activeTab).startsWith('notifications')) ||
+              (item.children && item.children.some((c) => c.key === activeTab));
 
             return (
               <div key={item.key} className="w-full">

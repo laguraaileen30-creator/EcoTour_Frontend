@@ -87,7 +87,8 @@ function App() {
           {/* Admin Routes (Wrapped in AdminLayout) */}
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="/admin/dashboard" element={<AdminDashboard />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="*" element={<AdminDashboard />} />
           </Route>
 
           {/* 404 Not Found */}

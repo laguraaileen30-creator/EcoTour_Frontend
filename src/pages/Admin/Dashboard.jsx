@@ -90,12 +90,124 @@ const Footer = () => (
     </div>
     <p>© 2024 EcoTourVista. All rights reserved.</p>
     <div className="footer-social">
-      <button aria-label="Facebook"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></button>
-      <button aria-label="Instagram"><rect x="2" y="2" width="20" height="20" rx="5" /><circle cx="12" cy="12" r="4" /><circle cx="17.5" cy="6.5" r=".8" /></button>
-      <button aria-label="Location"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></button>
+      <button aria-label="Facebook">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
+        </svg>
+      </button>
+      <button aria-label="Instagram">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="2" width="20" height="20" rx="5" />
+          <circle cx="12" cy="12" r="4" />
+          <circle cx="17.5" cy="6.5" r=".8" />
+        </svg>
+      </button>
+      <button aria-label="Location">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+          <circle cx="12" cy="10" r="3" />
+        </svg>
+      </button>
     </div>
   </footer>
 );
+
+class AdminTabErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("Admin Tab Error Boundary caught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          padding: '40px 24px',
+          maxWidth: 600,
+          margin: '40px auto',
+          borderRadius: 24,
+          background: 'rgba(7, 29, 18, 0.95)',
+          border: '1px solid rgba(244, 63, 94, 0.3)',
+          textAlign: 'center',
+          color: '#ffffff',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+        }}>
+          <div style={{
+            width: 52,
+            height: 52,
+            borderRadius: '50%',
+            background: 'rgba(244, 63, 94, 0.15)',
+            border: '1px solid rgba(244, 63, 94, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 16px',
+            fontSize: 22
+          }}>
+            ⚠️
+          </div>
+          <h3 style={{ fontSize: 18, fontWeight: 900, marginBottom: 8, color: '#fca5a5' }}>
+            Module Display Warning
+          </h3>
+          <p style={{ fontSize: 13, color: '#cbd5e1', marginBottom: 20, lineHeight: 1.5 }}>
+            {this.state.error?.message || 'An unexpected rendering error occurred in this module.'}
+          </p>
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                window.location.reload();
+              }}
+              style={{
+                padding: '10px 20px',
+                borderRadius: 12,
+                background: '#10b981',
+                color: '#ffffff',
+                border: 'none',
+                fontWeight: 800,
+                fontSize: 12,
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}
+            >
+              Reload Page
+            </button>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                window.location.href = '/admin/dashboard';
+              }}
+              style={{
+                padding: '10px 20px',
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.08)',
+                color: '#9fbfad',
+                border: '1px solid rgba(255,255,255,0.15)',
+                fontWeight: 800,
+                fontSize: 12,
+                cursor: 'pointer',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+              }}
+            >
+              Go to Overview
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function Dashboard() {
   return (
@@ -105,7 +217,9 @@ export default function Dashboard() {
         <div className="etv-main">
           <Header />
           <main className="etv-content">
-            <TabRouter />
+            <AdminTabErrorBoundary>
+              <TabRouter />
+            </AdminTabErrorBoundary>
           </main>
           <Footer />
         </div>

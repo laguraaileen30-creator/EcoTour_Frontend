@@ -41,6 +41,10 @@ export default function Signup() {
     if (!formData.firstName.trim()) return alert("First Name is required.");
     if (!formData.lastName.trim()) return alert("Last Name is required.");
     if (!formData.contactNumber.trim()) return alert("Contact Number is required.");
+    const cleanPhone = formData.contactNumber.replace(/\D/g, "");
+    if (cleanPhone.length !== 11) {
+      return alert(`Phone number must be exactly 11 numbers (no letters, e.g. 09123456789). You entered ${cleanPhone.length} digits.`);
+    }
     if (!formData.email.trim()) return alert("Email Address is required.");
     if (!formData.address.trim()) return alert("Complete Address is required.");
     if (!formData.agreeTerms) return alert("You must confirm the details.");
@@ -247,14 +251,23 @@ export default function Signup() {
                 </div>
 
                 <div className="form-group form-group-standard">
-                  <label>CONTACT NUMBER *</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label style={{ margin: 0 }}>CONTACT NUMBER *</label>
+                    <span style={{ fontSize: '10px', color: formData.contactNumber.length === 11 ? '#10b981' : '#94a3b8', fontWeight: 'bold' }}>
+                      {formData.contactNumber.length}/11 digits
+                    </span>
+                  </div>
                   <div className="input-wrapper">
                     <Phone size={18} />
                     <input
                       type="tel"
                       placeholder="09123456789"
+                      maxLength={11}
                       value={formData.contactNumber}
-                      onChange={(e) => setFormData({ ...formData, contactNumber: e.target.value.replace(/\D/g, "") })}
+                      onChange={(e) => {
+                        const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 11);
+                        setFormData({ ...formData, contactNumber: digitsOnly });
+                      }}
                       disabled={loading}
                     />
                   </div>

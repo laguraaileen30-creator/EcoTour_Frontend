@@ -85,7 +85,7 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
       if (name === 'firstname' || name === 'middlename' || name === 'lastname') {
         val = val.replace(/[^a-zA-Z\s'-]/g, '');
       } else if (name === 'contactnumber') {
-        val = val.replace(/\D/g, '');
+        val = val.replace(/\D/g, '').slice(0, 11);
       } else if (name === 'email') {
         val = val.toLowerCase();
       }
@@ -101,6 +101,11 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
+
+    if (formData.contactnumber.replace(/\D/g, '').length !== 11) {
+      setErrorMessage("Contact number must be exactly 11 digits (numbers only, e.g. 09123456789).");
+      return;
+    }
 
     if (!formData.agreeTerms) {
       setErrorMessage("Please confirm that the details provided are correct.");
@@ -340,6 +345,7 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
                   type="tel"
                   id="contactnumber"
                   name="contactnumber"
+                  maxLength={11}
                   value={formData.contactnumber}
                   onChange={handleChange}
                   placeholder="09123456789"

@@ -74,16 +74,23 @@ export default function ReservationPaymentStatus({ booking, role = 'client', onC
     <div className="rounded-2xl p-3.5 space-y-2.5 text-xs" style={{ border: `1px solid ${awaiting ? 'rgba(245,158,11,0.55)' : 'var(--line)'}`, background: awaiting ? 'rgba(245,158,11,0.08)' : 'rgba(16,185,129,0.05)' }}>
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <span className="font-extrabold uppercase tracking-wider text-[10px] flex items-center gap-1.5" style={{ color: 'var(--accent)' }}><Wallet className="w-3.5 h-3.5" /> Reservation fee & payment</span>
-        {meta && (
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold inline-flex items-center gap-1" style={{ color: meta.color, border: `1px solid ${meta.color}66`, background: `${meta.color}1a` }}>
-            <meta.icon className="w-3 h-3" /> {meta.label}{left ? ` • ${left} left` : ''}
-          </span>
-        )}
+        <div className="flex items-center gap-2 flex-wrap">
+          {feePaid && balance > 0 && (
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black inline-flex items-center gap-1" style={{ color: '#22c55e', border: '1px solid rgba(34,197,94,0.4)', background: 'rgba(34,197,94,0.12)' }}>
+              <CheckCircle2 className="w-3 h-3" /> Paid 50% Downpayment
+            </span>
+          )}
+          {meta && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold inline-flex items-center gap-1" style={{ color: meta.color, border: `1px solid ${meta.color}66`, background: `${meta.color}1a` }}>
+              <meta.icon className="w-3 h-3" /> {meta.label}{left ? ` • ${left} left` : ''}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className={`grid ${compact ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'} gap-2`}>
         {[
-          ['Reservation fee', peso(fee), feePaid ? 'Paid' : 'Unpaid', feePaid ? '#22c55e' : '#f59e0b'],
+          ['Reservation fee', peso(fee), feePaid ? 'Paid (50%) ✓' : 'Unpaid', feePaid ? '#22c55e' : '#f59e0b'],
           ['Paid so far', peso(paid), null],
           ['Balance due', peso(balance), balance > 0 ? 'On arrival' : 'Settled', balance > 0 ? 'var(--muted)' : '#22c55e'],
           ...(!compact ? [['Booking total', peso(total), null]] : []),
@@ -95,6 +102,12 @@ export default function ReservationPaymentStatus({ booking, role = 'client', onC
           </div>
         ))}
       </div>
+
+      {feePaid && balance > 0 && !['DECLINED', 'EXPIRED'].includes(conf) && (
+        <p style={{ color: '#10b981' }} className="font-semibold text-xs">
+          ✓ <b>50% reservation fee has been paid!</b> Your reservation is secured. Remaining balance of <b>{peso(balance)}</b> is payable upon arrival at the resort counter.
+        </p>
+      )}
 
       {role === 'client' && booking.feeStatus === 'UNPAID' && !['DECLINED', 'EXPIRED'].includes(conf) && (
         <p style={{ color: 'var(--text)' }}>

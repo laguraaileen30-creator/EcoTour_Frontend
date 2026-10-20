@@ -2162,11 +2162,53 @@ body.light-mode [class*="bg-[#04150e]"],
 body.light-mode [class*="bg-[#0c1f16]"],
 body.light-mode [class*="bg-[#051c14]"],
 body.light-mode [class*="bg-[#041710]"],
-body.light-mode [class*="bg-[#0a1c15]"] {
+body.light-mode [class*="bg-[#0a1c15]"],
+body.light-mode [class*="bg-[#071810]"] {
   background-color: rgba(255, 250, 245, 0.98) !important;
   background-image: none !important;
   color: var(--text-primary) !important;
   border-color: var(--border-medium) !important;
+}
+
+/* Daily Sales Tally Modal light & dark specifications */
+body:not(.light-mode) .daily-tally-modal {
+  background-color: #071810 !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8) !important;
+}
+
+body:not(.light-mode) .daily-tally-modal select {
+  background-color: rgba(6, 40, 25, 0.7) !important;
+  color: #a7f3d0 !important;
+  border: 1px solid rgba(5, 150, 105, 0.6) !important;
+}
+
+body:not(.light-mode) .daily-tally-modal input {
+  background-color: rgba(0, 0, 0, 0.6) !important;
+  color: #6ee7b7 !important;
+  border: 1px solid rgba(16, 185, 129, 0.5) !important;
+}
+
+body:not(.light-mode) .daily-tally-modal textarea {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  color: #e2e8f0 !important;
+  border: 1px solid rgba(6, 78, 59, 0.7) !important;
+}
+
+body.light-mode .daily-tally-modal {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #d1fae5 !important;
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.2) !important;
+}
+
+body.light-mode .daily-tally-modal select,
+body.light-mode .daily-tally-modal input,
+body.light-mode .daily-tally-modal textarea {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border: 1px solid #cbd5e1 !important;
 }
 
 body.light-mode [class*="hover:bg-emerald-950"]:hover,

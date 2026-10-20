@@ -218,6 +218,30 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
     return s.includes('cancel') || s.includes('void') || s.includes('reject');
   };
 
+  // Check if client currently has an unpaid pending reservation
+  const unpaidPendingBooking = allReservationsList.find((r) => {
+    if (isVoidedOrCancelled(r.status)) return false;
+    const s = String(r.status || 'Pending').toLowerCase();
+    const feeStatus = String(r.feeStatus || '').toUpperCase();
+    const paymentStatus = String(r.paymentStatus || r.payment_status || '').toLowerCase();
+    const amountPaid = parseFloat(r.amountPaid || 0);
+    if (s.includes('complete') || s.includes('using') || s.includes('check')) return false;
+    if (feeStatus === 'PAID' || paymentStatus.includes('paid')) return false;
+    return feeStatus === 'UNPAID' || paymentStatus === 'unpaid' || amountPaid === 0 || s.includes('pending');
+  });
+
+  const handleOpenBookingModal = () => {
+    if (unpaidPendingBooking) {
+      showAlert({
+        title: 'Pending Reservation Exists',
+        message: `You currently have an active pending reservation (#${unpaidPendingBooking.bookingRef || unpaidPendingBooking.bookingNumber}). You must pay the 50% reservation fee for your pending booking before you can create another reservation.`,
+        type: 'warning',
+      });
+      return;
+    }
+    setShowBookingModal(true);
+  };
+
   const activeBookings = allReservationsList.filter(r => {
     const idx = getStageIndex(r.status);
     return idx >= 0 && idx < 3 && !isVoidedOrCancelled(r.status);
@@ -292,7 +316,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
     }
   };
 
-  const getStatusBadge = (status) => {
+  const getStatusBadge = (status, booking = null) => {
     if (isVoidedOrCancelled(status)) {
       return (
         <span
@@ -307,6 +331,12 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
         </span>
       );
     }
+
+    const s = String(status || '').toLowerCase();
+    const p = String(booking?.paymentStatus || booking?.payment_status || '').toLowerCase();
+    const isFeePaid = booking && (booking.feeStatus === 'PAID' || p.includes('50%') || s.includes('50%'));
+    const isFullyPaid = booking && (p === 'paid' || s === 'paid' || (parseFloat(booking.amountPaid || 0) >= parseFloat(booking.estimatedTotal || booking.grandTotal || booking.totalPrice || 0) && parseFloat(booking.amountPaid || 0) > 0));
+
     const stageIdx = getStageIndex(status);
     if (stageIdx === 3) {
       return (
@@ -336,7 +366,21 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
         </span>
       );
     }
-    if (stageIdx === 1) {
+    if (isFeePaid && !isFullyPaid) {
+      return (
+        <span
+          className="px-3 py-1 text-[10px] font-extrabold rounded-full inline-flex items-center gap-1 uppercase shadow-sm"
+          style={{
+            background: 'rgba(34,197,94,0.18)',
+            color: '#22c55e',
+            border: '1px solid rgba(34,197,94,0.45)',
+          }}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" /> 02 — PAID 50% (DOWNPAYMENT) ✓
+        </span>
+      );
+    }
+    if (stageIdx === 1 || isFullyPaid) {
       return (
         <span
           className="px-3 py-1 text-[10px] font-extrabold rounded-full inline-flex items-center gap-1 uppercase shadow-sm"
@@ -346,7 +390,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
             border: '1px solid rgba(74,222,128,0.4)',
           }}
         >
-          <CheckCircle2 className="w-3.5 h-3.5" /> 02 — PAID ✓
+          <CheckCircle2 className="w-3.5 h-3.5" /> 02 — FULLY PAID ✓
         </span>
       );
     }
@@ -422,7 +466,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
           )}
 
           <button
-            onClick={() => setShowBookingModal(true)}
+            onClick={handleOpenBookingModal}
             className="px-5 py-2.5 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center gap-2 cursor-pointer transition-all uppercase tracking-wider"
             style={{
               background: 'var(--accent)',
@@ -433,6 +477,40 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
           </button>
         </div>
       </div>
+
+      {/* UNPAID PENDING RESERVATION NOTICE BANNER */}
+      {unpaidPendingBooking && (
+        <div
+          className="p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md"
+          style={{
+            background: 'rgba(245,158,11,0.12)',
+            borderColor: 'rgba(245,158,11,0.4)',
+            color: '#f59e0b',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: 'rgba(245,158,11,0.2)' }}>
+              <AlertTriangle className="w-5 h-5 text-amber-500" />
+            </span>
+            <div>
+              <strong className="text-sm font-extrabold block text-amber-400">Notice: Active Pending Reservation Detected</strong>
+              <span className="text-xs text-slate-300">
+                You have an active pending reservation (<strong>#{unpaidPendingBooking.bookingRef || unpaidPendingBooking.bookingNumber}</strong>) awaiting payment. You must pay the 50% reservation fee (₱{Number(unpaidPendingBooking.reservationFee || 0).toLocaleString()}) before you can create another reservation.
+              </span>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const el = document.getElementById(`reservation-${unpaidPendingBooking.id || unpaidPendingBooking.bookingRef || unpaidPendingBooking.bookingNumber}`);
+              if (el) el.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 cursor-pointer transition-all"
+            style={{ background: '#f59e0b', color: '#04150e' }}
+          >
+            View Pending Booking
+          </button>
+        </div>
+      )}
 
       {/* COMPLETED TRIPS NOTIFICATION BANNER (IF ANY) */}
       {completedCount > 0 && onNavigateHistory && (
@@ -665,7 +743,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
             </p>
           </div>
           <button
-            onClick={() => setShowBookingModal(true)}
+            onClick={handleOpenBookingModal}
             className="mt-4 px-6 py-2.5 text-slate-950 font-black text-xs rounded-xl shadow-lg inline-flex items-center gap-2 cursor-pointer transition-all uppercase tracking-wider"
             style={{
               background: 'var(--accent)',
@@ -684,6 +762,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
             return (
               <div
                 key={res.id || res.bookingRef || res.bookingNumber}
+                id={`reservation-${res.id || res.bookingRef || res.bookingNumber}`}
                 className="rounded-3xl border-2 p-5 sm:p-7 space-y-6 shadow-2xl relative overflow-hidden transition-all"
                 style={{
                   background: isLight ? 'var(--bg-1)' : '#071f14',
@@ -732,7 +811,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
                   </div>
 
                   <div className="flex items-center gap-3">
-                    {getStatusBadge(res.status)}
+                    {getStatusBadge(res.status, res)}
                   </div>
                 </div>
 
