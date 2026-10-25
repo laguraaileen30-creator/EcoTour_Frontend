@@ -21,7 +21,10 @@ export default function UserTable({ onOpenAddUser }) {
       const res = await fetch(`${API_BASE}/users`, { headers: authHeaders() });
       const data = await res.json();
       if (!res.ok || !data.success || !Array.isArray(data.users)) {
-        throw new Error(data.message || `Failed to load users (HTTP ${res.status})`);
+        const message = res.status === 403
+          ? 'The signed-in account does not have an Admin or Staff role in the configured database. Sign in with an authorized account.'
+          : data.message || `Failed to load users (HTTP ${res.status})`;
+        throw new Error(message);
       }
       if (Array.isArray(data.users)) {
         setLoadError('');
