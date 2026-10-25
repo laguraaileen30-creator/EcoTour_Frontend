@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE, authHeaders } from '../../../utils/catalog';
 
 export default function RoleDistribution() {
   const [distribution, setDistribution] = useState([
-    { label: 'Client', count: 6, pct: 54.5, color: '#4ade80' },
-    { label: 'Staff', count: 3, pct: 27.3, color: '#60a5fa' },
-    { label: 'Admin', count: 2, pct: 18.2, color: '#c084fc' },
+    { label: 'Client', count: 0, pct: 0, color: '#4ade80' },
+    { label: 'Staff', count: 0, pct: 0, color: '#60a5fa' },
+    { label: 'Admin', count: 0, pct: 0, color: '#c084fc' },
   ]);
-  const [totalCount, setTotalCount] = useState(11);
+  const [totalCount, setTotalCount] = useState(0);
 
   const fetchDistribution = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/v1/users');
+      const res = await fetch(`${API_BASE}/users`, { headers: authHeaders() });
       const data = await res.json();
-      if (data.success && Array.isArray(data.users)) {
+      if (!res.ok || !data.success || !Array.isArray(data.users)) {
+        throw new Error(data.message || `Failed to load user roles (HTTP ${res.status})`);
+      }
+      if (Array.isArray(data.users)) {
         const users = data.users;
         const total = users.length || 1;
         setTotalCount(users.length);

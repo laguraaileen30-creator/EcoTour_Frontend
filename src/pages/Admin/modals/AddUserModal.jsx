@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Mail, Phone, MapPin, Leaf, RefreshCw, UserPlus, CheckCircle } from 'lucide-react';
-import { API_BASE } from '../../../utils/catalog';
+import { API_BASE, authHeaders } from '../../../utils/catalog';
 
 export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
   const [formData, setFormData] = useState({
@@ -28,14 +28,17 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
     const year = new Date().getFullYear();
 
     try {
-      const res = await fetch(`${API_BASE}/users`);
+      const res = await fetch(`${API_BASE}/users`, { headers: authHeaders() });
       const data = await res.json();
-      if (data.success && Array.isArray(data.users)) {
-        const count = data.users.filter(u => (u.role || '').toLowerCase() === r).length + 1;
-        return `${prefix}-${year}-${String(count).padStart(6, '0')}`;
+      if (!res.ok || !data.success || !Array.isArray(data.users)) {
+        throw new Error(data.message || `Failed to generate user number (HTTP ${res.status})`);
       }
-    } catch (e) {}
-    return `${prefix}-${year}-000015`;
+      const count = data.users.filter(u => (u.role || '').toLowerCase() === r).length + 1;
+      return `${prefix}-${year}-${String(count).padStart(6, '0')}`;
+    } catch (error) {
+      setErrorMessage(error.message || 'Unable to generate a user number from the configured API.');
+      throw error;
+    }
   };
 
   // Calculate Auto-Generated Password: lastname + firstname (lowercase)
@@ -46,12 +49,16 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
   // Handle Role Change
   const handleRoleChange = async (e) => {
     const newRole = e.target.value;
-    const newNo = await generateClientNumber(newRole);
-    setFormData(prev => ({
-      ...prev,
-      role: newRole,
-      clientNumber: newNo,
-    }));
+    try {
+      const newNo = await generateClientNumber(newRole);
+      setFormData(prev => ({
+        ...prev,
+        role: newRole,
+        clientNumber: newNo,
+      }));
+    } catch (error) {
+      console.warn('Failed to generate a user number:', error.message);
+    }
   };
 
   // Reset Form when Modal opens
@@ -71,7 +78,7 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
           status: 'Pending',
           agreeTerms: false,
         });
-      });
+      }).catch(() => {});
       setIsSubmitting(false);
       setErrorMessage('');
       setSuccessMessage('');
@@ -131,21 +138,11 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
     };
 
     try {
-      let response;
-      try {
-        response = await fetch(`${API_BASE}/auth/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      } catch (e1) {
-        // Fallback to /api/v1/users endpoint
-        response = await fetch(`${API_BASE}/users`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      }
+      const response = await fetch(`${API_BASE}/users`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 

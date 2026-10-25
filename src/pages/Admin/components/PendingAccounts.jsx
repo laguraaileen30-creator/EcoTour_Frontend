@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Check, X, Mail, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
+import { API_BASE, authHeaders } from '../../../utils/catalog';
 
 export default function PendingAccounts() {
   const { showAlert } = useEcoTour();
@@ -13,7 +14,7 @@ export default function PendingAccounts() {
 
   const fetchPendingUsers = async () => {
     try {
-      const res = await fetch('http://localhost:5000/api/v1/users?status=pending');
+      const res = await fetch(`${API_BASE}/users?status=pending`, { headers: authHeaders() });
       const data = await res.json();
       if (data.success && Array.isArray(data.users)) {
         setPendingList(data.users);
@@ -50,9 +51,9 @@ export default function PendingAccounts() {
 
     try {
       // 1. Update status in Database
-      const res = await fetch(`http://localhost:5000/api/v1/users/${targetId}/status`, {
+      const res = await fetch(`${API_BASE}/users/${encodeURIComponent(targetId)}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'Approved', approved_by: 'Admin' }),
       });
 
@@ -97,11 +98,15 @@ export default function PendingAccounts() {
     const targetId = declineTarget.user_id || declineTarget.id;
 
     try {
-      await fetch(`http://localhost:5000/api/v1/users/${targetId}/status`, {
+      const response = await fetch(`${API_BASE}/users/${encodeURIComponent(targetId)}/status`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'Rejected', reason: declineReason }),
       });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || `Failed to reject account (HTTP ${response.status})`);
+      }
 
       showAlert({
         title: 'Account Declined',

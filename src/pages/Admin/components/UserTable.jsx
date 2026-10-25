@@ -4,10 +4,12 @@ import {
   ChevronLeft, ChevronRight, ShieldCheck, Check, X, Mail
 } from 'lucide-react';
 import { useEcoTour } from '../../../context/EcoTourContext';
+import { API_BASE, authHeaders } from '../../../utils/catalog';
 
 export default function UserTable({ onOpenAddUser }) {
-  const { approveUserAccount, rejectUserAccount, showAlert } = useEcoTour();
+  const { showAlert } = useEcoTour();
   const [dbUsers, setDbUsers] = useState([]);
+  const [loadError, setLoadError] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [pageSize, setPageSize] = useState(10);
@@ -16,14 +18,13 @@ export default function UserTable({ onOpenAddUser }) {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/v1/users', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
+      const res = await fetch(`${API_BASE}/users`, { headers: authHeaders() });
       const data = await res.json();
-      if (data.success && Array.isArray(data.users)) {
+      if (!res.ok || !data.success || !Array.isArray(data.users)) {
+        throw new Error(data.message || `Failed to load users (HTTP ${res.status})`);
+      }
+      if (Array.isArray(data.users)) {
+        setLoadError('');
         const formatted = data.users.map((u, i) => {
           const roleStr = (u.role || 'Client').toLowerCase();
           const prefix = roleStr === 'staff' ? 'STF' : roleStr === 'admin' ? 'ADM' : 'CLT';
@@ -51,6 +52,8 @@ export default function UserTable({ onOpenAddUser }) {
       }
     } catch (e) {
       console.warn("Failed to fetch users:", e.message);
+      setLoadError(e.message || 'Unable to load users from the configured API.');
+      setDbUsers([]);
     }
   };
 
@@ -85,19 +88,20 @@ export default function UserTable({ onOpenAddUser }) {
   const handleApprove = async (userId) => {
     try {
       const targetUser = dbUsers.find(u => u.user_id === userId || u.id === userId);
-      const res = await fetch(`http://localhost:5000/api/v1/users/${userId}/status`, {
+      const res = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/status`, {
         method: 'PUT',
-        headers: { 
+        headers: {
+          ...authHeaders(),
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({ status: 'Approved', approved_by: 'Admin' })
       });
 
       const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || `Failed to approve account (HTTP ${res.status})`);
+      }
       const generatedPass = data.generatedPassword || (targetUser ? `${targetUser.lname || ''}${targetUser.fname || ''}123`.toLowerCase().replace(/\s+/g, '') : 'user123');
-
-      if (approveUserAccount) approveUserAccount(userId);
 
       setDbUsers(prev => prev.map(u => (u.user_id === userId || u.id === userId) ? { ...u, status: 'Approved' } : u));
       if (selectedUserModal && (selectedUserModal.id === userId || selectedUserModal.user_id === userId)) {
@@ -111,6 +115,11 @@ export default function UserTable({ onOpenAddUser }) {
       });
     } catch (err) {
       console.error("Approve error:", err);
+      showAlert({
+        title: 'Approval Failed',
+        message: err.message || 'Unable to update the account in the configured database.',
+        type: 'danger'
+      });
     }
   };
 
@@ -134,15 +143,18 @@ export default function UserTable({ onOpenAddUser }) {
     const userId = declinePrompt.user_id || declinePrompt.id;
 
     try {
-      if (rejectUserAccount) rejectUserAccount(userId);
-      await fetch(`http://localhost:5000/api/v1/users/${userId}/status`, {
+      const response = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/status`, {
         method: 'PUT',
-        headers: { 
+        headers: {
+          ...authHeaders(),
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({ status: 'Rejected', reason: declineReasonText })
       });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || `Failed to reject account (HTTP ${response.status})`);
+      }
 
       setDbUsers(prev => prev.map(u => (u.user_id === userId || u.id === userId) ? { ...u, status: 'Rejected' } : u));
       if (selectedUserModal && (selectedUserModal.id === userId || selectedUserModal.user_id === userId)) {
@@ -155,6 +167,11 @@ export default function UserTable({ onOpenAddUser }) {
       });
     } catch (err) {
       console.error("Reject error:", err);
+      showAlert({
+        title: 'Rejection Failed',
+        message: err.message || 'Unable to update the account in the configured database.',
+        type: 'danger'
+      });
     } finally {
       setDeclinePrompt(null);
       setDeclineReasonText('');
@@ -191,11 +208,11 @@ export default function UserTable({ onOpenAddUser }) {
     const userId = selectedUserModal.user_id || selectedUserModal.id;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/v1/users/${userId}/profile`, {
+      const res = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/profile`, {
         method: 'PUT',
-        headers: { 
+        headers: {
+          ...authHeaders(),
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify(editFormData),
       });
@@ -258,13 +275,17 @@ export default function UserTable({ onOpenAddUser }) {
 
     try {
       // 1. Call Backend Endpoint
-      await fetch(`http://localhost:5000/api/v1/users/${encodeURIComponent(userId)}/send-credentials`, {
+      const response = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/send-credentials`, {
         method: 'POST',
-        headers: { 
+        headers: {
+          ...authHeaders(),
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
       });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.message || `Failed to send credentials (HTTP ${response.status})`);
+      }
 
       // 2. Parallel Direct FormSubmit Email from Browser for instant delivery
       fetch(`https://formsubmit.co/ajax/${encodeURIComponent(user.email)}`, {
@@ -302,6 +323,11 @@ export default function UserTable({ onOpenAddUser }) {
 
   return (
     <div className="etv-user-table-card bg-[#0c1f16] border border-emerald-500/15 rounded-2xl p-4 sm:p-6 space-y-5 shadow-xl">
+      {loadError && (
+        <div role="alert" className="rounded-lg border border-rose-500/40 bg-rose-950/40 px-4 py-3 text-sm text-rose-200">
+          Could not load user accounts from the configured API: {loadError}
+        </div>
+      )}
 
       {/* TABS (PILLS AT TOP OF CARD) */}
       <div className="flex flex-wrap gap-2.5">
