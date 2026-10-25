@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { User, Calendar } from "lucide-react";
+import { User, UserPlus, Calendar } from "lucide-react";
 import EcoTourLogo from "../components/EcoTourLogo";
 import ThemeToggle from "../components/ThemeToggle";
 import { useEcoTour } from "../context/EcoTourContext";
@@ -68,11 +68,16 @@ export default function Navbar({ onOpenBooking }) {
           </button>
           )}
 
-          {/* Single Right-Side Login Button */}
-          <Link to="/login" className="nav__link nav__link--login">
-            <User size={15} />
-            <span>Login</span>
-          </Link>
+          <div className="nav__auth-actions">
+            <Link to="/login" className="nav__link nav__link--login">
+              <User size={15} />
+              <span>Login</span>
+            </Link>
+            <Link to="/signup" className="nav__link nav__link--register">
+              <UserPlus size={15} />
+              <span>Register</span>
+            </Link>
+          </div>
         </nav>
       </div>
     </header>

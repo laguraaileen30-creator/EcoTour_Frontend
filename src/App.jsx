@@ -1,4 +1,4 @@
-import { Routes, Route, useNavigate, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { EcoTourProvider } from "./context/EcoTourContext";
 
 // --- Public Pages ---
@@ -22,24 +22,11 @@ import ClientDashboard from "./pages/Client/Client";
 // --- Staff Pages ---
 import StaffDashboard from "./pages/Staff/Staff";
 
-import { useState } from "react";
-import LoadingScreen from "./components/LoadingScreen";
-
 function Layout({ children }) {
   return <div className="app-shell min-h-screen bg-[#03130b] text-white">{children}</div>;
 }
 
 function App() {
-  const navigate = useNavigate();
-
-  const handleLogin = (data) => {
-    console.log("Login submitted:", data);
-  };
-
-  const handleRegister = (data) => {
-    console.log("Signup submitted:", data);
-  };
-
   return (
     <EcoTourProvider>
       <Layout>
@@ -50,25 +37,8 @@ function App() {
           <Route path="/services" element={<AllServices />} />
 
           {/* Authentication */}
-          <Route
-            path="/login"
-            element={
-              <Login
-                onSubmit={handleLogin}
-                onSwitchToSignUp={() => navigate("/signup")}
-              />
-            }
-          />
-
-          <Route
-            path="/signup"
-            element={
-              <Signup
-                onSubmit={handleRegister}
-                onSwitchToSignIn={() => navigate("/login")}
-              />
-            }
-          />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
 
           {/* Other Public Pages */}
           <Route path="/forgot-password" element={<ForgotPassword />} />

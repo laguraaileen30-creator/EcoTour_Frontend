@@ -211,18 +211,10 @@ export default function Login() {
                 )}
               </button>
 
-              <div className="divider-text">
-                <span>OR</span>
-              </div>
+              
 
 
-
-              <p className="switch-text">
-                Don't have an account?{" "}
-                <button type="button" onClick={() => navigate("/signup")} className="switch-link" disabled={loading}>
-                  Sign up
-                </button>
-              </p>
+              
             </form>
           </div>
 

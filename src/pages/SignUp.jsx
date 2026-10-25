@@ -349,12 +349,7 @@ export default function Signup() {
                 )}
               </button>
 
-              <p className="switch-text">
-                Already have an approved account?{" "}
-                <button type="button" onClick={() => navigate("/login")} className="switch-link" disabled={loading}>
-                  Log in here
-                </button>
-              </p>
+          
             </form>
           </div>
 
