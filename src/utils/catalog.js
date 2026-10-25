@@ -1,6 +1,6 @@
 // Shared helpers for the database-driven service / package / deal catalog.
-export const API_ORIGIN = 'http://localhost:5000';
-export const API_BASE = `${API_ORIGIN}/api/v1`;
+export const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1').replace(/\/+$/, '');
+export const API_ORIGIN = new URL(API_BASE).origin;
 
 export const authHeaders = (extra = {}) => {
   let token = null;

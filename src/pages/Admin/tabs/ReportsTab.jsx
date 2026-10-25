@@ -5,7 +5,7 @@ import {
   XAxis, YAxis, Tooltip, CartesianGrid, Legend
 } from 'recharts';
 import {
-  DollarSign, Activity, FileText, Users, CalendarDays,
+  DollarSign, Activity, FileText, Users,
   BarChart3, PieChart as PieIcon, Printer, RefreshCw, Search, Clock,
   User, CheckCircle2, AlertCircle, X
 } from 'lucide-react';
@@ -691,25 +691,6 @@ export default function ReportsTab() {
     return entries.sort((a, b) => b.value - a.value);
   }, [filteredTxs]);
 
-  // ── Day-of-Week Occupancy Patterns (Statistical Chart) ───────────────────
-  const dayOfWeekChartData = useMemo(() => {
-    const days = DAY_NAMES.map(name => ({ name, revenue: 0, visitors: 0 }));
-    filteredTxs.forEach(t => {
-      if (t.source !== 'damage' && isPaidStatus(t.status)) {
-        const parts = String(t.date || '').split('-');
-        if (parts.length === 3) {
-          const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-          const dayIdx = d.getDay();
-          if (dayIdx >= 0 && dayIdx < 7) {
-            days[dayIdx].revenue += t.amount;
-            days[dayIdx].visitors += t.visitors || 0;
-          }
-        }
-      }
-    });
-    return days;
-  }, [filteredTxs]);
-
   // ── Filtered Ledger Records with Multi-Token Client Search ──────────────
   const ledgerRecords = useMemo(() => {
     const q = ledgerSearch.toLowerCase().trim();
@@ -1057,34 +1038,6 @@ export default function ReportsTab() {
               </div>
             </div>
 
-            {/* 3. Day of Week Operating Patterns */}
-            <div className="reports-chart-panel" style={{ gridColumn: '1 / -1' }}>
-              <div className="reports-panel-head">
-                <span className="reports-panel-title">
-                  <CalendarDays size={18} /> Day-of-Week Operating Patterns &amp; Peak Footfall
-                </span>
-                <span style={{ fontSize: 11, color: '#9fbfad' }}>SUNDAY – SATURDAY OCCUPANCY</span>
-              </div>
-
-              <div style={{ width: '100%', height: 240 }}>
-                <ResponsiveContainer>
-                  <BarChart data={dayOfWeekChartData} margin={{ top: 10, right: 10, left: 0, bottom: 10 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#064e3b' : '#d1fae5'} vertical={false} />
-                    <XAxis dataKey="name" stroke={isDark ? '#34d399' : '#059669'} />
-                    <YAxis
-                      stroke={isDark ? '#34d399' : '#059669'}
-                      tickFormatter={v => `₱${v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v}`}
-                      width={60}
-                    />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: isDark ? '#022c22' : '#ffffff', borderColor: '#059669', borderRadius: 12 }}
-                      formatter={v => [fmt(v), 'Revenue']}
-                    />
-                    <Bar dataKey="revenue" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={50} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
           </div>
         )}
 

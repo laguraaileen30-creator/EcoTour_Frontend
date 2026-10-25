@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Facebook, Instagram, Twitter, MapPin, Phone, Mail, 
@@ -95,7 +96,7 @@ const LEGAL_DOCS = {
           <li><a href="#about">About Us & Resort Facilities</a></li>
           <li><a href="#nearby">Nearby Destinations in Bohol</a></li>
           <li><a href="#contact">Contact & Map Location</a></li>
-          <li><a href="/login">Guest & Staff Login Portal</a></li>
+          <li><Link to="/login">Guest & Staff Login Portal</Link></li>
         </ul>
       </div>
     ),

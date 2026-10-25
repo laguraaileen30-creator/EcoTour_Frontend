@@ -5,6 +5,7 @@ import "./Auth.css";
 import homeImage from "../assets/home.png";
 import lightImage from "../assets/light.png";
 import { useEcoTour } from "../context/EcoTourContext";
+import { API_BASE } from "../utils/catalog";
 
 export default function Signup() {
   const navigate = useNavigate();
@@ -66,20 +67,11 @@ export default function Signup() {
         status: "Pending",
       };
 
-      let response;
-      try {
-        response = await fetch("http://localhost:5000/api/v1/auth/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      } catch (e1) {
-        response = await fetch("http://localhost:3001/api/register", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      }
+      const response = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 
@@ -89,7 +81,8 @@ export default function Signup() {
         alert(data.message || "Registration failed. Email might already be registered.");
       }
     } catch (err) {
-      setIsSubmitted(true);
+      console.error("Registration request failed:", err);
+      alert("Unable to connect to the server. Please try again.");
     } finally {
       setLoading(false);
     }

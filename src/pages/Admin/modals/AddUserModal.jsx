@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Mail, Phone, MapPin, Leaf, RefreshCw, UserPlus, CheckCircle } from 'lucide-react';
+import { API_BASE } from '../../../utils/catalog';
 
 export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
   const [formData, setFormData] = useState({
@@ -27,7 +28,7 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
     const year = new Date().getFullYear();
 
     try {
-      const res = await fetch('http://localhost:5000/api/v1/users');
+      const res = await fetch(`${API_BASE}/users`);
       const data = await res.json();
       if (data.success && Array.isArray(data.users)) {
         const count = data.users.filter(u => (u.role || '').toLowerCase() === r).length + 1;
@@ -132,14 +133,14 @@ export default function AddUserModal({ isOpen, onClose, onUserCreated }) {
     try {
       let response;
       try {
-        response = await fetch("http://localhost:5000/api/v1/auth/register", {
+        response = await fetch(`${API_BASE}/auth/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
       } catch (e1) {
         // Fallback to /api/v1/users endpoint
-        response = await fetch("http://localhost:5000/api/v1/users", {
+        response = await fetch(`${API_BASE}/users`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),

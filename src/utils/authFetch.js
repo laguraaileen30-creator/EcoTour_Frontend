@@ -3,6 +3,14 @@
 import { API_ORIGIN } from './catalog';
 
 const originalFetch = window.fetch.bind(window);
+const LOCAL_API_ORIGIN = 'http://localhost:5000';
+
+// Redirect existing API call sites to the backend configured for this build.
+const normalizeApiRequest = (input) => (
+  typeof input === 'string' && input.startsWith(LOCAL_API_ORIGIN)
+    ? input.replace(LOCAL_API_ORIGIN, API_ORIGIN)
+    : input
+);
 
 const isApiRequest = (input) => {
   const url = typeof input === 'string' ? input : input?.url || '';
@@ -10,7 +18,8 @@ const isApiRequest = (input) => {
 };
 
 window.fetch = async (input, init = {}) => {
-  if (!isApiRequest(input)) return originalFetch(input, init);
+  const request = normalizeApiRequest(input);
+  if (!isApiRequest(request)) return originalFetch(request, init);
 
   let token = null;
   try { token = localStorage.getItem('token'); } catch (e) { /* storage unavailable */ }
@@ -18,7 +27,7 @@ window.fetch = async (input, init = {}) => {
   const headers = new Headers(init.headers || (typeof input !== 'string' ? input.headers : undefined) || {});
   if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
 
-  const response = await originalFetch(input, { ...init, headers });
+  const response = await originalFetch(request, { ...init, headers });
 
   // Expired or tampered session: clear it and send the user to login (once)
   if (response.status === 401 && token) {
