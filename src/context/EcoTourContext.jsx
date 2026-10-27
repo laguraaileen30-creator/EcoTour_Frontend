@@ -1,9 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { getPhilippineDateStr, getPhilippineTimeStr } from '../utils/phTime';
 import GlobalModal from '../components/GlobalModal';
-import { API_BASE, resolveImage } from '../utils/catalog';
+import { API_BASE, authHeaders, resolveImage } from '../utils/catalog';
 
 const EcoTourContext = createContext(null);
+const apiFetch = (path, options = {}) => fetch(`${API_BASE}${path}`, {
+  ...options,
+  headers: authHeaders(options.headers || {}),
+});
 
 import swimmingImg from '../assets/images/services/swimming.png';
 import cottageImg from '../assets/images/services/cottage.png';
@@ -161,6 +165,8 @@ export const EcoTourProvider = ({ children }) => {
     }
     return null;
   });
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
 
   // Keep localStorage synced when currentUser changes
   useEffect(() => {
@@ -381,13 +387,18 @@ export const EcoTourProvider = ({ children }) => {
     if (isSyncingRef.current) return;
     isSyncingRef.current = true;
     try {
-      // 1. Fetch Users & Staff
-      const resUsers = await fetch('http://localhost:5000/api/v1/users');
-      const dataUsers = await resUsers.json();
-      if (dataUsers.success && Array.isArray(dataUsers.users)) {
-        setUserAccounts(dataUsers.users);
-        const staffMembers = dataUsers.users.filter(u => (u.role || '').toLowerCase() === 'staff');
-        setStaffList(staffMembers);
+      const currentRole = String(currentUserRef.current?.role || '').toLowerCase();
+      const isStaff = currentRole === 'admin' || currentRole === 'staff';
+
+      // Clients cannot access the staff-only users endpoint.
+      if (isStaff) {
+        const resUsers = await apiFetch('/users');
+        const dataUsers = await resUsers.json();
+        if (dataUsers.success && Array.isArray(dataUsers.users)) {
+          setUserAccounts(dataUsers.users);
+          const staffMembers = dataUsers.users.filter(u => (u.role || '').toLowerCase() === 'staff');
+          setStaffList(staffMembers);
+        }
       }
 
       // 2. Fetch Services, Packages, and Deals — the database is the single source of truth
@@ -444,7 +455,7 @@ export const EcoTourProvider = ({ children }) => {
       }
 
       // 3. Fetch Reservations directly from MySQL Database
-      const resBookings = await fetch('http://localhost:5000/api/v1/reservations');
+      const resBookings = await apiFetch('/reservations');
       const dataBookings = await resBookings.json();
       const serverList = dataBookings.data || dataBookings.reservations || [];
       if (dataBookings.success && Array.isArray(serverList)) {
@@ -453,7 +464,7 @@ export const EcoTourProvider = ({ children }) => {
       }
 
       // 4. Fetch Payments / Receipts directly from MySQL Database
-      const resPayments = await fetch('http://localhost:5000/api/v1/payments');
+      const resPayments = await apiFetch('/payments');
       const dataPayments = await resPayments.json();
       const paymentPayload = dataPayments.data || {};
       const serverReceipts = dataPayments.receipts || dataPayments.payments ||
@@ -465,14 +476,14 @@ export const EcoTourProvider = ({ children }) => {
       }
 
       // 5. Fetch Announcements
-      const resAnnounce = await fetch('http://localhost:5000/api/v1/announcements');
+      const resAnnounce = await apiFetch('/announcements');
       const dataAnnounce = await resAnnounce.json();
       if (dataAnnounce.success && Array.isArray(dataAnnounce.announcements) && dataAnnounce.announcements.length > 0) {
         setAnnouncements(dataAnnounce.announcements);
       }
 
       // 6. Fetch Gallery from MySQL Database
-      const resGallery = await fetch('http://localhost:5000/api/v1/gallery');
+      const resGallery = await apiFetch('/gallery');
       const dataGallery = await resGallery.json();
       if (dataGallery.success && Array.isArray(dataGallery.gallery) && dataGallery.gallery.length > 0) {
         // Stored paths like /src/assets/... only exist in dev — resolve them to bundled image URLs
@@ -480,17 +491,19 @@ export const EcoTourProvider = ({ children }) => {
       }
 
       // 7. Fetch Tourist Spots from MySQL Database
-      const resSpots = await fetch('http://localhost:5000/api/v1/tourist_spots');
+      const resSpots = await apiFetch('/tourist_spots');
       const dataSpots = await resSpots.json();
       if (dataSpots.success && Array.isArray(dataSpots.spots) && dataSpots.spots.length > 0) {
         setTouristSpots(dataSpots.spots.map(sp => ({ ...sp, image: sp.image ? resolveImage(sp.image) : sp.image, image_url: sp.image_url ? resolveImage(sp.image_url) : sp.image_url })));
       }
 
       // 8. Fetch Audit Logs
-      const resLogs = await fetch('http://localhost:5000/api/v1/audit_logs');
-      const dataLogs = await resLogs.json();
-      if (dataLogs.success && Array.isArray(dataLogs.logs) && dataLogs.logs.length > 0) {
-        setAuditLogs(dataLogs.logs);
+      if (isStaff) {
+        const resLogs = await apiFetch('/audit_logs');
+        const dataLogs = await resLogs.json();
+        if (dataLogs.success && Array.isArray(dataLogs.logs) && dataLogs.logs.length > 0) {
+          setAuditLogs(dataLogs.logs);
+        }
       }
     } catch (err) {
       console.warn('Backend sync note:', err.message);
@@ -548,7 +561,7 @@ export const EcoTourProvider = ({ children }) => {
 
         // 3. Record midnight audit log entry
         try {
-          fetch('http://localhost:5000/api/v1/audit_logs', {
+          apiFetch('/audit_logs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -625,7 +638,7 @@ export const EcoTourProvider = ({ children }) => {
 
       // 3. Persist to MySQL Backend via PUT /api/v1/users/:id
       const targetId = mergedUser.user_id || mergedUser.id || 1;
-      const res = await fetch(`http://localhost:5000/api/v1/users/${targetId}`, {
+      const res = await apiFetch(`/users/${targetId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -670,7 +683,7 @@ export const EcoTourProvider = ({ children }) => {
     };
     setAnnouncements(prev => [created, ...prev]);
     // Persist to DB via sp_create_announcement
-    fetch('http://localhost:5000/api/v1/announcements', {
+    apiFetch('/announcements', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -689,7 +702,7 @@ export const EcoTourProvider = ({ children }) => {
   const deleteAnnouncement = (id) => {
     setAnnouncements(prev => prev.filter(a => a.announcement_id !== id && a.id !== id));
     // Persist to DB via sp_delete_announcement
-    fetch(`http://localhost:5000/api/v1/announcements/${id}`, { method: 'DELETE' })
+    apiFetch(`/announcements/${id}`, { method: 'DELETE' })
       .catch(e => console.warn('Announcement delete DB sync failed:', e.message));
   };
 
@@ -749,14 +762,14 @@ export const EcoTourProvider = ({ children }) => {
     setUserAccounts((prev) => prev.map((u) => ((u.user_id === id || u.id === id) ? { ...u, status: 'Approved' } : u)));
 
     // Persist to DB via SP
-    fetch(`http://localhost:5000/api/v1/users/${uid}/status`, {
+    apiFetch(`/users/${uid}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'Approved', approved_by: currentUser?.name || 'Admin' }),
     }).then(r => r.json()).then(d => {
       if (d.generatedPassword) {
         // Audit log
-        fetch('http://localhost:5000/api/v1/audit_logs', {
+        apiFetch('/audit_logs', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -787,12 +800,12 @@ export const EcoTourProvider = ({ children }) => {
     setUserAccounts((prev) => prev.map((u) => ((u.user_id === id || u.id === id) ? { ...u, status: 'Rejected' } : u)));
 
     // Persist to DB via SP
-    fetch(`http://localhost:5000/api/v1/users/${uid}/status`, {
+    apiFetch(`/users/${uid}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'Rejected', reason: reason || 'Information did not meet verification criteria.' }),
     }).then(() => {
-      fetch('http://localhost:5000/api/v1/audit_logs', {
+      apiFetch('/audit_logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -874,7 +887,7 @@ export const EcoTourProvider = ({ children }) => {
   const addResortService = (serviceData) => {
     const tempId = Date.now();
     setResortServices(prev => [...prev, { ...serviceData, id: tempId, status: serviceData.status || 'Active' }]);
-    fetch('http://localhost:5000/api/v1/services', {
+    apiFetch('/services', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(serviceData),
@@ -889,7 +902,7 @@ export const EcoTourProvider = ({ children }) => {
   const updateResortService = (id, data) => {
     setResortServices(prev => prev.map(s => (s.service_id === id || s.id === id) ? { ...s, ...data } : s));
     const sid = id;
-    fetch(`http://localhost:5000/api/v1/services/${sid}`, {
+    apiFetch(`/services/${sid}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -898,7 +911,7 @@ export const EcoTourProvider = ({ children }) => {
 
   const deleteResortService = (id) => {
     setResortServices(prev => prev.filter(s => s.service_id !== id && s.id !== id));
-    fetch(`http://localhost:5000/api/v1/services/${id}`, { method: 'DELETE' })
+    apiFetch(`/services/${id}`, { method: 'DELETE' })
       .catch(e => console.warn('Service delete DB sync failed:', e.message));
   };
 
@@ -947,7 +960,7 @@ export const EcoTourProvider = ({ children }) => {
 
     // Skip this sync when the caller already submitted and received the server response.
     if (!options.skipServerSync) {
-      fetch('http://localhost:5000/api/v1/reservations', {
+      apiFetch('/reservations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newBooking),
@@ -1096,7 +1109,7 @@ export const EcoTourProvider = ({ children }) => {
     });
 
     try {
-      await fetch(`http://localhost:5000/api/v1/reservations/${encodeURIComponent(dbTargetId)}/status`, {
+      await apiFetch(`/reservations/${encodeURIComponent(dbTargetId)}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -1318,7 +1331,7 @@ export const EcoTourProvider = ({ children }) => {
       setReceipts(prev => [createdReceipt, ...prev]);
 
       // Persist payment receipt to MySQL database
-      fetch('http://localhost:5000/api/v1/payments', {
+      apiFetch('/payments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1337,7 +1350,7 @@ export const EcoTourProvider = ({ children }) => {
       }).catch(e => console.warn('Payment DB sync note:', e.message));
 
       // Audit log
-      fetch('http://localhost:5000/api/v1/audit_logs', {
+      apiFetch('/audit_logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1347,7 +1360,7 @@ export const EcoTourProvider = ({ children }) => {
       }).catch(() => {});
     } else {
       // Audit log for pending walk-in
-      fetch('http://localhost:5000/api/v1/audit_logs', {
+      apiFetch('/audit_logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1687,7 +1700,7 @@ export const EcoTourProvider = ({ children }) => {
           }
 
           // Audit log
-          fetch('http://localhost:5000/api/v1/audit_logs', {
+          apiFetch('/audit_logs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1802,7 +1815,7 @@ export const EcoTourProvider = ({ children }) => {
           }
 
           // Audit log
-          fetch('http://localhost:5000/api/v1/audit_logs', {
+          apiFetch('/audit_logs', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
