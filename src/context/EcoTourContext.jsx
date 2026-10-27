@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { getPhilippineDateStr, getPhilippineTimeStr } from '../utils/phTime';
 import GlobalModal from '../components/GlobalModal';
-import { API_BASE, resolveImage } from '../utils/catalog';
+import { API_BASE, apiJson, resolveImage } from '../utils/catalog';
 
 const EcoTourContext = createContext(null);
 
@@ -1367,21 +1367,21 @@ export const EcoTourProvider = ({ children }) => {
     if (!booking || items.length === 0) throw new Error('No new services to charge.');
 
     const bookingKey = booking.bookingRef || booking.bookingNumber || booking.id;
-    const res = await apiFetch(`/reservations/${encodeURIComponent(bookingKey)}/addons`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        items,
-        payment_mode: paymentMode,
-        cash_received: paymentMode === 'pay_now' ? cashReceived : 0,
-        staff_name: staffName || currentUser?.name || 'Staff Cashier',
-        request_id: requestId
-      })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.success) {
-      const err = new Error(data.message || `Server rejected add-on payment (HTTP ${res.status})`);
-      err.duplicate = !!data.duplicate;
+    let data;
+    try {
+      data = await apiJson(`/reservations/${encodeURIComponent(bookingKey)}/addons`, {
+        method: 'POST',
+        auth: true,
+        body: {
+          items,
+          payment_mode: paymentMode,
+          cash_received: paymentMode === 'pay_now' ? cashReceived : 0,
+          staff_name: staffName || currentUser?.name || 'Staff Cashier',
+          request_id: requestId
+        }
+      });
+    } catch (err) {
+      err.duplicate = !!err.data?.duplicate;
       throw err;
     }
 
