@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   CalendarDays, Calendar, Clock, Package, Users, DollarSign,
   CheckCircle2, XCircle, AlertCircle, QrCode, ArrowRight, RefreshCw, Filter, Camera,
@@ -47,6 +47,8 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
   const [searchQuery, setSearchQuery] = useState('');
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [submittedBooking, setSubmittedBooking] = useState(null);
+  const [successBooking, setSuccessBooking] = useState(null);
+  const submittedBookingRef = useRef(null);
   const [modalService, setModalService] = useState(null);
   const isLight = theme === 'light';
 
@@ -677,6 +679,7 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
       {/* RECENT SUBMITTED BOOKING BANNER */}
       {submittedBooking && (
         <div
+          ref={submittedBookingRef}
           className="p-5 rounded-2xl border-2 space-y-3 shadow-2xl"
           style={{
             background: isLight ? 'rgba(74,222,128,0.08)' : '#072418',
@@ -1002,10 +1005,55 @@ export default function ClientBookingsTab({ onNavigateBook, onNavigateHistory })
               userId={currentUser?.user_id || currentUser?.id || null}
               onSubmitted={(booking) => {
                 setSubmittedBooking(booking);
+                setStatusFilter('All');
+                setSearchQuery('');
                 setShowBookingModal(false);
+                setSuccessBooking(booking);
                 if (refreshAllLiveData) refreshAllLiveData();
               }}
             />
+          </div>
+        </div>
+      )}
+
+      {successBooking && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="booking-success-title"
+            className="w-full max-w-md rounded-3xl border p-6 space-y-5 shadow-2xl"
+            style={{
+              background: isLight ? 'var(--bg-1)' : '#071f14',
+              borderColor: 'var(--line)',
+              color: 'var(--text)',
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-8 h-8 shrink-0" style={{ color: 'var(--accent)' }} />
+              <div>
+                <h3 id="booking-success-title" className="text-lg font-extrabold">Booking Successful!</h3>
+                <p className="text-xs" style={{ color: 'var(--muted)' }}>Your reservation has been saved.</p>
+              </div>
+            </div>
+            <div className="rounded-2xl border p-4 space-y-2 text-sm" style={{ borderColor: 'var(--line)', background: isLight ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.3)' }}>
+              <p><span style={{ color: 'var(--muted)' }}>Reference:</span> <strong className="font-mono">{successBooking.bookingRef || successBooking.bookingNumber}</strong></p>
+              <p><span style={{ color: 'var(--muted)' }}>Reservation:</span> <strong>{successBooking.packageName || successBooking.serviceName || 'Resort booking'}</strong></p>
+              <p><span style={{ color: 'var(--muted)' }}>Check-in:</span> <strong>{successBooking.bookingDate || successBooking.reservationDate} at {successBooking.checkInTime || successBooking.arrivalTime || '02:00 PM'}</strong></p>
+              <p><span style={{ color: 'var(--muted)' }}>Check-out:</span> <strong>{successBooking.checkOutDate} at {successBooking.checkOutTime || '12:00 PM'}</strong></p>
+              <p><span style={{ color: 'var(--muted)' }}>Total:</span> <strong>₱{Number(successBooking.estimatedTotal || successBooking.totalPrice || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSuccessBooking(null);
+                requestAnimationFrame(() => submittedBookingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+              }}
+              className="w-full rounded-xl px-4 py-3 text-sm font-extrabold cursor-pointer"
+              style={{ background: 'var(--accent)', color: '#04170e' }}
+            >
+              OK — View Reservation
+            </button>
           </div>
         </div>
       )}

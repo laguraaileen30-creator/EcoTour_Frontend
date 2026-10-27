@@ -298,6 +298,19 @@ body.light-mode .reports-period-chip.active {
   flex-wrap: wrap;
 }
 
+.reports-date-input {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #9fbfad;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+body.light-mode .reports-date-input {
+  color: #50705f;
+}
+
 .reports-select {
   background: rgba(5, 22, 14, 0.7);
   border: 1px solid rgba(134, 239, 172, 0.2);

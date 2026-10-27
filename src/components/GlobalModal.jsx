@@ -143,7 +143,7 @@ export default function GlobalModal({ modalState, onClose, onConfirm }) {
           )}
 
           {details && (
-            <div className={`text-[11px] p-3 rounded-2xl border text-left font-mono font-medium mt-2 break-words ${
+            <div className={`text-[11px] p-3 rounded-2xl border text-left font-mono font-medium mt-2 break-words whitespace-pre-line ${
               isLight
                 ? 'bg-white/60 border-[#B9825B]/20 text-[#5A4A3A]'
                 : 'bg-black/40 border-emerald-900/60 text-slate-300'

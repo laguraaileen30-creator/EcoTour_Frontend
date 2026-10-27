@@ -88,6 +88,7 @@ const PERIODS = [
   { key: 'monthly',     label: 'Monthly',      icon: '📊' },
   { key: 'semi-yearly', label: 'Semi-Yearly',  icon: '📈' },
   { key: 'yearly',      label: 'Yearly',       icon: '🌐' },
+  { key: 'custom',      label: 'Custom Range', icon: '🗓️' },
 ];
 
 const CATEGORY_COLORS = ['#22c55e', '#38bdf8', '#fbbf24', '#a855f7', '#f43f5e', '#14b8a6'];
@@ -108,6 +109,8 @@ export default function ReportsTab() {
   const [filterYear,   setFilterYear]   = useState(currentYear);
   const [filterMonth,  setFilterMonth]  = useState(currentMonth);
   const [filterHalf,   setFilterHalf]   = useState('1'); // '1' = Jan-Jun, '2' = Jul-Dec
+  const [customStartDate, setCustomStartDate] = useState(todayStr);
+  const [customEndDate, setCustomEndDate] = useState(todayStr);
   const [refreshing,   setRefreshing]   = useState(false);
 
   // Damages & Inspections from Server
@@ -239,10 +242,12 @@ export default function ReportsTab() {
         return { year: filterYear, month: null, day: null, half: filterHalf };
       case 'yearly':
         return { year: filterYear, month: null, day: null, half: null };
+      case 'custom':
+        return { start: customStartDate, end: customEndDate };
       default:
         return { year: filterYear, month: null, day: null, half: null };
     }
-  }, [period, filterYear, filterMonth, filterHalf, currentYear, currentMonth, todayStr]);
+  }, [period, filterYear, filterMonth, filterHalf, customStartDate, customEndDate, currentYear, currentMonth, todayStr]);
 
   // ── Flatten all transactions with category classification ───────────────
   const allTransactions = useMemo(() => {
@@ -457,6 +462,7 @@ export default function ReportsTab() {
       if (dateFilter.start && dateFilter.end) {
         return t.date >= dateFilter.start && t.date <= dateFilter.end;
       }
+      if (period === 'custom') return false;
       if (dateFilter.year && y !== dateFilter.year) return false;
       if (dateFilter.month && m !== dateFilter.month) return false;
       if (dateFilter.day && d !== dateFilter.day) return false;
@@ -657,6 +663,34 @@ export default function ReportsTab() {
         });
         return { name: MONTH_NAMES[mIdx], revenue, visitors };
       });
+    }
+
+    if (period === 'custom' && dateFilter.start && dateFilter.end) {
+      const start = new Date(`${dateFilter.start}T00:00:00`);
+      const end = new Date(`${dateFilter.end}T00:00:00`);
+      const days = [];
+      for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        days.push({
+          dateStr: `${year}-${month}-${day}`,
+          name: `${date.getMonth() + 1}/${date.getDate()}`,
+          revenue: 0,
+          visitors: 0,
+        });
+      }
+      const dayByDate = new Map(days.map(day => [day.dateStr, day]));
+      filteredTxs.forEach(t => {
+        if (t.source !== 'damage' && isPaidStatus(t.status)) {
+          const match = dayByDate.get(t.date);
+          if (match) {
+            match.revenue += t.amount;
+            match.visitors += t.visitors || 0;
+          }
+        }
+      });
+      return days;
     }
 
     // Yearly
@@ -868,6 +902,39 @@ export default function ReportsTab() {
                 <option value="1">1st Half (Jan – Jun)</option>
                 <option value="2">2nd Half (Jul – Dec)</option>
               </select>
+            )}
+
+            {period === 'custom' && (
+              <>
+                <label className="reports-date-input">
+                  <span>From</span>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    max={customEndDate}
+                    onChange={e => {
+                      const nextStartDate = e.target.value;
+                      setCustomStartDate(nextStartDate);
+                      if (nextStartDate > customEndDate) setCustomEndDate(nextStartDate);
+                    }}
+                    className="reports-select"
+                  />
+                </label>
+                <label className="reports-date-input">
+                  <span>To</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    min={customStartDate}
+                    onChange={e => {
+                      const nextEndDate = e.target.value;
+                      setCustomEndDate(nextEndDate);
+                      if (nextEndDate < customStartDate) setCustomStartDate(nextEndDate);
+                    }}
+                    className="reports-select"
+                  />
+                </label>
+              </>
             )}
           </div>
         </div>

@@ -22,6 +22,13 @@ const TICKETS = [
 ];
 
 const NO_PACKAGE = 'none';
+const CHECK_IN_TIME = '02:00 PM';
+const CHECK_OUT_TIME = '12:00 PM';
+
+const getNextDay = (dateStr) => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + 1)).toISOString().slice(0, 10);
+};
 
 // Package-first booking: Package → Date → Tickets (optional) → Add-ons (optional) → Details → Review → Checkout.
 // Prices, availability and the final total always come from the server.
@@ -38,7 +45,6 @@ export default function BookingWizard({ preselectedPackageId = null, preselected
   const [fullName, setFullName] = useState(contact.name || '');
   const [email, setEmail] = useState(contact.email || '');
   const [phone, setPhone] = useState(contact.phone || '');
-  const [arrivalTime, setArrivalTime] = useState('09:00 AM');
   const [paymentMethod, setPaymentMethod] = useState('Cash on Arrival');
 
   const [packages, setPackages] = useState([]);
@@ -50,6 +56,7 @@ export default function BookingWizard({ preselectedPackageId = null, preselected
   const [quoting, setQuoting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const submitLock = useRef(false);
+  const checkoutDate = bookingDate ? getNextDay(bookingDate) : '';
 
   // Live catalog for the selected date
   useEffect(() => {
@@ -199,7 +206,7 @@ export default function BookingWizard({ preselectedPackageId = null, preselected
         contactNumber: phone,
         bookingDate,
         reservationDate: bookingDate,
-        arrivalTime,
+        arrivalTime: CHECK_IN_TIME,
         paymentMethod,
         status: 'Pending',
         packageId: packageId && packageId !== NO_PACKAGE ? packageId : null,
@@ -214,7 +221,7 @@ export default function BookingWizard({ preselectedPackageId = null, preselected
       if (!res.ok || !result.success) {
         if (result.code === 'FULLY_BOOKED') {
           await showAlert({
-            title: 'Reservation Unavailable',
+            title: 'Unable to Reserve',
             message: 'Sorry, this was just fully booked by another reservation.',
             details: `${result.message}\nPlease select another service or date.`,
             type: 'warning',
@@ -225,9 +232,15 @@ export default function BookingWizard({ preselectedPackageId = null, preselected
         throw new Error(result.message || 'Reservation could not be submitted');
       }
       const saved = createResortBooking ? createResortBooking({ ...result.data, items: result.data.items }, { skipServerSync: true }) : result.data;
-      onSubmitted && onSubmitted({ ...saved, ...result.data });
+      onSubmitted?.({
+        ...saved,
+        ...result.data,
+        checkInTime: CHECK_IN_TIME,
+        checkOutDate: checkoutDate,
+        checkOutTime: CHECK_OUT_TIME,
+      });
     } catch (err) {
-      showAlert({ title: 'Reservation Error', message: err.message || 'Please try again.', type: 'danger' });
+      showAlert({ title: 'Unable to Reserve', message: err.message || 'Please try again.', type: 'danger' });
     } finally {
       submitLock.current = false;
       setSubmitting(false);
@@ -315,12 +328,13 @@ export default function BookingWizard({ preselectedPackageId = null, preselected
               <span>Target Visit Date</span>
               <input type="date" min={today} value={bookingDate} onChange={(e) => setBookingDate(e.target.value)} className="w-full rounded-xl px-3 py-2.5 font-mono outline-none" style={{ background: isLight ? '#fff' : 'rgba(0,0,0,0.4)', border: '1px solid var(--line)', color: 'var(--text)' }} />
             </label>
-            <label className="text-xs font-bold space-y-1">
-              <span>Arrival Time</span>
-              <select value={arrivalTime} onChange={(e) => setArrivalTime(e.target.value)} className="w-full rounded-xl px-3 py-2.5 outline-none" style={{ background: isLight ? '#fff' : 'rgba(0,0,0,0.4)', border: '1px solid var(--line)', color: 'var(--text)' }}>
-                {['07:00 AM', '08:00 AM', '09:00 AM', '10:00 AM', '11:00 AM', '01:00 PM', '02:00 PM', '03:00 PM'].map((t) => <option key={t}>{t}</option>)}
-              </select>
-            </label>
+            <div className="text-xs space-y-1">
+              <span className="font-bold">Check-in &amp; Check-out</span>
+              <div className="w-full rounded-xl px-3 py-2.5" style={{ background: isLight ? '#fff' : 'rgba(0,0,0,0.4)', border: '1px solid var(--line)', color: 'var(--text)' }}>
+                <p>Check-in is exactly 2:00 PM on {bookingDate || 'your visit date'}.</p>
+                <p>Check-out is the following day, {checkoutDate || 'the next day'}, at 12:00 PM.</p>
+              </div>
+            </div>
           </div>
 
           {selectedPackage && (
@@ -472,7 +486,8 @@ export default function BookingWizard({ preselectedPackageId = null, preselected
                 )}
                 <div className="text-[11px] space-y-0.5" style={{ color: 'var(--muted)' }}>
                   <div>{fullName} • {email}{phone ? ` • ${phone}` : ''}</div>
-                  <div>Visit: <strong>{bookingDate}</strong> at {arrivalTime} • {paymentMethod}</div>
+                  <div>Check-in: <strong>{bookingDate}</strong> at {CHECK_IN_TIME} • Check-out: <strong>{checkoutDate}</strong> at {CHECK_OUT_TIME}</div>
+                  <div>Payment: {paymentMethod}</div>
                 </div>
                 {quote.availability?.unavailable?.length > 0 && (
                   <div className="p-3 rounded-xl text-rose-300" style={{ background: 'rgba(239,68,68,0.12)' }}>⚠ {quote.availability.message}</div>
