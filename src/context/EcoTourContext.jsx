@@ -1362,17 +1362,18 @@ export const EcoTourProvider = ({ children }) => {
 
   // Add services to an already-paid booking: charges ONLY the new items (what the client already paid is not re-billed).
   // The new items are appended to the same booking, so occupancy is not double-counted by a separate walk-in record.
-  const addServicesToPaidBooking = async ({ booking, newItems, cashReceived, staffName, requestId }) => {
+  const addServicesToPaidBooking = async ({ booking, newItems, paymentMode = 'pay_now', cashReceived, staffName, requestId }) => {
     const items = (newItems || []).filter(i => (i.quantity || 0) > 0);
     if (!booking || items.length === 0) throw new Error('No new services to charge.');
 
     const bookingKey = booking.bookingRef || booking.bookingNumber || booking.id;
-    const res = await fetch(`${API_BASE}/reservations/${encodeURIComponent(bookingKey)}/addons`, {
+    const res = await apiFetch(`/reservations/${encodeURIComponent(bookingKey)}/addons`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         items,
-        cash_received: cashReceived,
+        payment_mode: paymentMode,
+        cash_received: paymentMode === 'pay_now' ? cashReceived : 0,
         staff_name: staffName || currentUser?.name || 'Staff Cashier',
         request_id: requestId
       })
@@ -1385,9 +1386,14 @@ export const EcoTourProvider = ({ children }) => {
     }
 
     const addonAmount = parseFloat(data.addonAmount || 0);
-    // Keep the server-priced lines (the server ignores client prices)
-    const pricedItems = (data.receipt?.items || []).map(l => ({ name: l.name, serviceName: l.name, quantity: l.quantity, unitPrice: l.unitPrice, itemType: l.itemType }));
-    const savedItems = pricedItems.length ? pricedItems : items;
+    const savedItems = (data.items || []).map(l => ({
+      name: l.name,
+      serviceName: l.name,
+      quantity: l.quantity,
+      unitPrice: l.unitPrice,
+      subtotal: l.subtotal,
+      itemType: l.itemType,
+    }));
     const matches = (b) =>
       (booking.id && String(b.id) === String(booking.id)) ||
       (booking.bookingRef && b.bookingRef === booking.bookingRef);
@@ -1395,15 +1401,15 @@ export const EcoTourProvider = ({ children }) => {
     setResortBookings(prev => {
       const next = prev.map(b => {
         if (!matches(b)) return b;
-        const prevTotal = parseFloat(b.estimatedTotal || b.grandTotal || b.totalPrice || 0);
-        const newTotal = prevTotal + addonAmount;
         return {
           ...b,
           items: [...(Array.isArray(b.items) ? b.items : []), ...savedItems],
-          estimatedTotal: newTotal,
-          grandTotal: newTotal,
-          totalPrice: newTotal,
-          amountPaid: newTotal
+          estimatedTotal: parseFloat(data.newTotal),
+          grandTotal: parseFloat(data.newTotal),
+          totalPrice: parseFloat(data.newTotal),
+          amountPaid: parseFloat(data.amountPaid),
+          balanceDue: parseFloat(data.balanceDue),
+          paymentStatus: data.balanceDue <= 0.009 ? 'Paid' : (data.amountPaid > 0 ? 'Partially Paid' : 'Unpaid'),
         };
       });
       localStorage.setItem('resortBookings', JSON.stringify(next));
@@ -1428,7 +1434,7 @@ export const EcoTourProvider = ({ children }) => {
 
     const r = data.receipt || {};
     const dObj = new Date();
-    const receipt = {
+    const receipt = data.receipt ? {
       id: r.id || Date.now(),
       receiptNo: r.receiptNo || r.payment_ref,
       booking_id: r.booking_id || booking.id,
@@ -1442,7 +1448,9 @@ export const EcoTourProvider = ({ children }) => {
       grandTotal: addonAmount,
       cashReceived: parseFloat(r.cashReceived ?? cashReceived),
       change: parseFloat(r.change || 0),
-      previouslyPaid: parseFloat(data.previousTotal || 0),
+      previouslyPaid: parseFloat(data.previousAmountPaid || 0),
+      totalBookingAmount: parseFloat(data.newTotal || 0),
+      balanceDue: parseFloat(data.balanceDue || 0),
       isAddon: true,
       status: 'Paid',
       staffName: staffName || currentUser?.name || 'Staff Cashier',
@@ -1450,13 +1458,22 @@ export const EcoTourProvider = ({ children }) => {
       barangayShare: parseFloat(r.barangayShare || 0),
       municipalShare: parseFloat(r.municipalShare || 0),
       ownerShare: parseFloat(r.parkShare || 0)
-    };
-    setReceipts(prev => [receipt, ...prev]);
+    } : null;
+    if (receipt) setReceipts(prev => [receipt, ...prev]);
 
     window.dispatchEvent(new CustomEvent('ecotour:sync'));
     setTimeout(() => refreshAllLiveData(), 300);
 
-    return { receipt, addonAmount, previousTotal: data.previousTotal, newTotal: data.newTotal };
+    return {
+      receipt,
+      addonAmount,
+      paymentMode: data.paymentMode,
+      previousTotal: data.previousTotal,
+      previousAmountPaid: data.previousAmountPaid,
+      newTotal: data.newTotal,
+      amountPaid: data.amountPaid,
+      balanceDue: data.balanceDue,
+    };
   };
 
   // Server reservation behind a walk-in (held orders are saved as "Pending Payment at Counter" reservations)

@@ -17,7 +17,7 @@ export default function AddServicesModal({ booking, onClose, onDone }) {
   const { addServicesToPaidBooking, currentUser, showAlert, theme, catalogPackages } = useEcoTour();
   const isLight = theme === 'light';
   const bookingDate = booking.reservationDate || booking.bookingDate;
-  const alreadyPaid = parseFloat(booking.estimatedTotal || booking.grandTotal || booking.totalPrice || 0);
+  const alreadyPaid = parseFloat(booking.amountPaid || 0);
 
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +25,7 @@ export default function AddServicesModal({ booking, onClose, onDone }) {
   const [addons, setAddons] = useState({}); // { service_id: qty }
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
+  const [paymentMode, setPaymentMode] = useState('pay_now');
   const [cash, setCash] = useState('');
   const [saving, setSaving] = useState(false);
   const lockRef = useRef(false);
@@ -80,7 +81,8 @@ export default function AddServicesModal({ booking, onClose, onDone }) {
   const amountDue = quote && !quote.error ? quote.total : 0;
   const unavailable = quote?.availability?.unavailable || [];
   const cashNum = parseFloat(cash) || 0;
-  const canPay = hasSelection && quote && !quote.error && unavailable.length === 0 && cashNum >= amountDue && !saving && !quoting;
+  const canSave = hasSelection && quote && !quote.error && unavailable.length === 0 && !saving && !quoting;
+  const canPay = canSave && (paymentMode === 'pay_later' || cashNum >= amountDue);
 
   const setAddonQty = (svc, delta) => {
     setAddons((prev) => {
@@ -99,21 +101,32 @@ export default function AddServicesModal({ booking, onClose, onDone }) {
       const newItems = quote.lines
         .filter((l) => l.itemType !== 'FEE')
         .map((l) => ({ name: l.name.replace(/^Extra /, ''), quantity: l.quantity, unitPrice: l.unitPrice, serviceId: l.serviceId }));
-      const { receipt, addonAmount } = await addServicesToPaidBooking({
+      const { receipt, addonAmount, paymentMode: savedPaymentMode, newTotal, balanceDue } = await addServicesToPaidBooking({
         booking,
         newItems,
-        cashReceived: cashNum,
+        paymentMode,
+        cashReceived: paymentMode === 'pay_now' ? cashNum : 0,
         staffName: currentUser?.name,
         requestId: requestIdRef.current,
       });
-      if (print) window.print();
-      await showAlert({
-        title: 'Add-on Services Paid',
-        message: `${peso(addonAmount)} collected for the added services on ${booking.bookingRef} (${receipt.receiptNo}).`,
-        details: `Previously paid ${peso(alreadyPaid)} was NOT charged again. Change: ${peso(receipt.change)}. New booking total: ${peso(alreadyPaid + addonAmount)}.`,
-        type: 'success',
-      });
-      onDone && onDone(receipt);
+      if (savedPaymentMode === 'pay_now') {
+        onDone && onDone(receipt);
+        await showAlert({
+          title: 'Add-on Services Paid',
+          message: `${peso(addonAmount)} collected for the added services on ${booking.bookingRef} (${receipt.receiptNo}).`,
+          details: `New reservation total: ${peso(newTotal)}. Remaining balance: ${peso(balanceDue)}. Change: ${peso(receipt.change)}.`,
+          type: 'success',
+        });
+        if (print) window.print();
+      } else {
+        onDone && onDone(null);
+        await showAlert({
+          title: 'Services Added to Balance',
+          message: `${peso(addonAmount)} was added to reservation ${booking.bookingRef} and will be collected with the remaining balance before check-out.`,
+          details: `New reservation total: ${peso(newTotal)}. Balance due: ${peso(balanceDue)}.`,
+          type: 'success',
+        });
+      }
       onClose();
     } catch (err) {
       if (err.duplicate) {
@@ -218,33 +231,53 @@ export default function AddServicesModal({ booking, onClose, onDone }) {
               {unavailable.length > 0 && (
                 <div className="p-2 rounded-lg text-rose-300" style={{ background: 'rgba(239,68,68,0.12)' }}>⚠ {quote.availability.message}</div>
               )}
-              <div className="pt-2 flex justify-between text-[11px]" style={{ borderTop: '1px solid var(--line)', color: 'var(--muted)' }}><span>Already paid (not re-charged)</span><span className="font-mono">{peso(alreadyPaid)}</span></div>
-              <div className="flex justify-between items-center text-sm font-black"><span>AMOUNT DUE NOW</span><span className="font-mono text-lg" style={{ color: 'var(--accent)' }}>{peso(amountDue)}</span></div>
+              <div className="pt-2 flex justify-between text-[11px]" style={{ borderTop: '1px solid var(--line)', color: 'var(--muted)' }}><span>Paid before (not charged again)</span><span className="font-mono">{peso(alreadyPaid)}</span></div>
+              <div className="flex justify-between items-center text-sm font-black"><span>NEW SERVICES TOTAL</span><span className="font-mono text-lg" style={{ color: 'var(--accent)' }}>{peso(amountDue)}</span></div>
+              <div className="flex justify-between text-[11px]" style={{ color: 'var(--muted)' }}><span>Balance after adding services</span><span className="font-mono">{peso(Math.max(0, parseFloat(booking.balanceDue || 0) + amountDue))}</span></div>
             </div>
 
-            <div className="p-4 rounded-2xl space-y-2" style={panel}>
-              <label className="text-xs font-bold block">Cash Received (₱)</label>
-              <input type="number" min="0" value={cash} onChange={(e) => setCash(e.target.value)} placeholder={amountDue ? String(amountDue) : '0'} className="w-full rounded-xl px-3 py-2.5 font-mono font-bold text-base outline-none" style={{ background: isLight ? '#fff' : 'rgba(0,0,0,0.5)', border: '2px solid var(--line)', color: 'var(--text)' }} />
-              <div className="flex gap-1.5">
-                {[amountDue, Math.ceil(amountDue / 500) * 500, Math.ceil(amountDue / 1000) * 1000].filter((v, i, a) => v > 0 && a.indexOf(v) === i).map((v) => (
-                  <button key={v} type="button" onClick={() => setCash(String(v))} className="flex-1 py-1 rounded-lg text-[11px] font-mono font-bold cursor-pointer" style={{ border: '1px solid var(--line)', color: 'var(--accent)' }}>{peso(v)}</button>
-                ))}
-              </div>
-              {amountDue > 0 && (
-                <div className="flex justify-between text-xs font-bold pt-1">
-                  <span>{cashNum >= amountDue ? 'Change' : 'Still needed'}</span>
-                  <span className="font-mono" style={{ color: cashNum >= amountDue ? 'var(--accent)' : '#fbbf24' }}>{peso(Math.abs(cashNum - amountDue))}</span>
-                </div>
+            <div className="p-4 rounded-2xl space-y-3" style={panel}>
+              <span className="text-xs font-extrabold block">When should the client pay?</span>
+              <label className="flex gap-2 items-start text-xs cursor-pointer">
+                <input type="radio" name="addon-payment-mode" checked={paymentMode === 'pay_now'} onChange={() => setPaymentMode('pay_now')} />
+                <span><strong>Pay now</strong><span className="block" style={{ color: 'var(--muted)' }}>Collect payment for these added services now.</span></span>
+              </label>
+              <label className="flex gap-2 items-start text-xs cursor-pointer">
+                <input type="radio" name="addon-payment-mode" checked={paymentMode === 'pay_later'} onChange={() => setPaymentMode('pay_later')} />
+                <span><strong>Add to balance</strong><span className="block" style={{ color: 'var(--muted)' }}>Collect these charges with the remaining bill before check-out.</span></span>
+              </label>
+              {paymentMode === 'pay_now' && (
+                <>
+                  <label className="text-xs font-bold block">Cash Received (₱)</label>
+                  <input type="number" min="0" value={cash} onChange={(e) => setCash(e.target.value)} placeholder={amountDue ? String(amountDue) : '0'} className="w-full rounded-xl px-3 py-2.5 font-mono font-bold text-base outline-none" style={{ background: isLight ? '#fff' : 'rgba(0,0,0,0.5)', border: '2px solid var(--line)', color: 'var(--text)' }} />
+                  <div className="flex gap-1.5">
+                    {[amountDue, Math.ceil(amountDue / 500) * 500, Math.ceil(amountDue / 1000) * 1000].filter((v, i, a) => v > 0 && a.indexOf(v) === i).map((v) => (
+                      <button key={v} type="button" onClick={() => setCash(String(v))} className="flex-1 py-1 rounded-lg text-[11px] font-mono font-bold cursor-pointer" style={{ border: '1px solid var(--line)', color: 'var(--accent)' }}>{peso(v)}</button>
+                    ))}
+                  </div>
+                  {amountDue > 0 && (
+                    <div className="flex justify-between text-xs font-bold pt-1">
+                      <span>{cashNum >= amountDue ? 'Change' : 'Still needed'}</span>
+                      <span className="font-mono" style={{ color: cashNum >= amountDue ? 'var(--accent)' : '#fbbf24' }}>{peso(Math.abs(cashNum - amountDue))}</span>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-2">
               <button type="button" disabled={!canPay} onClick={() => handleConfirm(false)} className="py-3 rounded-xl text-white text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" style={{ background: '#16a34a' }}>
-                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Coins className="w-4 h-4" />} Collect &amp; Save
+                {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : paymentMode === 'pay_now' ? <Coins className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />} {paymentMode === 'pay_now' ? 'Collect & Save' : 'Add to Balance'}
               </button>
-              <button type="button" disabled={!canPay} onClick={() => handleConfirm(true)} className="py-3 rounded-xl text-white text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" style={{ background: '#166534' }}>
-                <Printer className="w-4 h-4" /> Collect &amp; Print
-              </button>
+              {paymentMode === 'pay_now' ? (
+                <button type="button" disabled={!canPay} onClick={() => handleConfirm(true)} className="py-3 rounded-xl text-white text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed" style={{ background: '#166534' }}>
+                  <Printer className="w-4 h-4" /> Collect &amp; Print
+                </button>
+              ) : (
+                <div className="text-[10px] flex items-center justify-center text-center" style={{ color: 'var(--muted)' }}>
+                  Full balance must be settled before check-out.
+                </div>
+              )}
             </div>
             <p className="text-[10px] text-center flex items-center justify-center gap-1" style={{ color: 'var(--muted)' }}><CheckCircle2 className="w-3 h-3" /> Only the new services are charged. The booking keeps its current status.</p>
           </div>

@@ -9,7 +9,7 @@ import VerticalReservationTimeline, { getStageIndex } from '../../../components/
 import { getPhilippineDateStr, getPhilippineTimeStr, getPhilippineFormattedDate } from '../../../utils/phTime';
 import AddServicesModal from '../../../components/AddServicesModal';
 import BookingBreakdown from '../../../components/BookingBreakdown';
-import { apiJson } from '../../../utils/catalog';
+import { apiJson, peso } from '../../../utils/catalog';
 import FacilityAssignmentModal from '../../../components/FacilityAssignmentModal';
 
 export default function ServiceOrdersTab() {
@@ -23,6 +23,7 @@ export default function ServiceOrdersTab() {
   const [stageFilter, setStageFilter] = useState('all');
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
   const paymentLockRef = useRef(false);
+  const [checkoutAfterPaymentRef, setCheckoutAfterPaymentRef] = useState(null);
   const [addServicesBooking, setAddServicesBooking] = useState(null);
   const [assignBooking, setAssignBooking] = useState(null);
   const isLight = theme === 'light';
@@ -118,7 +119,9 @@ export default function ServiceOrdersTab() {
         const due = balanceOf(booking);
         setCashReceivedInput(due ? String(due) : '');
         if (refreshAllLiveData) refreshAllLiveData();
+        return true;
       }
+      return false;
     } catch (err) {
       showAlert({
         title: 'Client Currently Being Assisted',
@@ -126,6 +129,7 @@ export default function ServiceOrdersTab() {
         type: 'warning'
       });
       if (refreshAllLiveData) refreshAllLiveData();
+      return false;
     }
   };
 
@@ -145,6 +149,7 @@ export default function ServiceOrdersTab() {
       if (refreshAllLiveData) refreshAllLiveData();
     }
     setSelectedBookingForPayment(null);
+    setCheckoutAfterPaymentRef(null);
   };
 
   const handleCancelBooking = async (booking) => {
@@ -175,14 +180,19 @@ export default function ServiceOrdersTab() {
 
   const handleConfirmCashPayment = async () => {
     if (!selectedBookingForPayment || paymentLockRef.current) return;
-    // Block paying a booking that is no longer pending (prevents double payment)
     const liveBooking = bookingsList.find(b => (b.id && b.id === selectedBookingForPayment.id) || (b.bookingRef && b.bookingRef === selectedBookingForPayment.bookingRef));
-    if (liveBooking && getStageIndex(liveBooking.status) !== 0) {
+    const paymentBooking = liveBooking || selectedBookingForPayment;
+    if (liveBooking && (getStageIndex(liveBooking.status) === 3 || isVoidedOrCancelled(liveBooking.status))) {
       setSelectedBookingForPayment(null);
-      return showAlert({ title: 'Already Paid', message: 'This booking has already been paid. The client was not charged again.', type: 'info' });
+      setCheckoutAfterPaymentRef(null);
+      return showAlert({ title: 'Reservation Closed', message: 'This reservation is already completed or cancelled and cannot accept a payment.', type: 'warning' });
     }
-    const totalDue = balanceOf(selectedBookingForPayment);
+    const totalDue = balanceOf(paymentBooking);
     const cashRec = parseFloat(cashReceivedInput) || 0;
+
+    if (totalDue <= 0) {
+      return showAlert({ title: 'Already Paid', message: 'This reservation has no remaining balance.', type: 'info' });
+    }
 
     if (cashRec < totalDue) {
       return showAlert({
@@ -195,30 +205,49 @@ export default function ServiceOrdersTab() {
     paymentLockRef.current = true;
     setIsSubmittingPayment(true);
     try {
-      const refCode = selectedBookingForPayment.bookingRef || selectedBookingForPayment.bookingNumber || `BK-${selectedBookingForPayment.id}`;
+      const refCode = paymentBooking.bookingRef || paymentBooking.bookingNumber || `BK-${paymentBooking.id}`;
       const changeAmt = Math.max(0, cashRec - totalDue);
 
       // Saved on the server (payments + revenue shares); marks the booking Paid when nothing is left owing
-      const res = await apiJson(`/reservations/${encodeURIComponent(selectedBookingForPayment.id || refCode)}/payments`, {
+      const res = await apiJson(`/reservations/${encodeURIComponent(paymentBooking.id || refCode)}/payments`, {
         method: 'POST',
         auth: true,
         body: { kind: 'BALANCE', cash_received: cashRec, staff_name: currentUser?.name || 'Staff Member' },
       });
       const paid = res.data;
+      const totalBookingAmount = Number(paid.amountPaid || 0) + Number(paid.balanceDue || 0);
+      let checkoutError = null;
+      if (checkoutAfterPaymentRef) {
+        try {
+          await apiJson(`/reservations/${encodeURIComponent(paymentBooking.id || refCode)}/status`, {
+            method: 'PATCH',
+            auth: true,
+            body: { status: 'Completed' },
+          });
+        } catch (err) {
+          checkoutError = err;
+        }
+      }
       const paymentRecord = {
-        items: [{ name: parseFloat(selectedBookingForPayment.amountPaid || 0) > 0 ? 'Balance payment' : (selectedBookingForPayment.packageName || selectedBookingForPayment.serviceName || 'Resort Reservation'), quantity: 1, price: paid.amount, unitPrice: paid.amount }],
+        items: Array.isArray(paymentBooking.items) && paymentBooking.items.length
+          ? paymentBooking.items
+          : [{ name: paymentBooking.packageName || paymentBooking.serviceName || 'Resort Reservation', quantity: 1, price: totalBookingAmount, unitPrice: totalBookingAmount }],
       };
 
       const receipt = {
         receiptNo: paid.receiptNo,
-        booking_id: selectedBookingForPayment.id,
-        userNumber: selectedBookingForPayment.userNumber || 'CLT-2026-901',
-        touristName: selectedBookingForPayment.clientName || selectedBookingForPayment.fullName || 'Guest',
-        touristContact: selectedBookingForPayment.contactNumber || '',
-        touristEmail: selectedBookingForPayment.clientEmail || '',
+        booking_id: paymentBooking.id,
+        bookingRef: refCode,
+        userNumber: paymentBooking.userNumber || 'CLT-2026-901',
+        touristName: paymentBooking.clientName || paymentBooking.fullName || 'Guest',
+        touristContact: paymentBooking.contactNumber || '',
+        touristEmail: paymentBooking.clientEmail || '',
         date: getPhilippineDateStr(),
         time: getPhilippineTimeStr(),
         grandTotal: paid.amount,
+        totalBookingAmount,
+        previouslyPaid: Math.max(0, Number(paid.amountPaid || 0) - Number(paid.amount || 0)),
+        balanceDue: paid.balanceDue,
         cashReceived: paid.cashReceived,
         change: paid.change,
         staffName: currentUser?.name || 'Staff Member',
@@ -226,14 +255,25 @@ export default function ServiceOrdersTab() {
       };
       setIssuedReceipt(receipt);
 
-      if (selectedTimelineBooking && (selectedTimelineBooking.id === selectedBookingForPayment.id || selectedTimelineBooking.bookingRef === refCode)) {
-        setSelectedTimelineBooking(prev => prev ? { ...prev, status: 'Paid' } : null);
+      if (checkoutAfterPaymentRef && !checkoutError) {
+        setSelectedTimelineBooking(prev => prev ? { ...prev, status: 'Completed' } : null);
+      } else if (selectedTimelineBooking && (selectedTimelineBooking.id === paymentBooking.id || selectedTimelineBooking.bookingRef === refCode)) {
+        setSelectedTimelineBooking(prev => prev ? { ...prev, status: paid.status } : null);
       }
 
       setSelectedBookingForPayment(null);
       setCashReceivedInput('');
+      setCheckoutAfterPaymentRef(null);
       if (refreshAllLiveData) {
         refreshAllLiveData();
+      }
+      if (checkoutError) {
+        showAlert({
+          title: 'Payment Saved — Check-out Not Completed',
+          message: 'The balance was paid and the receipt was issued, but the reservation could not be checked out.',
+          details: checkoutError.message,
+          type: 'warning',
+        });
       }
     } catch (err) {
       console.error('Payment confirmation error:', err);
@@ -261,19 +301,52 @@ export default function ServiceOrdersTab() {
         confirmText: 'YES, Check-In Guest'
       });
       if (!confirmed) return;
-      updateResortBookingStatus(targetId, 'Using Services');
-      setSelectedTimelineBooking(prev => prev ? { ...prev, status: 'Using Services' } : null);
+      try {
+        await apiJson(`/reservations/${encodeURIComponent(booking.id || targetId)}/status`, {
+          method: 'PATCH',
+          auth: true,
+          body: { status: 'Using Services' },
+        });
+        setSelectedTimelineBooking(prev => prev ? { ...prev, status: 'Using Services' } : null);
+        if (refreshAllLiveData) refreshAllLiveData();
+      } catch (err) {
+        showAlert({ title: 'Check-in Failed', message: err.message, type: 'danger' });
+      }
     } else if (actionType === 'mark_completed') {
+      const balanceDue = balanceOf(booking);
+      if (balanceDue > 0.009) {
+        const confirmed = await showConfirm({
+          title: 'Balance Due Before Check-out',
+          message: `${booking.clientName || 'The client'} must pay the remaining ${peso(balanceDue)} before check-out.`,
+          details: 'Collect the full balance now. The complete bill will be shown on the receipt.',
+          type: 'warning',
+          confirmText: 'Collect Balance',
+        });
+        if (!confirmed) return;
+        setCheckoutAfterPaymentRef(targetId);
+        const opened = await openPaymentModal(booking);
+        if (!opened) setCheckoutAfterPaymentRef(null);
+        return;
+      }
       const confirmed = await showConfirm({
-        title: 'Complete Stay',
-        message: `Mark stay as COMPLETED for ${booking.clientName || 'guest'} (${booking.bookingRef || targetId})?`,
+        title: 'Check Out Client',
+        message: `Check out ${booking.clientName || 'guest'} (${booking.bookingRef || targetId})?`,
         details: 'This will vacate rented cottages and release all amenities back to available inventory.',
         type: 'complete',
         confirmText: 'YES, Complete Stay'
       });
       if (!confirmed) return;
-      updateResortBookingStatus(targetId, 'Completed');
-      setSelectedTimelineBooking(prev => prev ? { ...prev, status: 'Completed' } : null);
+      try {
+        await apiJson(`/reservations/${encodeURIComponent(booking.id || targetId)}/status`, {
+          method: 'PATCH',
+          auth: true,
+          body: { status: 'Completed' },
+        });
+        setSelectedTimelineBooking(prev => prev ? { ...prev, status: 'Completed' } : null);
+        if (refreshAllLiveData) refreshAllLiveData();
+      } catch (err) {
+        showAlert({ title: 'Check-out Failed', message: err.message, type: 'danger' });
+      }
     }
   };
 
@@ -1052,7 +1125,10 @@ export default function ServiceOrdersTab() {
         <AddServicesModal
           booking={addServicesBooking}
           onClose={() => setAddServicesBooking(null)}
-          onDone={() => refreshAllLiveData && refreshAllLiveData()}
+          onDone={(receipt) => {
+            if (receipt) setIssuedReceipt(receipt);
+            if (refreshAllLiveData) refreshAllLiveData();
+          }}
         />
       )}
 
@@ -1086,26 +1162,44 @@ export default function ServiceOrdersTab() {
             </div>
 
             <div className="space-y-1.5 text-xs border-b border-dashed border-slate-300 pb-3">
-              {issuedReceipt.items.map((it, idx) => (
+              {(issuedReceipt.items || []).map((it, idx) => (
                 <div key={idx} className="flex justify-between">
                   <span>{it.name || it.serviceName} x{it.quantity || 1}</span>
-                  <strong>₱{(parseFloat(it.unitPrice || it.price || 0) * (it.quantity || 1)).toLocaleString()}.00</strong>
+                  <strong>₱{parseFloat(it.subtotal ?? (parseFloat(it.unitPrice || it.price || 0) * (it.quantity || 1))).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong>
                 </div>
               ))}
             </div>
 
             <div className="space-y-1 text-xs pt-1">
+              {issuedReceipt.totalBookingAmount !== undefined && (
+                <>
+                  <div className="flex justify-between font-bold">
+                    <span>FULL BILL TOTAL:</span>
+                    <span>₱{Number(issuedReceipt.totalBookingAmount).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-600">
+                    <span>Paid Before:</span>
+                    <span>₱{Number(issuedReceipt.previouslyPaid || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between text-base font-black text-slate-900">
-                <span>TOTAL PAID:</span>
-                <span>₱{issuedReceipt.grandTotal.toLocaleString()}.00</span>
+                <span>THIS PAYMENT:</span>
+                <span>₱{Number(issuedReceipt.grandTotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
               </div>
+              {issuedReceipt.balanceDue !== undefined && (
+                <div className="flex justify-between text-rose-700 font-bold">
+                  <span>Balance Remaining:</span>
+                  <span>₱{Number(issuedReceipt.balanceDue).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
               <div className="flex justify-between text-slate-600">
                 <span>Cash Received:</span>
-                <span>₱{issuedReceipt.cashReceived.toLocaleString()}.00</span>
+                <span>₱{Number(issuedReceipt.cashReceived || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
               </div>
               <div className="flex justify-between text-emerald-700 font-bold">
                 <span>Change Returned:</span>
-                <span>₱{issuedReceipt.change.toLocaleString()}.00</span>
+                <span>₱{Number(issuedReceipt.change || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
 
